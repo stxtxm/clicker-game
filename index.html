@@ -9,13 +9,13 @@
 <style>
 *,*:before,*:after{margin:0;padding:0;box-sizing:border-box}
 html,body{height:100%;overflow:hidden}
-:root{--p:#8bc34a;--pd:#4a7c59;--pl:#c8e6c8;--pg:rgba(139,195,74,.3);--a:#ff9800;--al:#ffc107;--ag:rgba(255,152,0,.3);--bg:#0f0f1a;--bgl:#0a0a14;--bc:rgba(20,40,20,.5);--bs:rgba(10,20,10,.6);--t:#f0f0f0;--tm:#888;--bo:rgba(139,195,74,.4);--boa:rgba(255,152,0,.4);--sh:0 4px 20px rgba(0,0,0,.5);--shs:0 2px 10px rgba(0,0,0,.3)}
+:root{--p:#8bc34a;--pd:#4a7c59;--pl:#c8e6c8;--pg:rgba(139,195,74,.3);--a:#ff9800;--al:#ffc107;--ag:rgba(255,152,0,.3);--bg:#0f0f1a;--bgl:#0a0a14;--bc:rgba(20,40,20,.5);--bs:rgba(10,20,10,.6);--t:#f0f0f0;--tm:#888;--bo:rgba(139,195,74,.4);--boa:rgba(255,152,0,.4);--sh:0 4px 20px rgba(0,0,0,.5);--shs:0 2px 10px rgba(0,0,0,.3);--sat:env(safe-area-inset-top);--sab:env(safe-area-inset-bottom)}
 body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;background:linear-gradient(180deg,var(--bg),var(--bgl));color:var(--t);padding:0;-webkit-font-smoothing:antialiased;touch-action:manipulation}
-.app{min-height:100vh;display:flex;flex-direction:column;max-width:100%}
-.header{padding:14px 16px 10px;text-align:center;background:linear-gradient(180deg,var(--bgl),var(--bg))}
+.app{height:100vh;height:100dvh;display:flex;flex-direction:column;max-width:100%;overflow:hidden}
+.header{padding:calc(14px + var(--sat)) 16px 10px;text-align:center;background:linear-gradient(180deg,var(--bgl),var(--bg))}
 .title{font-size:1.7rem;font-weight:800;color:var(--pl);text-shadow:0 2px 10px var(--pg);margin-bottom:4px;letter-spacing:-.5px}
 .subtitle{font-size:.9rem;color:var(--tm)}
-.main{flex:1;overflow-y:auto;padding-bottom:10px;-webkit-overflow-scrolling:touch}
+.main{flex:1 1 0%;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:calc(10px + var(--sab));-webkit-overflow-scrolling:touch}
 .bud-sec{padding:20px 16px;text-align:center;position:relative;overflow:hidden}
 .bud-cont{position:relative;width:100%;max-width:280px;height:280px;margin:0 auto;display:flex;justify-content:center;align-items:center;contain:strict}
 .bud-wrap{position:relative;width:100%;height:100%;display:flex;justify-content:center;align-items:center}
@@ -27,7 +27,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;bac
 .particle{position:absolute;font-size:1.2rem;font-weight:800;color:var(--al);pointer-events:none;z-index:10;animation:fu .45s cubic-bezier(.4,0,.2,1) forwards;text-shadow:0 0 12px rgba(255,193,7,.8);will-change:transform,opacity;transform-origin:center;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif}
 .bud-lvl{margin-top:14px;font-size:.9rem;color:var(--tm)}
 .bud-lvl .v{color:var(--pl);font-weight:800;font-size:1.1rem}
-.stats{padding:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;background:var(--bs);border-top:1px solid var(--bo);border-bottom:1px solid var(--bo)}
+.stats{position:sticky;top:0;z-index:40;padding:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;background:var(--bs);border-top:1px solid var(--bo);border-bottom:1px solid var(--bo);box-shadow:var(--sh);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .stat{text-align:center;padding:12px 6px;background:var(--bc);border-radius:12px;border:1px solid var(--bo);box-shadow:var(--shs);transition:transform .1s ease,box-shadow .1s ease}
 .stat:active{transform:scale(.98)}
 .sv{display:block;font-size:1.4rem;font-weight:800;color:var(--pl);line-height:1.1;text-shadow:0 2px 4px rgba(0,0,0,.3)}
@@ -39,7 +39,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;bac
 .sect.accent{color:var(--al)}
 .sect.primary{color:var(--pl)}
 .sg{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
-.sb{background:linear-gradient(135deg,rgba(255,152,0,.15),rgba(255,193,7,.1));border:2px solid var(--a);border-radius:14px;padding:14px 8px;text-align:center;cursor:pointer;transition:all .15s cubic-bezier(.4,0,.2,1);color:var(--al);will-change:transform,box-shadow,background;touch-action:manipulation;box-shadow:0 2px 8px var(--ag)}
+.sb{background:linear-gradient(135deg,rgba(255,152,0,.15),rgba(255,193,7,.1));border:2px solid var(--a);border-radius:14px;padding:14px 8px;min-height:64px;text-align:center;cursor:pointer;transition:all .15s cubic-bezier(.4,0,.2,1);color:var(--al);will-change:transform,box-shadow,background;touch-action:manipulation;box-shadow:0 2px 8px var(--ag)}
 .sb:hover:not(:disabled){background:linear-gradient(135deg,rgba(255,152,0,.25),rgba(255,193,7,.2));border-color:var(--al);transform:translateY(-3px);box-shadow:0 4px 12px var(--ag)}
 .sb:active:not(:disabled){transform:translateY(-1px);box-shadow:0 1px 4px var(--ag)}
 .sb:disabled{opacity:.4;cursor:not-allowed;border-color:#444;transform:none;box-shadow:none}
@@ -47,14 +47,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;bac
 .sb .pr{font-size:1.1rem;display:block;font-weight:800}
 .sb .st{font-size:.75rem;color:var(--tm);display:block;margin-top:2px}
 .ul{display:flex;flex-direction:column;gap:10px}
-.ui{background:var(--bc);border-radius:12px;padding:12px;display:flex;justify-content:space-between;align-items:center;border-left:4px solid var(--p);box-shadow:var(--shs);transition:all .15s cubic-bezier(.4,0,.2,1);will-change:transform,box-shadow;cursor:pointer}
+.ui{background:var(--bc);border-radius:12px;padding:12px;display:flex;justify-content:space-between;align-items:center;gap:8px;border-left:4px solid var(--p);box-shadow:var(--shs);transition:all .15s cubic-bezier(.4,0,.2,1);will-change:transform,box-shadow;cursor:pointer}
 .ui:hover{background:rgba(139,195,74,.1);transform:translateX(4px)}
 .ui:active{transform:translateX(2px)}
 .uii{flex:1;min-width:0}
 .un{font-size:.9rem;color:var(--t);font-weight:800;margin-bottom:2px;display:flex;align-items:center;gap:6px}
 .ud{font-size:.75rem;color:var(--tm)}
 .uc{color:var(--al);font-weight:800;font-size:.95rem;margin-right:8px;min-width:fit-content}
-.bb{background:linear-gradient(135deg,var(--pd),var(--p));color:#fff;border:none;padding:8px 14px;border-radius:8px;font-size:.8rem;font-weight:800;cursor:pointer;transition:all .15s cubic-bezier(.4,0,.2,1);white-space:nowrap;will-change:background,transform;box-shadow:0 2px 8px var(--pg);letter-spacing:.3px}
+.bb{background:linear-gradient(135deg,var(--pd),var(--p));color:#fff;border:none;padding:10px 14px;min-height:44px;border-radius:8px;font-size:.8rem;font-weight:800;cursor:pointer;transition:all .15s cubic-bezier(.4,0,.2,1);white-space:nowrap;will-change:background,transform;box-shadow:0 2px 8px var(--pg);letter-spacing:.3px}
 .bb:hover:not(:disabled){background:linear-gradient(135deg,var(--p),#a0d8a0);transform:scale(1.03);box-shadow:0 4px 12px var(--pg)}
 .bb:active:not(:disabled){transform:scale(.97);box-shadow:0 1px 4px var(--pg)}
 .bb:disabled{background:#333;color:#666;cursor:not-allowed;opacity:.5;transform:none;box-shadow:none}
@@ -65,7 +65,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;bac
 @keyframes mo{from{opacity:1;transform:translateY(0) scale(1)}to{opacity:0;transform:translateY(-15px) scale(.95)}}
 .bud-svg,.sb,.bb,.stat,.ui{-webkit-touch-callout:none;-webkit-user-select:none;-khtml-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none}
 .bud-cont,.bud-wrap,.particle,.ms{backface-visibility:hidden;-webkit-backface-visibility:hidden}
-@media (min-width:400px){.bud-cont{max-width:300px;height:300px}.bud-svg{max-width:280px}.title{font-size:1.9rem}.sv{font-size:1.6rem}.sb{padding:16px 10px}.sb .n{font-size:1rem}.sb .pr{font-size:1.2rem}}@media (min-width:600px){.app{max-width:600px;margin:0 auto;box-shadow:0 0 40px rgba(0,0,0,.5)}.header{padding:20px 24px 14px}.title{font-size:2.2rem}.subtitle{font-size:1rem}.bud-sec{padding:28px 24px}.sections{padding:20px 24px}.stats{padding:20px 24px}.sv{font-size:1.8rem}.ui{padding:14px 16px}.bb{padding:10px 18px;font-size:.85rem}}
+@media (min-width:400px){.bud-cont{max-width:300px;height:300px}.bud-svg{max-width:280px}.title{font-size:1.9rem}.sv{font-size:1.6rem}.sb{padding:16px 10px}.sb .n{font-size:1rem}.sb .pr{font-size:1.2rem}}@media (min-width:600px){.app{max-width:600px;margin:0 auto;box-shadow:0 0 40px rgba(0,0,0,.5)}.header{padding:20px 24px 14px}.title{font-size:2.2rem}.subtitle{font-size:1rem}.bud-sec{padding:28px 24px}.sections{padding:20px 24px}.stats{padding:20px 24px}.sv{font-size:1.8rem}.ui{padding:14px 16px}.bb{padding:10px 18px;font-size:.85rem}}@media (max-height:640px) and (max-width:640px){.bud-cont{height:200px;max-width:200px}.bud-svg{max-width:190px}.bud-sec{padding:10px 16px}.header{padding-top:calc(8px + var(--sat))}.title{font-size:1.3rem}.stats{padding:10px}.sv{font-size:1.2rem}}
 </style>
 </head>
 <body>
@@ -210,7 +210,6 @@ function ap(){const ar=s.levels.auto+(s.levels.crew*10);if(ar>0){const pc=s.leve
 function sm(t){const m=document.createElement('div');m.className='ms';m.textContent=t;mc.appendChild(m);setTimeout(()=>m.remove(),2500)}
 function sg(){localStorage.setItem('budClicker',JSON.stringify(s))}
 function lg(){const d=localStorage.getItem('budClicker');if(d)Object.assign(s,JSON.parse(d))}
-document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
 lg();setInterval(ap,1000);setInterval(sg,10000);ud();setTimeout(()=>sm('Clique sur le bud !'),500);
 </script>
 </body>
