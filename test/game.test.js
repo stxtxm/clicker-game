@@ -31,27 +31,27 @@ test('mulberry32 is deterministic and seed-sensitive', () => {
   assert.notDeepStrictEqual(seq1, Array.from({ length: 20 }, () => r3()));
 });
 
-test('perClick: base + expert + turbo + mega', () => {
+test('perClick: base + expert + turbo + mega, scaled by level multiplier', () => {
   const s = Game.defaultState();
-  assert.strictEqual(Game.perClick(s), 1);
+  assert.strictEqual(Game.perClick(s), 1);       // level 1 -> x1.1, rounds to 1
   s.levels.harvest = 3;
-  assert.strictEqual(Game.perClick(s), 3);
-  s.levels.expert = 2;                       // +5 each
-  assert.strictEqual(Game.perClick(s), 13);
-  s.levels.turbo = 1;                        // x2 clicks
-  assert.strictEqual(Game.perClick(s), 26);
-  s.levels.mega = 1;                         // x2 everything
-  assert.strictEqual(Game.perClick(s), 52);
+  assert.strictEqual(Game.perClick(s), 3);       // 3 * 1.1 = 3.3 -> 3
+  s.levels.expert = 2;                           // +5 each
+  assert.strictEqual(Game.perClick(s), 14);      // 13 * 1.1 = 14.3 -> 14
+  s.levels.turbo = 1;                            // x2 clicks
+  assert.strictEqual(Game.perClick(s), 29);      // 26 * 1.1 = 28.6 -> 29
+  s.levels.mega = 1;                             // x2 everything
+  assert.strictEqual(Game.perClick(s), 57);      // 52 * 1.1 = 57.2 -> 57
   assert.strictEqual(Game.perClick(Game.defaultState()), 1);
 });
 
-test('perSecond: auto + crew', () => {
+test('perSecond: auto + crew, scaled by level multiplier', () => {
   const s = Game.defaultState();
   assert.strictEqual(Game.perSecond(s), 0);
   s.levels.auto = 1;
-  assert.strictEqual(Game.perSecond(s), 1);
+  assert.strictEqual(Game.perSecond(s), 1);      // 1 * 1.1 = 1.1 -> 1
   s.levels.crew = 2;
-  assert.strictEqual(Game.perSecond(s), 21);
+  assert.strictEqual(Game.perSecond(s), 23);     // 21 * 1.1 = 23.1 -> 23
 });
 
 test('upgradeCost doubles with level', () => {
@@ -107,9 +107,10 @@ test('equipStrain: unknown id', () => {
   assert.strictEqual(res.reason, 'unknown');
 });
 
-test('equipStrain: buying unlocks and equips', () => {
+test('equipStrain: buying unlocks and equips (level gate satisfied)', () => {
   const s = Game.defaultState();
   s.money = 1500;
+  s.xp = 600;                                    // level 4 >= unlock 3
   const res = Game.equipStrain(s, 'purple');
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.justUnlocked, true);
@@ -119,9 +120,20 @@ test('equipStrain: buying unlocks and equips', () => {
   assert.strictEqual(s.strain, 'purple');
 });
 
+test('equipStrain: level gate blocks purchase below required level', () => {
+  const s = Game.defaultState();
+  s.money = 100000;
+  const res = Game.equipStrain(s, 'purple');     // needs level 3
+  assert.strictEqual(res.ok, false);
+  assert.strictEqual(res.reason, 'level');
+  assert.strictEqual(s.strain, 'green');
+  assert.deepStrictEqual(s.stock.strains, ['green']);
+});
+
 test('equipStrain: not enough money', () => {
   const s = Game.defaultState();
   s.money = 10;
+  s.xp = 600;                                    // passes the level gate
   const res = Game.equipStrain(s, 'purple');
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'funds');
@@ -191,8 +203,122 @@ test('data catalog is coherent', () => {
     assert.ok(st.id && st.name && st.icon && Array.isArray(st.d));
     assert.ok(Game.getStrain(st.id) === st);
     assert.ok(st.cost >= 0);
+    assert.ok(st.unlock >= 1);
     for (const key of ['d', 'm', 'l', 'f']) {
       assert.ok(Array.isArray(st[key]) && st[key].length === 2);
     }
   }
+});
+
+test('level curve: quadratic XP thresholds', () => {
+  assert.strictEqual(Game.xpForLevel(1), 0);
+  assert.strictEqual(Game.xpForLevel(2), 60);
+  assert.strictEqual(Game.xpForLevel(3), 240);
+  assert.strictEqual(Game.xpForLevel(4), 540);
+  assert.strictEqual(Game.levelFromXp(0), 1);
+  assert.strictEqual(Game.levelFromXp(59), 1);
+  assert.strictEqual(Game.levelFromXp(60), 2);
+  assert.strictEqual(Game.levelFromXp(239), 2);
+  assert.strictEqual(Game.levelFromXp(240), 3);
+});
+
+test('xpProgress reports level, progress and XP needed', () => {
+  const p = Game.xpProgress(120);
+  assert.strictEqual(p.level, 2);        // xpForLevel(2)=60, xpForLevel(3)=240
+  assert.strictEqual(p.current, 60);
+  assert.strictEqual(p.needed, 180);
+});
+
+test('earnXp levels up and reports milestones', () => {
+  const s = Game.defaultState();
+  let r = Game.earnXp(s, 100);
+  assert.strictEqual(s.xp, 100);
+  assert.strictEqual(r.leveledUp, true);      // 0 -> level 2
+  assert.strictEqual(r.level, 2);
+  assert.deepStrictEqual(r.milestones.map((m) => m.id), ['m1']); // 100 XP milestone
+  assert.deepStrictEqual(s.milestones, ['m1']);
+  r = Game.earnXp(s, 30);                     // 130 XP, still level 2
+  assert.strictEqual(r.leveledUp, false);
+  assert.deepStrictEqual(r.milestones, []);
+});
+
+test('checkMilestones awards only once', () => {
+  const s = Game.defaultState();
+  s.xp = 1500;
+  assert.deepStrictEqual(Game.checkMilestones(s).map((m) => m.id), ['m1', 'm2']);
+  assert.deepStrictEqual(Game.checkMilestones(s), []);
+});
+
+test('productionMult composes level, strains, genomes and milestones', () => {
+  const s = Game.defaultState();
+  assert.strictEqual(Game.productionMult(s), 1.1);            // level 1 -> +10%
+  s.xp = 240;                                                 // level 3 -> +30%
+  assert.ok(Math.abs(Game.productionMult(s) - 1.3) < 1e-9);
+  s.stock.strains = ['green', 'purple'];                      // +5% second strain
+  assert.ok(Math.abs(Game.productionMult(s) - 1.365) < 1e-9);
+  s.genomes = 2;                                              // +25% each
+  assert.ok(Math.abs(Game.productionMult(s) - 2.0475) < 1e-9);
+  s.milestones = ['m1'];                                      // +5%
+  assert.ok(Math.abs(Game.productionMult(s) - 2.149875) < 1e-9);
+});
+
+test('perClick/perSecond scale with level and prestige', () => {
+  const s = Game.defaultState();
+  s.levels.harvest = 5;
+  const base = 5 * 1.1;
+  assert.strictEqual(Game.perClick(s), Math.round(base));
+  s.xp = 600;                                                 // level 4 -> x1.4
+  s.genomes = 1;                                              // x1.25
+  assert.strictEqual(Game.perClick(s), Math.round(5 * 1.4 * 1.25));
+});
+
+test('prestige: gated by XP, banks genomes, resets purchases', () => {
+  const s = Game.defaultState();
+  assert.strictEqual(Game.canPrestige(s), false);
+  s.xp = 9000;
+  assert.strictEqual(Game.prestigeGain(s), 0);
+  assert.strictEqual(Game.canPrestige(s), false);
+  const before = Game.prestige(s);
+  assert.strictEqual(before.ok, false);
+
+  s.xp = 10000;                                               // first prestige
+  assert.strictEqual(Game.prestigeGain(s), 1);
+  s.money = 50000;
+  s.points = 1234;
+  s.stock = { main: 50, premium: 2, strains: ['green', 'blue'] };
+  s.levels.harvest = 6;
+  const res = Game.prestige(s);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.gain, 1);
+  assert.strictEqual(s.genomes, 1);
+  assert.strictEqual(s.money, 0);
+  assert.strictEqual(s.points, 0);
+  assert.strictEqual(s.stock.main, 0);
+  assert.strictEqual(s.stock.premium, 0);
+  assert.deepStrictEqual(s.stock.strains, ['green', 'blue']); // strains kept
+  assert.strictEqual(s.xp, 10000);                            // XP kept
+  assert.strictEqual(s.levels.harvest, 1);
+  assert.strictEqual(s.strain, 'green');
+
+  // second prestige needs 4x XP for +1 (sqrt curve)
+  s.xp = 40000;
+  assert.strictEqual(Game.prestigeGain(s), 2);
+});
+
+test('deserialize: old saves get default progression fields', () => {
+  const loaded = Game.deserialize('{"points":42,"money":5}');
+  assert.strictEqual(loaded.xp, 0);
+  assert.strictEqual(loaded.genomes, 0);
+  assert.strictEqual(loaded.totalEarned, 0);
+  assert.deepStrictEqual(loaded.milestones, []);
+});
+
+test('deserialize: sanitizes bad progression fields', () => {
+  const loaded = Game.deserialize(JSON.stringify({
+    xp: -3, genomes: 'x', milestones: ['m1', 'nope'], totalEarned: 12.5
+  }));
+  assert.strictEqual(loaded.xp, 0);
+  assert.strictEqual(loaded.genomes, 0);
+  assert.strictEqual(loaded.totalEarned, 12.5);
+  assert.deepStrictEqual(loaded.milestones, ['m1']); // valid id kept, bogus dropped
 });

@@ -28,7 +28,7 @@ button:focus{outline:none}
 .brand{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .title{font-size:1.45rem;font-weight:800;letter-spacing:.5px;background:linear-gradient(90deg,var(--green-soft),var(--green));-webkit-background-clip:text;background-clip:text;color:transparent}
 .subtitle{font-size:.78rem;color:var(--muted)}
-.stats-bar{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stats-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .stat{display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 6px}
 .stat b{font-size:1.15rem;font-weight:800;color:var(--green-soft);line-height:1.1;transition:transform .15s}
 .stat.money b{color:var(--gold)}
@@ -97,7 +97,7 @@ button:focus{outline:none}
 .up-buy .bb:disabled{background:#2a2a2a;color:#666;cursor:not-allowed;box-shadow:none}
 
 /* ===== Bottom nav (mobile) ===== */
-.bottom-nav{display:grid;grid-template-columns:repeat(4,1fr);background:rgba(15,21,15,.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:6px 8px calc(6px + var(--sab))}
+.bottom-nav{display:grid;grid-template-columns:repeat(5,1fr);background:rgba(15,21,15,.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:6px 8px calc(6px + var(--sab))}
 .tab-btn{display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;border:none;padding:8px 4px;border-radius:12px;font-size:.95rem;color:var(--muted);cursor:pointer;transition:all .15s;position:relative}
 .tab-btn span{font-size:.62rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
 .tab-btn.active{color:var(--green-soft)}
@@ -117,6 +117,37 @@ button:focus{outline:none}
 .st-buy{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0}
 .st-cost{font-size:.95rem;font-weight:800;color:var(--gold)}
 .st-ok{font-size:.68rem;font-weight:800;color:var(--green-soft)}
+.st-lock{font-size:.7rem;font-weight:700;color:var(--muted);opacity:.85;white-space:nowrap}
+.strain.locked{opacity:.55;border-left-color:#444}
+
+/* ===== Progression view ===== */
+.xp-card{background:linear-gradient(135deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px}
+.xp-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.xp-top b{font-size:1.05rem;color:var(--green-soft)}
+.xp-top span{font-size:.82rem;font-weight:800;color:var(--gold)}
+.xp-bar{height:12px;background:#0a0e0a;border:1px solid var(--border);border-radius:999px;overflow:hidden}
+.xp-fill{height:100%;background:linear-gradient(90deg,var(--green-dim),var(--green));border-radius:999px;transition:width .3s cubic-bezier(.4,0,.2,1);min-width:0}
+.xp-bottom{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-top:6px}
+.prestige-card{background:linear-gradient(135deg,rgba(255,193,7,.07),var(--panel2));border:1px solid rgba(255,193,7,.3);border-radius:14px;padding:14px;margin-bottom:18px}
+.pc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.pc-title{font-weight:800;color:var(--gold-soft)}
+.pc-gain{font-size:1.35rem;font-weight:800;color:var(--gold)}
+.pc-desc{font-size:.78rem;color:var(--muted);line-height:1.45;margin-bottom:10px}
+.pc-desc b{color:var(--gold-soft)}
+.pc-progress{font-size:.72rem;color:var(--muted);margin-bottom:8px;text-align:center}
+.prestige-btn{background:linear-gradient(135deg,#b8860b,var(--gold));color:#1a1200}
+.prestige-btn:disabled{background:#2a2a2a;color:#666}
+.panel-head.sub{margin-top:4px}
+.milestones{display:flex;flex-direction:column;gap:8px}
+.ms-item{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:12px;padding:10px 12px;opacity:.55}
+.ms-item.done{opacity:1;border-color:var(--border2)}
+.ms-icon{font-size:1.3rem;flex-shrink:0}
+.ms-info{flex:1;min-width:0}
+.ms-name{font-size:.85rem;font-weight:800}
+.ms-badge{background:var(--gold);color:#1a1200;padding:1px 6px;border-radius:999px;font-size:.6rem;font-weight:800;margin-left:4px}
+.ms-bar{height:6px;background:#0a0e0a;border-radius:999px;margin-top:5px;overflow:hidden}
+.ms-fill{height:100%;background:var(--green);border-radius:999px;transition:width .3s}
+.ms-xp{font-size:.7rem;color:var(--muted);flex-shrink:0}
 
 /* ===== Toasts ===== */
 .mc{position:fixed;top:calc(8px + var(--sat));left:0;right:0;pointer-events:none;z-index:1000;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 20px}
@@ -136,8 +167,8 @@ button:focus{outline:none}
   .layout{flex-direction:row}
   .view-harvest{flex:1 1 50%;border-right:1px solid var(--border);display:flex;overflow-y:auto}
   .shop{flex:1 1 50%;min-width:0;display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain;padding:30px 34px}
-  .view-sell,.view-upgrades,.view-strains{display:flex;flex:0 0 auto;overflow:visible;padding:0}
-  .view-sell,.view-strains{margin-bottom:30px}
+  .view-sell,.view-upgrades,.view-strains,.view-progress{display:flex;flex:0 0 auto;overflow:visible;padding:0}
+  .view-sell,.view-strains,.view-progress{margin-bottom:30px}
   .bud-cont{width:min(38vh,360px)}
   .bottom-nav{display:none}
   .bud-stage{gap:20px}
@@ -146,6 +177,7 @@ button:focus{outline:none}
   .upgrades{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .upgrade{padding:14px}
   .strains{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .milestones{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .sell-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .sell-all{max-width:100%}
 }
@@ -166,6 +198,7 @@ button:focus{outline:none}
   <div class="stats-bar">
     <div class="stat"><b id="p">0</b><span>Points</span></div>
     <div class="stat"><b id="ar">+0</b><span>/sec</span></div>
+    <div class="stat"><b id="lv">1</b><span>Niveau</span></div>
     <div class="stat money"><b id="m">$0</b><span>Argent</span></div>
   </div>
 </header>
@@ -214,6 +247,27 @@ button:focus{outline:none}
     <div class="panel-head"><h2>Variétés</h2><p>Choisis la génétique de ta culture</p></div>
     <div class="strains" id="sv"></div>
   </section>
+
+  <!-- Progression -->
+  <section class="view view-progress" id="v-progress">
+    <div class="panel-head"><h2>Progression</h2><p>Niveau, jalons et génomes</p></div>
+
+    <div class="xp-card">
+      <div class="xp-top"><b id="xplv">Niveau 1</b><span id="xpmult">x1.00</span></div>
+      <div class="xp-bar"><div class="xp-fill" id="xpf"></div></div>
+      <div class="xp-bottom"><span id="xpcur">0</span><span id="xpnext">/ 60 XP</span></div>
+    </div>
+
+    <div class="prestige-card">
+      <div class="pc-top"><span class="pc-title">🧬 Nouvelle génération</span><span class="pc-gain" id="pg">+0</span></div>
+      <p class="pc-desc">Réinitialise argent et upgrades, conserve variétés, niveau et jalons, et gagne <b>+25% de production permanent</b> par génome.</p>
+      <div class="pc-progress" id="pdist">0 / 10 000 XP</div>
+      <button class="sell-all prestige-btn" id="pb" disabled>Recycler la récolte</button>
+    </div>
+
+    <div class="panel-head sub"><h2>Jalons</h2><p>Bonus permanents sur ta production totale</p></div>
+    <div class="milestones" id="ms"></div>
+  </section>
   </div>
 
 </main>
@@ -223,6 +277,7 @@ button:focus{outline:none}
   <button class="tab-btn" data-tab="sell"><span>💰</span><span>Vendre</span></button>
   <button class="tab-btn" data-tab="upgrades"><span>🚀</span><span>Upgrades</span></button>
   <button class="tab-btn" data-tab="strains"><span>🌱</span><span>Variétés</span></button>
+  <button class="tab-btn" data-tab="progress"><span>📈</span><span>Progression</span></button>
 </nav>
 </div>
 

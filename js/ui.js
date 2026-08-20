@@ -21,6 +21,7 @@
     p: document.getElementById('p'),
     m: document.getElementById('m'),
     ar: document.getElementById('ar'),
+    lv: document.getElementById('lv'),
     hl: document.getElementById('hl'),
     stm: document.getElementById('stm'),
     stp: document.getElementById('stp'),
@@ -33,7 +34,16 @@
     mc: document.getElementById('mc'),
     bs: document.getElementById('bs'),
     ug: document.getElementById('ug'),
-    sv: document.getElementById('sv')
+    sv: document.getElementById('sv'),
+    xplv: document.getElementById('xplv'),
+    xpmult: document.getElementById('xpmult'),
+    xpf: document.getElementById('xpf'),
+    xpcur: document.getElementById('xpcur'),
+    xpnext: document.getElementById('xpnext'),
+    pg: document.getElementById('pg'),
+    pb: document.getElementById('pb'),
+    pdist: document.getElementById('pdist'),
+    ms: document.getElementById('ms')
   };
 
   let state = Game.defaultState();
@@ -91,19 +101,24 @@
 
   function renderStrains() {
     el.sv.innerHTML = '';
+    const level = Game.levelFromXp(state.xp);
     for (const st of Game.STRAINS) {
       const owned = state.stock.strains.includes(st.id);
       const equipped = state.strain === st.id;
+      const locked = !owned && level < st.unlock;
       const card = document.createElement('div');
-      card.className = 'strain' + (owned ? ' owned' : '');
+      card.className = 'strain' + (owned ? ' owned' : '') + (locked ? ' locked' : '');
       card.innerHTML =
         '<span class="st-icon">' + st.icon + '</span>' +
         '<div class="st-info"><div class="st-name">' + st.name +
           (equipped ? ' <span class="st-badge">Équipée</span>' : '') + '</div>' +
           '<div class="st-desc">' + st.desc + '</div></div>' +
         '<div class="st-buy">' +
-          '<span class="st-cost">' + (owned ? '' : '$' + fmt(st.cost)) + '</span>' +
+          (owned ? ''
+            : locked ? '<span class="st-lock">🔒 Niveau ' + st.unlock + '</span>'
+            : '<span class="st-cost">$' + fmt(st.cost) + '</span>') +
           (owned ? '<span class="st-ok">Possédée</span>'
+                 : locked ? ''
                  : '<button class="bb" id="sb-' + st.id + '">Acheter</button>') +
         '</div>';
       card.addEventListener('click', () => equipStrain(st.id));
@@ -115,6 +130,42 @@
         });
       }
       el.sv.appendChild(card);
+    }
+  }
+
+  /** Render the progression panel: level/XP bar, prestige, milestones. */
+  function renderProgress() {
+    const prog = Game.xpProgress(state.xp);
+    const mult = Game.productionMult(state);
+    el.lv.textContent = prog.level;
+    el.xplv.textContent = 'Niveau ' + prog.level;
+    el.xpmult.textContent = 'x' + mult.toFixed(2);
+    const pct = prog.needed > 0 ? Math.min(100, Math.round((prog.current / prog.needed) * 100)) : 100;
+    el.xpf.style.width = pct + '%';
+    el.xpcur.textContent = fmt(prog.current);
+    el.xpnext.textContent = ' / ' + fmt(prog.needed) + ' XP';
+
+    const gain = Game.prestigeGain(state);
+    const can = Game.canPrestige(state);
+    el.pg.textContent = '+' + gain;
+    el.pb.disabled = !can;
+    el.pdist.textContent = can
+      ? 'Prêt ! ' + fmt(state.xp) + ' XP'
+      : fmt(state.xp) + ' / ' + fmt(Game.PRESTIGE_BASE) + ' XP';
+
+    el.ms.innerHTML = '';
+    for (const mi of Game.MILESTONES) {
+      const done = state.milestones.includes(mi.id);
+      const item = document.createElement('div');
+      item.className = 'ms-item' + (done ? ' done' : '');
+      const pct2 = Math.min(100, Math.round((state.xp / mi.xp) * 100));
+      item.innerHTML =
+        '<span class="ms-icon">' + mi.icon + '</span>' +
+        '<div class="ms-info"><div class="ms-name">' + mi.name +
+          (done ? ' <span class="ms-badge">+' + mi.bonus + '%</span>' : '') + '</div>' +
+          '<div class="ms-bar"><div class="ms-fill" style="width:' + pct2 + '%"></div></div></div>' +
+        '<span class="ms-xp">' + (done ? '✓' : fmt(mi.xp) + ' XP') + '</span>';
+      el.ms.appendChild(item);
     }
   }
 
@@ -144,8 +195,11 @@
     document.querySelectorAll('[id^="sb-"]').forEach((b) => {
       const id = b.id.slice(3);
       const st = Game.getStrain(id);
-      if (st && !state.stock.strains.includes(id)) b.disabled = state.money < st.cost;
+      if (st && !state.stock.strains.includes(id)) {
+        b.disabled = Game.levelFromXp(state.xp) < st.unlock || state.money < st.cost;
+      }
     });
+    renderProgress();
   }
 
   // --- game actions ----------------------------------------------------------
@@ -155,6 +209,7 @@
     const ac = Game.perClick(state);
     state.points += ac;
     state.stock.main += ac;
+    const xp = Game.earnXp(state, ac);
     el.bs.classList.add('pulse-active');
     setTimeout(() => el.bs.classList.remove('pulse-active'), 280);
     let x = 50, y = 45;
@@ -167,6 +222,14 @@
     refreshStats();
     popNum(el.p);
     save();
+    if (xp.leveledUp) {
+      toast('Niveau ' + xp.level + ' !');
+      const st = Game.STRAINS.find((x2) => x2.unlock === xp.level && !state.stock.strains.includes(x2.id));
+      if (st) setTimeout(() => toast(st.name + ' débloquée ! 🎉'), 600);
+    }
+    for (const mi of xp.milestones) {
+      toast(mi.icon + ' Jalon : ' + mi.name + ' (+' + mi.bonus + '%)');
+    }
   }
 
   function spawnParticle(text, x, y) {
@@ -183,6 +246,7 @@
     const gain = Game.sellStock(state, type);
     if (gain > 0) {
       state.money += gain;
+      state.totalEarned = (state.totalEarned || 0) + gain;
       toast('+$' + fmt(gain));
       popNum(el.m);
     }
@@ -206,6 +270,10 @@
     const res = Game.equipStrain(state, id);
     if (!res.ok) {
       if (res.reason === 'funds') toast('Pas assez d\'argent');
+      else if (res.reason === 'level') {
+        const st = Game.getStrain(id);
+        toast('Niveau ' + (st ? st.unlock : '?') + ' requis');
+      }
       return;
     }
     if (res.justUnlocked) {
@@ -224,6 +292,7 @@
     if (ar > 0) {
       state.points += ar;
       state.stock.main += ar;
+      Game.earnXp(state, ar);
     }
     if (state.stock.main > 10 && Math.random() < Game.PREMIUM_DROP_CHANCE) {
       state.stock.main -= Game.PREMIUM_DROP_COST;
@@ -264,6 +333,21 @@
   el.sa.addEventListener('click', () => onSell('all'));
   document.querySelectorAll('.tab-btn').forEach((b) =>
     b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+  el.pb.addEventListener('click', () => {
+    const res = Game.prestige(state);
+    if (!res.ok) {
+      toast('Pas encore assez de XP pour recycler');
+      return;
+    }
+    toast('Nouvelle génération : +' + res.gain + ' génome' + (res.gain > 1 ? 's' : '') + ' 🧬');
+    renderBud();
+    renderUpgrades();
+    renderStrains();
+    renderProgress();
+    refreshStats();
+    save();
+  });
 
   // Space bar = harvest (desktop), unless a button has focus.
   document.addEventListener('keydown', (ev) => {

@@ -17,7 +17,11 @@
  *     strain: string,                    // currently equipped strain id
  *     stock:  { main, premium, strains[] },
  *     prices: { main, premium },         // sell price per unit
- *     levels: { harvest, auto, expert, crew, turbo, mega }
+*   levels: { harvest, auto, expert, crew, turbo, mega },
+ *     xp: number,                         // lifetime XP (= total buds ever harvested)
+ *     genomes: number,                    // prestige currency, +25% production each
+ *     milestones: string[],               // awarded milestone ids
+ *     totalEarned: number                 // lifetime cash earned
  *   }
  */
 (function (root, factory) {
@@ -44,18 +48,19 @@
    *   vein, stroke — leaf vein + outline colors
    *   pistil / pistil2 — hair colors
    *   frost — frost intensity multiplier (drives trichome count / frost veil)
+   *   unlock — player level required to buy the strain
    */
   const STRAINS = [
-    { id: 'green',  name: 'Green Dream', icon: '🌿', cost: 0,     desc: 'La classique, résineuse et généreuse',
+    { id: 'green',  name: 'Green Dream', icon: '🌿', cost: 0,     unlock: 1,  desc: 'La classique, résineuse et généreuse',
       d: ['#3f6d2c', '#1b3b13'], m: ['#5f8f3c', '#2c521f'], l: ['#a8d172', '#4c7a2e'], f: ['#d3eaa2', '#7fae48'],
       vein: '#173012', stroke: '#102a0c', pistil: '#ff8c00', pistil2: '#ff9d1f', frost: 1 },
-    { id: 'purple', name: 'Purple Haze', icon: '🟣', cost: 1500, desc: 'Notes violettes et sucrées',
+    { id: 'purple', name: 'Purple Haze', icon: '🟣', cost: 1500, unlock: 3,  desc: 'Notes violettes et sucrées',
       d: ['#4a2f6e', '#241243'], m: ['#6a3fa0', '#341a58'], l: ['#a06fd0', '#5c2f8a'], f: ['#cfa8ee', '#8a55c0'],
       vein: '#1c0f38', stroke: '#150a2c', pistil: '#ffab2e', pistil2: '#ffc46e', frost: 1.25 },
-    { id: 'blue',   name: 'Blue Frost',  icon: '💠', cost: 8000, desc: 'Givrée bleutée, très cristalline',
+    { id: 'blue',   name: 'Blue Frost',  icon: '💠', cost: 8000, unlock: 6,  desc: 'Givrée bleutée, très cristalline',
       d: ['#1f4a5a', '#0d2630'], m: ['#2e6f8f', '#163b4d'], l: ['#5fa8cf', '#2f6d8f'], f: ['#a8d8ee', '#5f9fcf'],
       vein: '#0c2230', stroke: '#081a24', pistil: '#ffffff', pistil2: '#d8f0ff', frost: 1.7 },
-    { id: 'pink',   name: 'Pink Kush',   icon: '🌸', cost: 25000, desc: 'Pistils rosés, calyx denses',
+    { id: 'pink',   name: 'Pink Kush',   icon: '🌸', cost: 25000, unlock: 10, desc: 'Pistils rosés, calyx denses',
       d: ['#6e2f4a', '#3a1730'], m: ['#8f3f6a', '#4a1f3a'], l: ['#d06fa8', '#8a3f66'], f: ['#eea8cf', '#b06f98'],
       vein: '#351028', stroke: '#280c1e', pistil: '#ff6f9d', pistil2: '#ffb3cc', frost: 1.4 }
   ];
@@ -70,6 +75,105 @@
   const PREMIUM_DROP_CHANCE = 0.05;
   /** Conversion amount: 5 buds -> 1 premium. */
   const PREMIUM_DROP_COST = 5;
+
+  /* ---- progression curve ---------------------------------------------------
+   * XP = 1 per harvested bud, earned forever. The level curve is quadratic
+   * (60 * (level-1)^2 cumulative XP), so early levels come fast and later ones
+   * demand real runs. Each level adds +10% production; every owned strain
+   * beyond the first adds +5%; each milestone and each prestige genome add
+   * their own permanent multipliers. All of them multiply together.
+   */
+  const XP_BASE = 60;
+  const PRESTIGE_BASE = 10000;
+
+  /** Milestones: permanent production bonuses granted at lifetime-XP thresholds. */
+  const MILESTONES = [
+    { id: 'm1', xp: 100,     bonus: 5,  name: 'Premiers pas',         icon: '🌱' },
+    { id: 'm2', xp: 1000,    bonus: 10, name: 'En pleine croissance', icon: '🌿' },
+    { id: 'm3', xp: 10000,   bonus: 15, name: 'Serre industrielle',   icon: '🏭' },
+    { id: 'm4', xp: 100000,  bonus: 25, name: 'Mogul du cannabis',    icon: '💎' },
+    { id: 'm5', xp: 1000000, bonus: 50, name: 'Roi du bud',           icon: '👑' }
+  ];
+
+  /** Cumulative XP required to reach `level` (level 1 needs 0 XP). */
+  function xpForLevel(level) {
+    return XP_BASE * (level - 1) * (level - 1);
+  }
+
+  /** Player level for a given lifetime XP. Always >= 1. */
+  function levelFromXp(xp) {
+    return 1 + Math.floor(Math.sqrt(Math.max(0, xp || 0) / XP_BASE));
+  }
+
+  /** Level, XP earned inside it and XP still needed for the next level. */
+  function xpProgress(xp) {
+    const level = levelFromXp(xp);
+    const cur = xpForLevel(level);
+    const next = xpForLevel(level + 1);
+    return { level, current: Math.max(0, (xp || 0) - cur), needed: next - cur };
+  }
+
+  /**
+   * Total production multiplier from level, owned strains, prestige genomes
+   * and awarded milestones.
+   * @param {object} s state
+   */
+  function productionMult(s) {
+    let m = 1 + 0.10 * levelFromXp(s.xp);
+    m *= 1 + 0.05 * Math.max(0, (s.stock.strains.length || 1) - 1);
+    m *= 1 + 0.25 * (s.genomes || 0);
+    const bonus = MILESTONES.reduce((a, mi) =>
+      a + ((s.milestones || []).includes(mi.id) ? mi.bonus : 0), 0);
+    m *= 1 + bonus / 100;
+    return m;
+  }
+
+  /** Add lifetime XP (e.g. from a harvest), returns what just happened. */
+  function earnXp(s, n) {
+    const before = levelFromXp(s.xp);
+    s.xp = (s.xp || 0) + n;
+    const level = levelFromXp(s.xp);
+    return { leveledUp: level > before, level, milestones: checkMilestones(s) };
+  }
+
+  /** Award any milestone thresholds now crossed. Returns the new ones. */
+  function checkMilestones(s) {
+    const awarded = [];
+    for (const mi of MILESTONES) {
+      if (!(s.milestones || []).includes(mi.id) && (s.xp || 0) >= mi.xp) {
+        s.milestones.push(mi.id);
+        awarded.push(mi);
+      }
+    }
+    return awarded;
+  }
+
+  /** Prestige genomes a reset would grant right now (sub-linear growth). */
+  function prestigeGain(s) {
+    return Math.floor(Math.sqrt((s.xp || 0) / PRESTIGE_BASE));
+  }
+
+  /** Whether a prestige reset is available. */
+  function canPrestige(s) {
+    return prestigeGain(s) >= 1;
+  }
+
+  /**
+   * Prestige reset ("Nouvelle génération"): wipe currency, stock and upgrades,
+   * keep strains, level/XP, milestones and records, and bank a permanent
+   * production multiplier. Returns the number of genomes gained.
+   */
+  function prestige(s) {
+    const gain = prestigeGain(s);
+    if (gain < 1) return { ok: false, reason: 'threshold' };
+    s.genomes = (s.genomes || 0) + gain;
+    s.points = 0;
+    s.money = 0;
+    s.stock = { main: 0, premium: 0, strains: s.stock.strains };
+    s.levels = { ...DEFAULT_LEVELS };
+    s.strain = 'green';
+    return { ok: true, gain };
+  }
 
   /**
    * Deterministic pseudo-random generator (mulberry32).
@@ -98,7 +202,11 @@
       strain: 'green',
       stock: { main: 0, premium: 0, strains: ['green'] },
       prices: { main: 10, premium: 50 },
-      levels: { ...DEFAULT_LEVELS }
+      levels: { ...DEFAULT_LEVELS },
+      xp: 0,
+      genomes: 0,
+      milestones: [],
+      totalEarned: 0
     };
   }
 
@@ -112,21 +220,23 @@
    *   base  = harvest + expert*5
    *   turbo : x2 clicks
    *   mega  : x2 everything
+   * then scaled by the production multiplier (level / strains / genomes / milestones).
    * @param {object} s state
    */
   function perClick(s) {
     let pc = s.levels.harvest + s.levels.expert * 5;
     if (s.levels.turbo > 0) pc *= 2;
     if (s.levels.mega > 0) pc *= 2;
-    return pc;
+    return Math.round(pc * productionMult(s));
   }
 
   /**
-   * Buds gained per second (auto production).
+   * Buds gained per second (auto production), scaled by the production
+   * multiplier.
    * @param {object} s state
    */
   function perSecond(s) {
-    return s.levels.auto + s.levels.crew * 10;
+    return Math.round((s.levels.auto + s.levels.crew * 10) * productionMult(s));
   }
 
   /**
@@ -173,7 +283,8 @@
   }
 
   /**
-   * Equip a strain; buys it first if not owned.
+   * Equip a strain; buys it first if not owned. Buying is gated by the player
+   * level (`st.unlock`) and the cash price.
    * @param {object} s state
    * @param {string} id strain id
    * @returns {{ok:boolean, reason?:string, justUnlocked?:boolean, name?:string}}
@@ -184,6 +295,7 @@
     const owned = s.stock.strains.includes(id);
     let justUnlocked = false;
     if (!owned) {
+      if (levelFromXp(s.xp) < st.unlock) return { ok: false, reason: 'level' };
       if (s.money < st.cost) return { ok: false, reason: 'funds' };
       s.money -= st.cost;
       s.stock.strains.push(id);
@@ -223,6 +335,12 @@
     if (!d.stock || typeof d.stock !== 'object') d.stock = { main: 0, premium: 0, strains: ['green'] };
     if (!Array.isArray(d.stock.strains)) d.stock.strains = ['green'];
     if (!getStrain(d.strain)) d.strain = 'green';
+    d.xp = typeof d.xp === 'number' && d.xp >= 0 ? d.xp : 0;
+    d.genomes = typeof d.genomes === 'number' && d.genomes >= 0 ? d.genomes : 0;
+    d.totalEarned = typeof d.totalEarned === 'number' && d.totalEarned >= 0 ? d.totalEarned : 0;
+    d.milestones = Array.isArray(d.milestones)
+      ? d.milestones.filter((m) => MILESTONES.some((mi) => mi.id === m))
+      : [];
     return d;
   }
 
@@ -233,9 +351,21 @@
     DEFAULT_LEVELS,
     PREMIUM_DROP_CHANCE,
     PREMIUM_DROP_COST,
+    XP_BASE,
+    PRESTIGE_BASE,
+    MILESTONES,
     mulberry32,
     defaultState,
     getStrain,
+    xpForLevel,
+    levelFromXp,
+    xpProgress,
+    productionMult,
+    earnXp,
+    checkMilestones,
+    prestigeGain,
+    canPrestige,
+    prestige,
     perClick,
     perSecond,
     upgradeCost,
