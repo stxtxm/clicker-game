@@ -95,11 +95,26 @@ button:focus{outline:none}
 .up-buy .bb:disabled{background:#2a2a2a;color:#666;cursor:not-allowed;box-shadow:none}
 
 /* ===== Bottom nav (mobile) ===== */
-.bottom-nav{display:grid;grid-template-columns:repeat(3,1fr);background:rgba(15,21,15,.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:6px 8px calc(6px + var(--sab))}
+.bottom-nav{display:grid;grid-template-columns:repeat(4,1fr);background:rgba(15,21,15,.96);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:6px 8px calc(6px + var(--sab))}
 .tab-btn{display:flex;flex-direction:column;align-items:center;gap:2px;background:transparent;border:none;padding:8px 4px;border-radius:12px;font-size:.95rem;color:var(--muted);cursor:pointer;transition:all .15s;position:relative}
 .tab-btn span{font-size:.62rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase}
 .tab-btn.active{color:var(--green-soft)}
 .tab-btn.active::before{content:"";position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:28px;height:3px;border-radius:3px;background:var(--green)}
+
+/* ===== Strains view ===== */
+.strains{display:flex;flex-direction:column;gap:10px}
+.strain{display:flex;align-items:center;gap:12px;text-align:left;background:linear-gradient(135deg,var(--panel),var(--panel2));border:1px solid var(--border);border-left:4px solid var(--green-dim);border-radius:14px;padding:12px 14px;cursor:pointer;transition:all .15s cubic-bezier(.4,0,.2,1)}
+.strain:hover:not(:disabled){border-color:var(--border2);background:rgba(127,208,75,.07)}
+.strain:active:not(:disabled){transform:scale(.99)}
+.strain.owned{border-left-color:var(--gold)}
+.st-icon{font-size:1.5rem;width:36px;text-align:center;flex-shrink:0}
+.st-info{flex:1;min-width:0}
+.st-name{font-size:.95rem;font-weight:800;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.st-desc{font-size:.78rem;color:var(--muted);margin-top:2px}
+.st-badge{background:var(--gold);color:#1a1200;padding:2px 8px;border-radius:999px;font-size:.62rem;font-weight:800}
+.st-buy{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0}
+.st-cost{font-size:.95rem;font-weight:800;color:var(--gold)}
+.st-ok{font-size:.68rem;font-weight:800;color:var(--green-soft)}
 
 /* ===== Toasts ===== */
 .mc{position:fixed;top:calc(8px + var(--sat));left:0;right:0;pointer-events:none;z-index:1000;display:flex;flex-direction:column;align-items:center;gap:8px;padding:0 20px}
@@ -119,8 +134,8 @@ button:focus{outline:none}
   .layout{flex-direction:row}
   .view-harvest{flex:1 1 50%;border-right:1px solid var(--border);display:flex;overflow-y:auto}
   .shop{flex:1 1 50%;min-width:0;display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain;padding:30px 34px}
-  .view-sell,.view-upgrades{display:flex;flex:0 0 auto;overflow:visible;padding:0}
-  .view-sell{margin-bottom:30px}
+  .view-sell,.view-upgrades,.view-strains{display:flex;flex:0 0 auto;overflow:visible;padding:0}
+  .view-sell,.view-strains{margin-bottom:30px}
   .bud-cont{width:min(38vh,360px)}
   .bottom-nav{display:none}
   .bud-stage{gap:20px}
@@ -128,6 +143,7 @@ button:focus{outline:none}
   .hint{font-size:.85rem}
   .upgrades{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .upgrade{padding:14px}
+  .strains{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .sell-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .sell-all{max-width:100%}
 }
@@ -159,154 +175,7 @@ button:focus{outline:none}
     <div class="bud-stage">
       <div class="bud-cont" id="bc">
        <div class="bud-halo"></div>
-        <svg class="bud-svg" id="bs" onclick="harvest(event)" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">          <defs>
-            <linearGradient id="lgd" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#3f6d2c"/><stop offset="100%" stop-color="#1b3b13"/>
-            </linearGradient>
-            <linearGradient id="lgm" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#5f8f3c"/><stop offset="100%" stop-color="#2c521f"/>
-            </linearGradient>
-            <linearGradient id="lgl" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#a8d172"/><stop offset="100%" stop-color="#4c7a2e"/>
-            </linearGradient>
-            <linearGradient id="lgf" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#d3eaa2"/><stop offset="100%" stop-color="#7fae48"/>
-            </linearGradient>
-            <linearGradient id="lgp" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#7a5a9a"/><stop offset="100%" stop-color="#3a2a55"/>
-            </linearGradient>
-            <path id="leaflet" d="M0,0 L-7,14 L-2,18 L-8,30 L-3,34 L-9,46 L-4,50 L-9,62 L-4,66 L-8,78 L-2,84 L0,90 L2,84 L8,78 L4,66 L9,62 L4,50 L9,46 L3,34 L8,30 L2,18 L7,14 L0,0 Z"/>
-            <line id="vein" x1="0" y1="6" x2="0" y2="84" stroke="#173012" stroke-width="1.5" opacity=".5" stroke-linecap="round"/>
-            <g id="leafD"><use href="#leaflet" fill="url(#lgd)" stroke="#102a0c" stroke-width="1" stroke-linejoin="round"/><use href="#vein"/></g>
-            <g id="leafM"><use href="#leaflet" fill="url(#lgm)" stroke="#1a3a12" stroke-width="1" stroke-linejoin="round"/><use href="#vein"/></g>
-            <g id="leafL"><use href="#leaflet" fill="url(#lgl)" stroke="#2e521f" stroke-width="1" stroke-linejoin="round"/><use href="#vein"/></g>
-            <g id="leafF"><use href="#leaflet" fill="url(#lgf)" stroke="#5c8a34" stroke-width="1" stroke-linejoin="round"/><use href="#vein"/></g>
-            <g id="leafP"><use href="#leaflet" fill="url(#lgp)" stroke="#2a1d3d" stroke-width="1" stroke-linejoin="round"/><use href="#vein"/></g>
-            <path id="calyx" d="M0,0 C6,5 11,12 11,20 C11,28 6,34 0,37 C-6,34 -11,28 -11,20 C-11,12 -6,5 0,0 Z"/>
-            <g id="fan">
-              <use href="#leafM" transform="rotate(-45)"/><use href="#leafM" transform="rotate(-25)"/>
-              <use href="#leafM" transform="rotate(-5)"/><use href="#leafM" transform="rotate(15)"/>
-              <use href="#leafM" transform="rotate(35)"/>
-            </g>
-          </defs>
-          <ellipse cx="150" cy="256" rx="72" ry="13" fill="#0f220a" opacity=".55"/>
-          <path d="M142,236 C142,248 146,256 150,260 C154,256 158,248 158,236 Z" fill="url(#lgd)" stroke="#102a0c" stroke-width=".8"/>
-          <use href="#fan" transform="translate(76,242) rotate(215) scale(.7)"/>
-          <use href="#fan" transform="translate(224,242) rotate(145) scale(.7)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(0) scale(.45) translate(0,-40)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(-25) scale(.5) translate(0,-38)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(25) scale(.5) translate(0,-38)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(-45) scale(.48) translate(0,-36)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(45) scale(.48) translate(0,-36)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(-60) scale(.6) translate(0,-46)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(60) scale(.6) translate(0,-46)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(-80) scale(.58) translate(0,-46)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(80) scale(.58) translate(0,-46)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(-100) scale(.55) translate(0,-46)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(100) scale(.55) translate(0,-46)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(-120) scale(.52) translate(0,-46)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(120) scale(.52) translate(0,-46)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(-140) scale(.5) translate(0,-46)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(140) scale(.5) translate(0,-46)"/>
-          <use href="#leafD" transform="translate(150,170) rotate(180) scale(.45) translate(0,-38)"/>
-          <use href="#leafP" transform="translate(150,170) rotate(-75) scale(.5) translate(0,-40)"/>
-          <use href="#leafP" transform="translate(150,170) rotate(75) scale(.5) translate(0,-40)"/>
-          <use href="#leafP" transform="translate(150,170) rotate(-105) scale(.48) translate(0,-42)"/>
-          <use href="#leafP" transform="translate(150,170) rotate(105) scale(.48) translate(0,-42)"/>
-          <use href="#leafM" transform="translate(150,170) rotate(-15) scale(.5) translate(0,-36)"/>
-          <use href="#leafM" transform="translate(150,170) rotate(15) scale(.5) translate(0,-36)"/>
-          <use href="#leafM" transform="translate(150,170) rotate(-40) scale(.48) translate(0,-36)"/>
-          <use href="#leafM" transform="translate(150,170) rotate(40) scale(.48) translate(0,-36)"/>
-          <use href="#leafM" transform="translate(150,170) rotate(-60) scale(.46) translate(0,-36)"/>
-          <use href="#leafM" transform="translate(150,170) rotate(60) scale(.46) translate(0,-36)"/>
-          <use href="#leafM" transform="translate(150,170) rotate(-85) scale(.44) translate(0,-38)"/>
-          <use href="#leafM" transform="translate(150,170) rotate(85) scale(.44) translate(0,-38)"/>
-          <use href="#leafM" transform="translate(150,170) rotate(-110) scale(.44) translate(0,-40)"/>
-          <use href="#leafM" transform="translate(150,170) rotate(110) scale(.44) translate(0,-40)"/>
-          <use href="#leafM" transform="translate(150,170) rotate(-135) scale(.44) translate(0,-42)"/>
-          <use href="#leafM" transform="translate(150,170) rotate(135) scale(.44) translate(0,-42)"/>
-          <use href="#leafM" transform="translate(150,170) rotate(180) scale(.4) translate(0,-34)"/>
-          <path d="M140,150 C132,138 134,124 126,110" stroke="#ff9d1f" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".8"/>
-          <path d="M160,150 C168,138 166,124 174,110" stroke="#ff9d1f" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".8"/>
-          <path d="M150,140 C150,126 153,116 151,102" stroke="#ff9d1f" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".8"/>
-          <path d="M118,160 C110,150 112,138 104,126" stroke="#ff9d1f" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".75"/>
-          <path d="M182,160 C190,150 188,138 196,126" stroke="#ff9d1f" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".75"/>
-          <use href="#leafL" transform="translate(150,170) rotate(0) scale(.45) translate(0,-28)"/>
-          <use href="#leafL" transform="translate(150,170) rotate(-15) scale(.45) translate(0,-28)"/>
-          <use href="#leafL" transform="translate(150,170) rotate(15) scale(.45) translate(0,-28)"/>
-          <use href="#leafL" transform="translate(150,170) rotate(-35) scale(.42) translate(0,-27)"/>
-          <use href="#leafL" transform="translate(150,170) rotate(35) scale(.42) translate(0,-27)"/>
-          <use href="#leafL" transform="translate(150,170) rotate(-55) scale(.4) translate(0,-26)"/>
-          <use href="#leafL" transform="translate(150,170) rotate(55) scale(.4) translate(0,-26)"/>
-          <use href="#leafL" transform="translate(150,170) rotate(-75) scale(.38) translate(0,-25)"/>
-          <use href="#leafL" transform="translate(150,170) rotate(75) scale(.38) translate(0,-25)"/>
-          <use href="#leafL" transform="translate(150,170) rotate(-90) scale(.36) translate(0,-24)"/>
-          <use href="#leafL" transform="translate(150,170) rotate(90) scale(.36) translate(0,-24)"/>
-          <use href="#leafL" transform="translate(150,170) rotate(-105) scale(.36) translate(0,-24)"/>
-          <use href="#leafL" transform="translate(150,170) rotate(105) scale(.36) translate(0,-24)"/>
-          <use href="#leafF" transform="translate(150,170) rotate(0) scale(.62) translate(0,-40)"/>
-          <use href="#leafF" transform="translate(150,170) rotate(-6) scale(.58) translate(0,-38)"/>
-          <use href="#leafF" transform="translate(150,170) rotate(6) scale(.58) translate(0,-38)"/>
-          <use href="#leafF" transform="translate(150,170) rotate(-12) scale(.55) translate(0,-36)"/>
-          <use href="#leafF" transform="translate(150,170) rotate(12) scale(.55) translate(0,-36)"/>
-          <use href="#leafF" transform="translate(150,170) rotate(-30) scale(.5) translate(0,-34)"/>
-          <use href="#leafF" transform="translate(150,170) rotate(30) scale(.5) translate(0,-34)"/>
-          <use href="#leafF" transform="translate(150,170) rotate(-22) scale(.32) translate(0,-22)"/>
-          <use href="#leafF" transform="translate(150,170) rotate(22) scale(.32) translate(0,-22)"/>
-          <use href="#leafF" transform="translate(150,170) rotate(0) scale(.3) translate(0,-20)"/>
-          <use href="#leafL" transform="translate(150,170) rotate(-50) scale(.3) translate(0,-22)"/>
-          <use href="#leafL" transform="translate(150,170) rotate(50) scale(.3) translate(0,-22)"/>
-          <use href="#calyx" transform="translate(150,196) scale(.6)" fill="url(#lgf)" stroke="#5c8a34" stroke-width=".8"/>
-          <use href="#calyx" transform="translate(136,204) scale(.6)" fill="url(#lgl)" stroke="#2e521f" stroke-width=".8"/>
-          <use href="#calyx" transform="translate(164,204) scale(.6)" fill="url(#lgl)" stroke="#2e521f" stroke-width=".8"/>
-          <use href="#calyx" transform="translate(150,208) scale(.6)" fill="url(#lgf)" stroke="#5c8a34" stroke-width=".8"/>
-          <use href="#calyx" transform="translate(124,208) scale(.5)" fill="url(#lgf)" stroke="#5c8a34" stroke-width=".8"/>
-          <use href="#calyx" transform="translate(176,208) scale(.5)" fill="url(#lgf)" stroke="#5c8a34" stroke-width=".8"/>
-          <use href="#calyx" transform="translate(120,180) scale(.4)" fill="url(#lgl)" stroke="#2e521f" stroke-width=".7"/>
-          <use href="#calyx" transform="translate(180,180) scale(.4)" fill="url(#lgl)" stroke="#2e521f" stroke-width=".7"/>
-          <use href="#calyx" transform="translate(138,168) scale(.4)" fill="url(#lgf)" stroke="#5c8a34" stroke-width=".7"/>
-          <use href="#calyx" transform="translate(162,168) scale(.4)" fill="url(#lgf)" stroke="#5c8a34" stroke-width=".7"/>
-          <use href="#calyx" transform="translate(150,182) scale(.45)" fill="url(#lgf)" stroke="#5c8a34" stroke-width=".7"/>
-          <path d="M150,168 C149,152 152,140 150,124" stroke="#ff8c00" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".95"/>
-          <path d="M150,124 C145,118 142,112 138,106" stroke="#ff8c00" stroke-width="1.1" stroke-linecap="round" fill="none" opacity=".9"/>
-          <path d="M150,124 C155,118 158,112 162,106" stroke="#ff8c00" stroke-width="1.1" stroke-linecap="round" fill="none" opacity=".9"/>
-          <path d="M150,196 C148,178 156,164 150,140" stroke="#ff8c00" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".95"/>
-          <path d="M150,200 C154,184 148,172 156,150" stroke="#ff9d1f" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>
-          <path d="M136,192 C128,178 132,164 124,146" stroke="#ff8c00" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>
-          <path d="M164,192 C172,178 168,164 176,146" stroke="#ff8c00" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>
-          <path d="M142,180 C136,168 140,156 132,140" stroke="#ffab2e" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".85"/>
-          <path d="M158,180 C164,168 160,156 168,140" stroke="#ffab2e" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".85"/>
-          <path d="M126,184 C116,172 120,160 110,146" stroke="#ff8c00" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".85"/>
-          <path d="M174,184 C184,172 180,160 190,146" stroke="#ff8c00" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".85"/>
-          <path d="M138,168 C130,156 134,144 126,130" stroke="#ff9d1f" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>
-          <path d="M162,168 C170,156 166,144 174,130" stroke="#ff9d1f" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>
-          <path d="M150,170 C150,158 152,148 150,136" stroke="#ffb74d" stroke-width="1.3" stroke-linecap="round" fill="none" opacity=".85"/>
-          <ellipse cx="132" cy="122" rx="70" ry="58" fill="#ffffff" opacity=".07"/>
-          <ellipse cx="150" cy="136" rx="55" ry="40" fill="#ffffff" opacity=".05"/>
-          <g stroke="#e8f5e0" stroke-width=".6" fill="#ffffff">
-            <line x1="146" y1="128" x2="144" y2="120"/><circle cx="144" cy="119" r="1.5"/>
-            <line x1="158" y1="132" x2="160" y2="124"/><circle cx="160" cy="123" r="1.5"/>
-            <line x1="128" y1="148" x2="125" y2="140"/><circle cx="125" cy="139" r="1.4"/>
-            <line x1="172" y1="148" x2="175" y2="140"/><circle cx="175" cy="139" r="1.4"/>
-            <line x1="138" y1="156" x2="136" y2="148"/><circle cx="136" cy="147" r="1.3"/>
-            <line x1="162" y1="156" x2="164" y2="148"/><circle cx="164" cy="147" r="1.3"/>
-            <line x1="150" y1="138" x2="150" y2="129"/><circle cx="150" cy="128" r="1.6"/>
-          </g>
-          <g fill="#ffffff" opacity=".9">
-            <circle cx="120" cy="124" r="1"/><circle cx="138" cy="112" r="1.2"/><circle cx="158" cy="110" r="1.1"/><circle cx="176" cy="122" r="1.3"/>
-            <circle cx="112" cy="138" r="1"/><circle cx="196" cy="138" r="1.1"/><circle cx="130" cy="116" r="1.2"/><circle cx="170" cy="116" r="1.2"/>
-            <circle cx="142" cy="100" r="1.1"/><circle cx="160" cy="104" r="1"/><circle cx="150" cy="96" r="1.2"/><circle cx="150" cy="88" r="1"/>
-            <circle cx="118" cy="128" r="1.3"/><circle cx="182" cy="128" r="1.1"/><circle cx="126" cy="136" r="1"/><circle cx="174" cy="136" r="1"/>
-            <circle cx="134" cy="98" r="1"/><circle cx="166" cy="96" r="1.1"/><circle cx="150" cy="108" r="1.3"/><circle cx="122" cy="110" r="1"/>
-            <circle cx="178" cy="110" r="1.1"/><circle cx="140" cy="122" r="1.1"/><circle cx="160" cy="122" r="1.2"/><circle cx="130" cy="132" r="1"/>
-            <circle cx="170" cy="132" r="1.1"/><circle cx="118" cy="152" r="1"/><circle cx="182" cy="152" r="1"/><circle cx="128" cy="146" r="1.2"/>
-            <circle cx="172" cy="146" r="1.1"/><circle cx="138" cy="144" r="1"/><circle cx="162" cy="144" r="1.1"/><circle cx="124" cy="120" r="1.1"/>
-            <circle cx="176" cy="120" r="1"/><circle cx="146" cy="118" r="1.2"/><circle cx="156" cy="116" r="1.1"/><circle cx="110" cy="146" r="1"/>
-            <circle cx="190" cy="146" r="1.1"/><circle cx="134" cy="130" r="1.1"/><circle cx="166" cy="130" r="1.2"/><circle cx="126" cy="108" r="1"/>
-            <circle cx="174" cy="108" r="1"/><circle cx="150" cy="100" r="1.3"/><circle cx="144" cy="126" r="1"/><circle cx="158" cy="126" r="1"/>
-            <circle cx="116" cy="166" r="1"/><circle cx="184" cy="166" r="1.1"/><circle cx="112" cy="182" r="1"/><circle cx="188" cy="182" r="1"/>
-            <circle cx="126" cy="178" r="1.1"/><circle cx="174" cy="178" r="1.1"/><circle cx="120" cy="192" r="1"/><circle cx="180" cy="192" r="1"/>
-          </g></svg>
+        <svg class="bud-svg" id="bs" onclick="harvest(event)" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
       <div class="per-click">+<b id="hl">1</b> / clic</div>
       <div class="hint">Clique ou appuie sur le bud</div>
@@ -337,6 +206,12 @@ button:focus{outline:none}
     <div class="panel-head"><h2>Upgrades</h2><p>Améliore ta production</p></div>
     <div class="upgrades" id="ug"></div>
   </section>
+
+  <!-- Strains -->
+  <section class="view view-strains" id="v-strains">
+    <div class="panel-head"><h2>Variétés</h2><p>Choisis la génétique de ta culture</p></div>
+    <div class="strains" id="sv"></div>
+  </section>
   </div>
 
 </main>
@@ -345,6 +220,7 @@ button:focus{outline:none}
   <button class="tab-btn active" data-tab="harvest"><span>🌿</span><span>Récolte</span></button>
   <button class="tab-btn" data-tab="sell"><span>💰</span><span>Vendre</span></button>
   <button class="tab-btn" data-tab="upgrades"><span>🚀</span><span>Upgrades</span></button>
+  <button class="tab-btn" data-tab="strains"><span>🌱</span><span>Variétés</span></button>
 </nav>
 </div>
 
@@ -357,8 +233,107 @@ const U=[
  {id:'turbo',name:'Turbo',icon:'⚡',desc:'x2 points par clic',cost:10000},
  {id:'mega',name:'Mega',icon:'🌟',desc:'x2 toute la production',cost:50000}
 ];
-let s={points:0,money:0,stock:{main:0,premium:0},prices:{main:10,premium:50},levels:{harvest:1,auto:0,expert:0,crew:0,turbo:0,mega:0}};
+let s={points:0,money:0,strain:'green',stock:{main:0,premium:0,strains:['green']},prices:{main:10,premium:50},levels:{harvest:1,auto:0,expert:0,crew:0,turbo:0,mega:0}};
 const c=Object.fromEntries(U.map(u=>[u.id,u.cost]));
+const STRAINS=[
+ {id:'green',name:'Green Dream',icon:'🌿',cost:0,desc:'La classique, résineuse et généreuse',
+  d:['#3f6d2c','#1b3b13'],m:['#5f8f3c','#2c521f'],l:['#a8d172','#4c7a2e'],f:['#d3eaa2','#7fae48'],p:['#7a5a9a','#3a2a55'],
+  vein:'#173012',stroke:'#102a0c',pistil:'#ff8c00',pistil2:'#ff9d1f',frost:1},
+ {id:'purple',name:'Purple Haze',icon:'🟣',cost:1500,desc:'Notes violettes et sucrées',
+  d:['#4a2f6e','#241243'],m:['#6a3fa0','#341a58'],l:['#a06fd0','#5c2f8a'],f:['#cfa8ee','#8a55c0'],p:['#2e3a66','#16203a'],
+  vein:'#1c0f38',stroke:'#150a2c',pistil:'#ffab2e',pistil2:'#ffc46e',frost:1.25},
+ {id:'blue',name:'Blue Frost',icon:'💠',cost:8000,desc:'Givrée bleutée, très cristalline',
+  d:['#1f4a5a','#0d2630'],m:['#2e6f8f','#163b4d'],l:['#5fa8cf','#2f6d8f'],f:['#a8d8ee','#5f9fcf'],p:['#3a5a6e','#1c2e3a'],
+  vein:'#0c2230',stroke:'#081a24',pistil:'#ffffff',pistil2:'#d8f0ff',frost:1.7},
+ {id:'pink',name:'Pink Kush',icon:'🌸',cost:25000,desc:'Pistils rosés, calyx denses',
+  d:['#6e2f4a','#3a1730'],m:['#8f3f6a','#4a1f3a'],l:['#d06fa8','#8a3f66'],f:['#eea8cf','#b06f98'],p:['#4a2e6e','#24143a'],
+  vein:'#351028',stroke:'#280c1e',pistil:'#ff6f9d',pistil2:'#ffb3cc',frost:1.4}
+];
+const BUD_L={
+ back:[[0,.55,42],[-22,.6,44],[22,.6,44],[-45,.62,44],[45,.62,44],[-68,.62,44],[68,.62,44],[-90,.6,44],[90,.6,44],[-112,.58,44],[112,.58,44],[-135,.55,44],[135,.55,44],[-157,.52,44],[157,.52,44],[180,.42,36]],
+ purple:[[-80,.5,40],[80,.5,40],[-100,.5,42],[100,.5,42]],
+ mid:[[0,.5,32],[-18,.5,32],[18,.5,32],[-38,.48,32],[38,.48,32],[-58,.46,32],[58,.46,32],[-80,.44,34],[80,.44,34],[-102,.44,36],[102,.44,36],[-125,.42,38],[125,.42,38],[180,.36,30]],
+ front:[[0,.42,24],[-16,.42,24],[16,.42,24],[-34,.4,23],[34,.4,23],[-54,.38,22],[54,.38,22],[-74,.36,22],[74,.36,22],[-90,.34,22],[90,.34,22],[-105,.34,22],[105,.34,22]],
+ crown:[[0,.68,38],[-7,.62,36],[7,.62,36],[-14,.56,34],[14,.56,34],[-30,.52,32],[30,.52,32]],
+ filler:[[-22,.32,18],[22,.32,18],[0,.3,16],[-48,.3,18],[48,.3,18]]
+};
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function renderBud(){
+  const st=STRAINS.find(x=>x.id===s.strain)||STRAINS[0];
+  const g=(id,c)=>`<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${c[0]}"/><stop offset="100%" stop-color="${c[1]}"/></linearGradient>`;
+  const lf=(id,grad)=>`<g id="leaf${id}"><use href="#leaflet" fill="url(${grad})" stroke="${st.stroke}" stroke-width="1" stroke-linejoin="round"/><use href="#vein"/></g>`;
+  const use=(id,a,r,s)=>`<use href="#leaf${id}" transform="translate(150,172) rotate(${a}) scale(${s}) translate(0,-${r})"/>`;
+  const cx=(x,y,sc,grad)=>`<use href="#calyx" transform="translate(${x},${y}) scale(${sc})" fill="url(${grad})" stroke="${st.stroke}" stroke-width=".8"/>`;
+  let h='<defs>'
+   + g('lgd',st.d)+g('lgm',st.m)+g('lgl',st.l)+g('lgf',st.f)+g('lgp',st.p)
+   + '<path id="leaflet" d="M0,0 L-7,14 L-2,18 L-8,30 L-3,34 L-9,46 L-4,50 L-9,62 L-4,66 L-8,78 L-2,84 L0,90 L2,84 L8,78 L4,66 L9,62 L4,50 L9,46 L3,34 L8,30 L2,18 L7,14 L0,0 Z"/>'
+   + `<line id="vein" x1="0" y1="6" x2="0" y2="84" stroke="${st.vein}" stroke-width="1.5" opacity=".5" stroke-linecap="round"/>`
+   + lf('D','lgd')+lf('M','lgm')+lf('L','lgl')+lf('F','lgf')+lf('P','lgp')
+   + '<path id="calyx" d="M0,0 C6,5 11,12 11,20 C11,28 6,34 0,37 C-6,34 -11,28 -11,20 C-11,12 -6,5 0,0 Z"/>'
+   + '<g id="fan"><use href="#leafM" transform="rotate(-45)"/><use href="#leafM" transform="rotate(-25)"/><use href="#leafM" transform="rotate(-5)"/><use href="#leafM" transform="rotate(15)"/><use href="#leafM" transform="rotate(35)"/></g>'
+   + '</defs>';
+  h+=`<ellipse cx="150" cy="258" rx="72" ry="13" fill="#0f220a" opacity=".55"/>`;
+  h+=`<path d="M142,238 C142,250 146,258 150,262 C154,258 158,250 158,238 Z" fill="url(#lgd)" stroke="${st.stroke}" stroke-width=".8"/>`;
+  h+=`<use href="#fan" transform="translate(76,242) rotate(215) scale(.7)"/>`;
+  h+=`<use href="#fan" transform="translate(224,242) rotate(145) scale(.7)"/>`;
+  for(const [a,r,s] of BUD_L.back)h+=use('D',a,r,s);
+  for(const [a,r,s] of BUD_L.purple)h+=use('P',a,r,s);
+  h+=`<path d="M140,150 C132,138 134,124 126,110" stroke="${st.pistil2}" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".8"/>`;
+  h+=`<path d="M160,150 C168,138 166,124 174,110" stroke="${st.pistil2}" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".8"/>`;
+  h+=`<path d="M150,140 C150,126 153,116 151,102" stroke="${st.pistil2}" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".8"/>`;
+  for(const [a,r,s] of BUD_L.mid)h+=use('M',a,r,s);
+  for(const [a,r,s] of BUD_L.front)h+=use('L',a,r,s);
+  for(const [a,r,s] of BUD_L.crown)h+=use('F',a,r,s);
+  for(const [a,r,s] of BUD_L.filler)h+=use('F',a,r,s);
+  h+=cx(150,196,.6,'lgf')+cx(136,204,.6,'lgl')+cx(164,204,.6,'lgl')+cx(150,208,.6,'lgf')+cx(124,208,.5,'lgf')+cx(176,208,.5,'lgf');
+  h+=cx(120,180,.4,'lgl')+cx(180,180,.4,'lgl')+cx(138,168,.4,'lgf')+cx(162,168,.4,'lgf')+cx(150,182,.45,'lgf');
+  h+=`<path d="M150,168 C149,152 152,140 150,124" stroke="${st.pistil}" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".95"/>`;
+  h+=`<path d="M150,124 C145,118 142,112 138,106" stroke="${st.pistil}" stroke-width="1.1" stroke-linecap="round" fill="none" opacity=".9"/>`;
+  h+=`<path d="M150,124 C155,118 158,112 162,106" stroke="${st.pistil}" stroke-width="1.1" stroke-linecap="round" fill="none" opacity=".9"/>`;
+  h+=`<path d="M150,196 C148,178 156,164 150,140" stroke="${st.pistil}" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".95"/>`;
+  h+=`<path d="M150,200 C154,184 148,172 156,150" stroke="${st.pistil2}" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>`;
+  h+=`<path d="M136,192 C128,178 132,164 124,146" stroke="${st.pistil}" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>`;
+  h+=`<path d="M164,192 C172,178 168,164 176,146" stroke="${st.pistil}" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>`;
+  h+=`<path d="M142,180 C136,168 140,156 132,140" stroke="${st.pistil2}" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".85"/>`;
+  h+=`<path d="M158,180 C164,168 160,156 168,140" stroke="${st.pistil2}" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".85"/>`;
+  h+=`<path d="M126,184 C116,172 120,160 110,146" stroke="${st.pistil}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".85"/>`;
+  h+=`<path d="M174,184 C184,172 180,160 190,146" stroke="${st.pistil}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".85"/>`;
+  h+=`<path d="M138,168 C130,156 134,144 126,130" stroke="${st.pistil2}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>`;
+  h+=`<path d="M162,168 C170,156 166,144 174,130" stroke="${st.pistil2}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>`;
+  h+=`<path d="M150,170 C150,158 152,148 150,136" stroke="${st.pistil2}" stroke-width="1.3" stroke-linecap="round" fill="none" opacity=".85"/>`;
+  h+=`<ellipse cx="132" cy="122" rx="72" ry="58" fill="#ffffff" opacity="${(.06+st.frost*.02).toFixed(3)}"/>`;
+  h+=`<ellipse cx="150" cy="136" rx="55" ry="40" fill="#ffffff" opacity="${(.04+st.frost*.015).toFixed(3)}"/>`;
+  h+=`<g stroke="#e8f5e0" stroke-width=".6" fill="#ffffff"><line x1="146" y1="128" x2="144" y2="120"/><circle cx="144" cy="119" r="1.5"/><line x1="158" y1="132" x2="160" y2="124"/><circle cx="160" cy="123" r="1.5"/><line x1="128" y1="148" x2="125" y2="140"/><circle cx="125" cy="139" r="1.4"/><line x1="172" y1="148" x2="175" y2="140"/><circle cx="175" cy="139" r="1.4"/><line x1="138" y1="156" x2="136" y2="148"/><circle cx="136" cy="147" r="1.3"/><line x1="162" y1="156" x2="164" y2="148"/><circle cx="164" cy="147" r="1.3"/><line x1="150" y1="138" x2="150" y2="129"/><circle cx="150" cy="128" r="1.6"/></g>`;
+  const rnd=mulberry32(1337);
+  const n=Math.round(60*st.frost);
+  h+='<g fill="#ffffff" opacity=".9">';
+  for(let i=0;i<n;i++){const x=Math.round(104+rnd()*92),y=Math.round(84+rnd()*122),r=(0.8+rnd()*0.8).toFixed(1);h+=`<circle cx="${x}" cy="${y}" r="${r}"/>`}
+  h+='</g>';
+  document.getElementById('bs').innerHTML=h;
+}
+function buildStrains(){
+  const w=document.getElementById('sv');w.innerHTML='';
+  for(const st of STRAINS){
+    const owned=s.stock.strains.includes(st.id),equipped=s.strain===st.id;
+    const el=document.createElement('div');
+    el.className='strain'+(owned?' owned':'');
+    el.innerHTML='<span class="st-icon">'+st.icon+'</span><div class="st-info"><div class="st-name">'+st.name+(equipped?' <span class="st-badge">Équipée</span>':'')+'</div><div class="st-desc">'+st.desc+'</div></div><div class="st-buy"><span class="st-cost">'+(owned?'':('$'+fm(st.cost)))+'</span>'+(owned?'<span class="st-ok">Possédée</span>':'<button class="bb" id="sb-'+st.id+'">Acheter</button>')+'</div>';
+    el.onclick=()=>equipStrain(st.id);
+    const btn=el.querySelector('.bb');
+    if(btn){btn.onclick=(ev)=>{ev.stopPropagation();equipStrain(st.id)};btn.disabled=s.money<st.cost}
+    w.appendChild(el);
+  }
+}
+function equipStrain(id){
+  const st=STRAINS.find(x=>x.id===id);if(!st)return;
+  const owned=s.stock.strains.includes(id);
+  if(!owned){
+    if(s.money<st.cost){sm('Pas assez d\'argent');return}
+    s.money-=st.cost;s.stock.strains.push(id);
+    sm(st.name+' débloquée !');popNum(e.m);
+  }
+  s.strain=id;renderBud();buildStrains();ud();sg();
+}
 const bc=document.getElementById('bc'),mc=document.getElementById('mc');
 const e={p:document.getElementById('p'),m:document.getElementById('m'),ar:document.getElementById('ar'),hl:document.getElementById('hl'),stm:document.getElementById('stm'),stp:document.getElementById('stp'),pm:document.getElementById('pm'),pp:document.getElementById('pp'),sm:document.getElementById('sm'),sp:document.getElementById('sp'),sa:document.getElementById('sa')};
 
@@ -393,6 +368,7 @@ function ud(){
     const btn=document.getElementById('ub-'+u.id);
     if(btn){btn.disabled=s.money<gc(u.id)}
   }
+  document.querySelectorAll('[id^="sb-"]').forEach(b=>{const id=b.id.slice(3);const st=STRAINS.find(x=>x.id===id);if(!s.stock.strains.includes(id))b.disabled=s.money<st.cost});
 }
 function popNum(el){el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop')}
 function harvest(ev){
@@ -428,7 +404,7 @@ function ap(){
 }
 function sm(t){const m=document.createElement('div');m.className='ms';m.textContent=t;mc.appendChild(m);setTimeout(()=>m.remove(),2200)}
 function sg(){localStorage.setItem('budClicker',JSON.stringify(s))}
-function lg(){const d=localStorage.getItem('budClicker');if(d){const old=JSON.parse(d);Object.assign(s,old);if(!s.levels)Object.assign(s,{points:0,money:0,stock:{main:0,premium:0},levels:{harvest:1,auto:0,expert:0,crew:0,turbo:0,mega:0}})}} 
+function lg(){const d=localStorage.getItem('budClicker');if(d){const old=JSON.parse(d);Object.assign(s,old)}if(!s.strain||!STRAINS.some(x=>x.id===s.strain))s.strain='green';if(!s.stock.strains||!Array.isArray(s.stock.strains))s.stock.strains=['green']} 
 
 /* Tabs */
 function switchTab(tab){
@@ -445,7 +421,7 @@ document.addEventListener('keydown',ev=>{
 });
 
 buildUpgrades();
-lg();setInterval(ap,1000);setInterval(sg,10000);ud();setTimeout(()=>sm('Clique sur le bud !'),400);
+lg();buildStrains();renderBud();setInterval(ap,1000);setInterval(sg,10000);ud();setTimeout(()=>sm('Clique sur le bud !'),400);
 </script>
 </body>
 </html>
