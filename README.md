@@ -1,80 +1,68 @@
-# 🌿 Weed Clicker
+# Bud Clicker
 
-**Un clicker game original : cultive, effeuille, transforme et vends !**
+A simple, mobile-friendly clicker game: click the bud, stack up buds, sell them, and buy upgrades to grow your production.
 
-Chaque clic = une tête effeuillée. Accumule des têtes de cannabis, transforme-les en produits plus rentables (herbe → résine → hash), vends le tout et utilise l'argent pour acheter des upgrades qui automatisent et boostent ta production.
+## How to Play
 
----
+1. **Click the bud** to harvest buds (points).
+2. **Sell your buds** for cash:
+   - **Buds** — $10 each
+   - **Premium buds** — $50 each (rarely drop from your regular stock)
+3. **Spend cash on upgrades** to click harder, earn per second, and multiply your output.
 
-## 🎮 Concept du Jeu
+## Upgrades
 
-### 🌱 Mécanique de base
-1. **Clique** sur la plante 🌿 pour **effeuiller des têtes**
-2. Les têtes s'accumulent automatiquement
-3. **Transforme** tes têtes en produits dérivés (herbe, résine, hash)
-4. **Vends** tes produits pour gagner de l'argent
-5. **Achète des upgrades** pour automatiser et optimiser ta production
+| Upgrade | Effect | Base Cost |
+|---------|--------|-----------|
+| Scissors | +1 bud per click | $50 |
+| Auto | +1 bud per second | $200 |
+| Expert | +5 buds per click | $500 |
+| Crew | +10 buds per second | $2,000 |
+| Turbo | x2 buds per click | $10,000 |
+| Mega | x2 all production | $50,000 |
 
-### 💰 Économie du jeu
+Each upgrade level doubles its cost.
 
-| Produit | Prix | Obtention |
-|---------|------|-----------|
-| Herbe 🌿 | $10/g | 1 tête = 1g |
-| Résine 🧪 | $50/g | 5g herbe → 1g résine |
-| Hash 🟫 | $100/g | 3g résine → 1g hash |
+## Running the Game
 
-### 🏗️ Upgrades
-
-| Upgrade | Effet | Coût |
-|---------|-------|------|
-| Ciseaux Pro | +1 tête/clic | $50 |
-| Cultivateur Auto | +1 tête/sec | $200 |
-| Extracteur Résine | Convertit herbe → résine | $500 |
-| Labo Hash | Convertit résine → hash | $2000 |
-| Graines Premium | +25% production | $1000 |
-| Équipe 👥 | +5 têtes/sec/niveau | $5000 |
-
----
-
-## 🚀 Démarrage
+The game is a single static HTML file — no build step, no dependencies.
 
 ```bash
-cd /home/timo/dev/clicker-game
+# From anywhere on this machine
+./start.sh
+
+# Or manually
 python3 -m http.server 8000
 ```
 
-**URLs :**
-- Local: http://localhost:8000
-- **Tailscale: http://100.126.62.102:8000**
+Then open `http://localhost:8000`.
 
----
+The game is also reachable over the local network / Tailscale, e.g. `http://100.126.62.102:8000`.
 
-## 📁 Structure
+### Server scripts
+
+- `server.py` — HTTP server that prints local and Tailscale URLs on startup
+- `run_server.py` — minimal HTTP server, chdirs into the game folder first
+- `start.sh` — restarts the server in the background (kills the previous instance)
+
+## Project Structure
 
 ```
 clicker-game/
-├── index.html    # Jeu complet
-├── server.py     # Serveur optionnel
+├── index.html    # The whole game (UI, logic, styling)
+├── server.py     # Optional HTTP server with Tailscale support
+├── run_server.py # Minimal HTTP server
+├── start.sh      # Background server launcher
 └── README.md
 ```
 
----
+## Customization
 
-## 🎯 Stratégie
+All game data lives in the `<script>` block of `index.html`:
 
-1. Clique pour accumuler 50 têtes
-2. Achète Ciseaux Pro (Lvl 2-3)
-3. Achète Cultivateur Auto
-4. Achète Extracteur Résine
-5. Achète Labo Hash
-6. Engage une Équipe !
+- `s.prices` — sell prices
+- `c` — base upgrade costs
+- `s.levels` — starting upgrade levels
+- the `ap()` function — auto-production and premium-bud drop logic
 
----
-
-## 🛠️ Personnalisation
-
-Modifie `index.html` pour changer prix, taux, upgrades.
-
----
-
-**Créé pour tester via Tailscale !** 🌿💰
+Edit and refresh; no rebuild needed.
