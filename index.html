@@ -161,57 +161,82 @@ button:focus{outline:none}
        <div class="bud-halo"></div>
         <svg class="bud-svg" id="bs" onclick="harvest(event)" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <radialGradient id="bb" cx="50%" cy="50%" r="50%" fx="45%" fy="45%">
-              <stop offset="0%" stop-color="#5a7c59"/><stop offset="40%" stop-color="#6b8e5a"/><stop offset="70%" stop-color="#7ba37b"/><stop offset="100%" stop-color="#8bc34a"/>
-            </radialGradient>
-            <radialGradient id="bh" cx="50%" cy="30%" r="60%" fx="50%" fy="25%">
-              <stop offset="0%" stop-color="#c8e6c8" stop-opacity=".6"/><stop offset="50%" stop-color="#a0d8a0" stop-opacity=".4"/><stop offset="100%" stop-color="#fff" stop-opacity="0"/>
-            </radialGradient>
-            <radialGradient id="bs2" cx="50%" cy="70%" r="40%" fx="50%" fy="75%">
-              <stop offset="0%" stop-color="#2a5c44" stop-opacity=".4"/><stop offset="100%" stop-color="#4a7c59" stop-opacity="0"/>
-            </radialGradient>
-            <linearGradient id="lg" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#4a7c59"/><stop offset="100%" stop-color="#6b8e5a"/>
+            <linearGradient id="lgd" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#4a7a35"/><stop offset="100%" stop-color="#1f4018"/>
             </linearGradient>
-            <linearGradient id="sg" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="#ff8c00"/><stop offset="100%" stop-color="#ffb74d"/>
+            <linearGradient id="lgm" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#6a9a45"/><stop offset="100%" stop-color="#35602a"/>
             </linearGradient>
+            <linearGradient id="lgl" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#9fd05c"/><stop offset="100%" stop-color="#558a3a"/>
+            </linearGradient>
+            <path id="leaflet" d="M0,0 C-3,12 -8,18 -9,30 C-6,28 -4,27 -4,34 C-7,42 -9,52 -7,62 C-4,59 -3,58 -3,66 C-4,74 -3,82 0,88 C3,82 4,74 3,66 C3,58 4,59 7,62 C9,52 7,42 4,34 C4,27 6,28 9,30 C8,18 3,12 0,0 Z"/>
+            <line id="vein" x1="0" y1="5" x2="0" y2="82" stroke="#12300f" stroke-width="1.4" opacity=".55" stroke-linecap="round"/>
+            <g id="leafD"><use href="#leaflet" fill="url(#lgd)" stroke="#173316" stroke-width=".9" stroke-linejoin="round"/><use href="#vein"/></g>
+            <g id="leafM"><use href="#leaflet" fill="url(#lgm)" stroke="#1c3a16" stroke-width=".9" stroke-linejoin="round"/><use href="#vein"/></g>
+            <g id="leafL"><use href="#leaflet" fill="url(#lgl)" stroke="#274b1c" stroke-width=".9" stroke-linejoin="round"/><use href="#vein"/></g>
+            <path id="calyx" d="M0,0 C5,4 9,10 9,16 C9,23 5,28 0,31 C-5,28 -9,23 -9,16 C-9,10 -5,4 0,0 Z"/>
+            <g id="fan">
+              <use href="#leafM" transform="rotate(-45)"/><use href="#leafM" transform="rotate(-25)"/>
+              <use href="#leafM" transform="rotate(-5)"/><use href="#leafM" transform="rotate(15)"/>
+              <use href="#leafM" transform="rotate(35)"/>
+            </g>
           </defs>
-          <ellipse cx="150" cy="260" rx="80" ry="15" fill="#2a5c44" opacity=".5"/>
-          <ellipse cx="150" cy="150" rx="85" ry="95" fill="url(#bb)"/>
-          <ellipse cx="150" cy="100" rx="50" ry="30" fill="url(#bh)"/>
-          <ellipse cx="150" cy="200" rx="40" ry="25" fill="url(#bs2)"/>
-          <path d="M80 80 Q90 60 110 70 Q100 75 95 85 Q100 90 80 80" fill="url(#lg)"/>
-          <path d="M80 80 Q90 60 110 70" stroke="#8bc34a" stroke-width=".5" fill="none"/>
-          <path d="M220 80 Q210 60 190 70 Q200 75 205 85 Q200 90 220 80" fill="url(#lg)"/>
-          <path d="M220 80 Q210 60 190 70" stroke="#8bc34a" stroke-width=".5" fill="none"/>
-          <path d="M60 130 Q65 115 85 125 Q80 130 70 135 Q75 140 60 130" fill="url(#lg)"/>
-          <path d="M60 130 Q65 115 85 125" stroke="#7ba37b" stroke-width=".5" fill="none"/>
-          <path d="M240 130 Q235 115 215 125 Q220 130 230 135 Q225 140 240 130" fill="url(#lg)"/>
-          <path d="M240 130 Q235 115 215 125" stroke="#7ba37b" stroke-width=".5" fill="none"/>
-          <path d="M90 210 Q95 195 115 205 Q110 210 100 215 Q105 220 90 210" fill="url(#lg)" opacity=".9"/>
-          <path d="M90 210 Q95 195 115 205" stroke="#6b8e5a" stroke-width=".5" fill="none"/>
-          <path d="M210 210 Q205 195 185 205 Q190 210 200 215 Q195 220 210 210" fill="url(#lg)" opacity=".9"/>
-          <path d="M210 210 Q205 195 185 205" stroke="#6b8e5a" stroke-width=".5" fill="none"/>
-          <line x1="100" y1="90" x2="95" y2="60" stroke="#fff" stroke-width="1.2" stroke-linecap="round" opacity=".9"/>
-          <line x1="120" y1="85" x2="125" y2="55" stroke="#fff" stroke-width="1.2" stroke-linecap="round" opacity=".9"/>
-          <line x1="180" y1="95" x2="185" y2="65" stroke="#fff" stroke-width="1.2" stroke-linecap="round" opacity=".9"/>
-          <line x1="200" y1="100" x2="205" y2="70" stroke="#fff" stroke-width="1.2" stroke-linecap="round" opacity=".9"/>
-          <line x1="80" y1="140" x2="75" y2="110" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".8"/>
-          <line x1="220" y1="140" x2="225" y2="110" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".8"/>
-          <line x1="130" y1="65" x2="135" y2="45" stroke="url(#sg)" stroke-width="1" stroke-linecap="round"/>
-          <line x1="150" y1="60" x2="155" y2="40" stroke="url(#sg)" stroke-width="1" stroke-linecap="round"/>
-          <line x1="170" y1="65" x2="175" y2="45" stroke="url(#sg)" stroke-width="1" stroke-linecap="round"/>
-          <circle cx="110" cy="110" r="4" fill="#a0d8a0"/>
-          <circle cx="190" cy="110" r="4" fill="#a0d8a0"/>
-          <circle cx="125" cy="140" r="3.5" fill="#9bc39b"/>
-          <circle cx="175" cy="140" r="3.5" fill="#9bc39b"/>
-          <circle cx="105" cy="160" r="3" fill="#8bc34a"/>
-          <circle cx="195" cy="160" r="3" fill="#8bc34a"/>
-          <circle cx="140" cy="170" r="3" fill="#7ba37b"/>
-          <circle cx="160" cy="170" r="3" fill="#7ba37b"/>
-          <circle cx="145" cy="105" r="1" fill="#fff" opacity=".8"/>
-          <circle cx="155" cy="110" r="1" fill="#fff" opacity=".8"/>
+          <ellipse cx="150" cy="254" rx="82" ry="13" fill="#12300f" opacity=".5"/>
+          <path d="M142,236 C142,248 146,256 150,260 C154,256 158,248 158,236 Z" fill="url(#lgd)" stroke="#173316" stroke-width=".8"/>
+          <use href="#fan" transform="translate(78,238) rotate(215) scale(.8)"/>
+          <use href="#fan" transform="translate(222,238) rotate(145) scale(.8)"/>
+          <use href="#leafD" transform="translate(150,158) rotate(-157) scale(.85) translate(0,-58)"/>
+          <use href="#leafD" transform="translate(150,158) rotate(-112) scale(.85) translate(0,-54)"/>
+          <use href="#leafD" transform="translate(150,158) rotate(-68) scale(.85) translate(0,-52)"/>
+          <use href="#leafD" transform="translate(150,158) rotate(-22) scale(.85) translate(0,-54)"/>
+          <use href="#leafD" transform="translate(150,158) rotate(0) scale(.85) translate(0,-50)"/>
+          <use href="#leafD" transform="translate(150,158) rotate(22) scale(.85) translate(0,-54)"/>
+          <use href="#leafD" transform="translate(150,158) rotate(68) scale(.85) translate(0,-52)"/>
+          <use href="#leafD" transform="translate(150,158) rotate(112) scale(.85) translate(0,-54)"/>
+          <use href="#leafD" transform="translate(150,158) rotate(157) scale(.85) translate(0,-58)"/>
+          <use href="#leafM" transform="translate(150,158) rotate(-135) scale(.75) translate(0,-44)"/>
+          <use href="#leafM" transform="translate(150,158) rotate(-90) scale(.75) translate(0,-40)"/>
+          <use href="#leafM" transform="translate(150,158) rotate(-45) scale(.75) translate(0,-44)"/>
+          <use href="#leafM" transform="translate(150,158) rotate(0) scale(.75) translate(0,-38)"/>
+          <use href="#leafM" transform="translate(150,158) rotate(45) scale(.75) translate(0,-44)"/>
+          <use href="#leafM" transform="translate(150,158) rotate(90) scale(.75) translate(0,-40)"/>
+          <use href="#leafM" transform="translate(150,158) rotate(135) scale(.75) translate(0,-44)"/>
+          <path d="M136,148 C128,136 130,124 122,108" stroke="#ff9d1f" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>
+          <path d="M164,148 C172,136 170,124 178,108" stroke="#ff9d1f" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>
+          <path d="M150,140 C150,128 154,118 152,102" stroke="#ff9d1f" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>
+          <use href="#leafL" transform="translate(150,158) rotate(-120) scale(.68) translate(0,-32)"/>
+          <use href="#leafL" transform="translate(150,158) rotate(-78) scale(.68) translate(0,-30)"/>
+          <use href="#leafL" transform="translate(150,158) rotate(-36) scale(.68) translate(0,-32)"/>
+          <use href="#leafL" transform="translate(150,158) rotate(0) scale(.68) translate(0,-28)"/>
+          <use href="#leafL" transform="translate(150,158) rotate(36) scale(.68) translate(0,-32)"/>
+          <use href="#leafL" transform="translate(150,158) rotate(78) scale(.68) translate(0,-30)"/>
+          <use href="#leafL" transform="translate(150,158) rotate(120) scale(.68) translate(0,-32)"/>
+          <use href="#leafL" transform="translate(150,158) rotate(-60) scale(.55) translate(0,-20)"/>
+          <use href="#leafL" transform="translate(150,158) rotate(60) scale(.55) translate(0,-20)"/>
+          <use href="#leafL" transform="translate(150,158) rotate(0) scale(.55) translate(0,-18)"/>
+          <use href="#calyx" transform="translate(150,170) scale(.7)" fill="url(#lgl)" stroke="#274b1c" stroke-width=".9"/>
+          <use href="#calyx" transform="translate(133,184) scale(.7)" fill="url(#lgl)" stroke="#274b1c" stroke-width=".9"/>
+          <use href="#calyx" transform="translate(167,184) scale(.7)" fill="url(#lgl)" stroke="#274b1c" stroke-width=".9"/>
+          <use href="#calyx" transform="translate(141,198) scale(.7)" fill="url(#lgl)" stroke="#274b1c" stroke-width=".9"/>
+          <use href="#calyx" transform="translate(159,198) scale(.7)" fill="url(#lgl)" stroke="#274b1c" stroke-width=".9"/>
+          <use href="#calyx" transform="translate(150,190) scale(.7)" fill="url(#lgl)" stroke="#274b1c" stroke-width=".9"/>
+          <path d="M150,168 C150,150 156,136 150,112" stroke="#ff8c00" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>
+          <path d="M150,168 C152,152 150,140 156,122" stroke="#ff8c00" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".85"/>
+          <path d="M136,158 C128,144 132,130 122,112" stroke="#ff8c00" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".9"/>
+          <path d="M164,158 C172,144 168,130 178,112" stroke="#ff8c00" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".9"/>
+          <path d="M143,146 C138,134 141,122 134,106" stroke="#ff8c00" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>
+          <path d="M157,146 C162,134 159,122 166,106" stroke="#ff8c00" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>
+          <path d="M122,172 C113,162 115,150 105,136" stroke="#ff8c00" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>
+          <path d="M178,172 C187,162 185,150 195,136" stroke="#ff8c00" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>
+          <path d="M132,180 C122,172 124,160 114,148" stroke="#ff8c00" stroke-width="1.3" stroke-linecap="round" fill="none" opacity=".7"/>
+          <path d="M168,180 C178,172 176,160 186,148" stroke="#ff8c00" stroke-width="1.3" stroke-linecap="round" fill="none" opacity=".7"/>
+          <path d="M150,150 C148,134 152,122 150,104" stroke="#ffab2e" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".9"/>
+          <path d="M150,104 C146,98 144,94 140,90" stroke="#ffab2e" stroke-width="1.2" stroke-linecap="round" fill="none" opacity=".9"/>
+          <path d="M150,104 C154,98 156,94 160,90" stroke="#ffab2e" stroke-width="1.2" stroke-linecap="round" fill="none" opacity=".9"/>
+          <g fill="#fff" opacity=".85">
+            <circle cx="122" cy="126" r="1.1"/><circle cx="140" cy="112" r="1.2"/><circle cx="160" cy="110" r="1"/><circle cx="178" cy="126" r="1.3"/><circle cx="110" cy="142" r="1"/><circle cx="150" cy="100" r="1.2"/><circle cx="190" cy="142" r="1.1"/><circle cx="128" cy="140" r="1"/><circle cx="172" cy="140" r="1"/><circle cx="136" cy="100" r="1.2"/><circle cx="164" cy="104" r="1.1"/><circle cx="150" cy="92" r="1"/><circle cx="118" cy="130" r="1.3"/><circle cx="182" cy="130" r="1.1"/><circle cx="142" cy="122" r="1.2"/><circle cx="158" cy="120" r="1"/><circle cx="112" cy="158" r="1.1"/><circle cx="188" cy="158" r="1"/><circle cx="128" cy="150" r="1.2"/><circle cx="172" cy="150" r="1.1"/><circle cx="150" cy="146" r="1.3"/><circle cx="135" cy="140" r="1.1"/><circle cx="165" cy="140" r="1.2"/><circle cx="122" cy="110" r="1"/><circle cx="178" cy="110" r="1.2"/><circle cx="150" cy="104" r="1.4"/>
+          </g>
         </svg>
       </div>
       <div class="per-click">+<b id="hl">1</b> / clic</div>
