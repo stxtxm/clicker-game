@@ -15,9 +15,8 @@ html,body{height:100%;overflow:hidden}
   --green:#7fd04b;--green-dim:#4a7c59;--green-soft:#c8e6c8;
   --gold:#ffc107;--gold-soft:#ffb74d;
   --text:#eef4ee;--muted:#93a393;
-  --danger:#ff5252;
   --sat:env(safe-area-inset-top);--sab:env(safe-area-inset-bottom);
-  --sh:0 8px 30px rgba(0,0,0,.45);--shs:0 3px 12px rgba(0,0,0,.35);
+  --sh:0 8px 30px rgba(0,0,0,.45);
 }
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:radial-gradient(120% 90% at 50% 0%,var(--bg2),var(--bg));color:var(--text);-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent}
 button{font-family:inherit;color:inherit;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
@@ -27,7 +26,7 @@ button:focus{outline:none}
 /* ===== Topbar ===== */
 .topbar{padding:calc(12px + var(--sat)) 16px 12px;display:flex;flex-direction:column;gap:12px;background:linear-gradient(180deg,rgba(10,14,10,.96),rgba(10,14,10,.7));backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
 .brand{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-.title{font-size:1.45rem;font-weight:800;letter-spacing:.5px;background:linear-gradient(90deg,var(--green-soft),var(--green));-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 2px 18px var(--pg)}
+.title{font-size:1.45rem;font-weight:800;letter-spacing:.5px;background:linear-gradient(90deg,var(--green-soft),var(--green));-webkit-background-clip:text;background-clip:text;color:transparent}
 .subtitle{font-size:.78rem;color:var(--muted)}
 .stats-bar{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .stat{display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 6px}
@@ -48,8 +47,6 @@ button:focus{outline:none}
 .bud-svg{width:100%;height:100%;cursor:pointer;transition:transform .08s cubic-bezier(.4,0,.2,1);touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;will-change:transform}
 .bud-svg:active{transform:scale(.95)}
 .bud-halo{position:absolute;left:50%;top:50%;width:118%;height:118%;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,rgba(127,208,75,.16),transparent 65%);pointer-events:none}
-.bud-halo.breathing{animation:breathe 3.2s ease-in-out infinite}
-@keyframes breathe{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}}
 @keyframes bp{0%{transform:scale(1)}35%{transform:scale(.92)}65%{transform:scale(1.05)}100%{transform:scale(1)}}
 .pulse-active{animation:bp .28s cubic-bezier(.4,0,.2,1)}
 @keyframes fu{0%{transform:translate(-50%,-50%) scale(1);opacity:1}100%{transform:translate(-50%,-150%) scale(1.25);opacity:0}}
@@ -176,7 +173,7 @@ button:focus{outline:none}
     <div class="bud-stage">
       <div class="bud-cont" id="bc">
        <div class="bud-halo"></div>
-        <svg class="bud-svg" id="bs" onclick="harvest(event)" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"></svg>
+        <svg class="bud-svg" id="bs" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
       <div class="per-click">+<b id="hl">1</b> / clic</div>
       <div class="hint">Clique ou appuie sur le bud</div>
@@ -188,18 +185,18 @@ button:focus{outline:none}
   <section class="view view-sell" id="v-sell">
     <div class="panel-head"><h2>Vendre</h2><p>Transforme ta récolte en argent</p></div>
     <div class="sell-cards">
-      <button class="sell-card" onclick="sell('main')" id="sm">
+      <button class="sell-card" id="sm">
         <span class="sc-icon">🌿</span>
         <span class="sc-info"><span class="sc-name">Têtes</span><span class="sc-avail" id="stm">0 dispo</span></span>
         <span class="sc-price" id="pm">$10/u</span>
       </button>
-      <button class="sell-card premium" onclick="sell('premium')" id="sp">
+      <button class="sell-card premium" id="sp">
         <span class="sc-icon">💎</span>
         <span class="sc-info"><span class="sc-name">Premium</span><span class="sc-avail" id="stp">0 dispo</span></span>
         <span class="sc-price" id="pp">$50/u</span>
       </button>
     </div>
-    <button class="sell-all" onclick="sell('all')" id="sa">Tout vendre</button>
+    <button class="sell-all" id="sa">Tout vendre</button>
   </section>
 
   <!-- Upgrades -->
@@ -225,229 +222,8 @@ button:focus{outline:none}
 </nav>
 </div>
 
-<script>
-const U=[
- {id:'harvest',name:'Ciseaux',icon:'✂️',desc:'+1 point par clic',cost:50},
- {id:'auto',name:'Auto-récolte',icon:'🤖',desc:'+1 point par seconde',cost:200},
- {id:'expert',name:'Expert',icon:'🧑‍🌾',desc:'+5 points par clic',cost:500},
- {id:'crew',name:'Équipe',icon:'👥',desc:'+10 points par seconde',cost:2000},
- {id:'turbo',name:'Turbo',icon:'⚡',desc:'x2 points par clic',cost:10000},
- {id:'mega',name:'Mega',icon:'🌟',desc:'x2 toute la production',cost:50000}
-];
-let s={points:0,money:0,strain:'green',stock:{main:0,premium:0,strains:['green']},prices:{main:10,premium:50},levels:{harvest:1,auto:0,expert:0,crew:0,turbo:0,mega:0}};
-const c=Object.fromEntries(U.map(u=>[u.id,u.cost]));
-const STRAINS=[
- {id:'green',name:'Green Dream',icon:'🌿',cost:0,desc:'La classique, résineuse et généreuse',
-  d:['#3f6d2c','#1b3b13'],m:['#5f8f3c','#2c521f'],l:['#a8d172','#4c7a2e'],f:['#d3eaa2','#7fae48'],p:['#7a5a9a','#3a2a55'],
-  vein:'#173012',stroke:'#102a0c',pistil:'#ff8c00',pistil2:'#ff9d1f',frost:1},
- {id:'purple',name:'Purple Haze',icon:'🟣',cost:1500,desc:'Notes violettes et sucrées',
-  d:['#4a2f6e','#241243'],m:['#6a3fa0','#341a58'],l:['#a06fd0','#5c2f8a'],f:['#cfa8ee','#8a55c0'],p:['#2e3a66','#16203a'],
-  vein:'#1c0f38',stroke:'#150a2c',pistil:'#ffab2e',pistil2:'#ffc46e',frost:1.25},
- {id:'blue',name:'Blue Frost',icon:'💠',cost:8000,desc:'Givrée bleutée, très cristalline',
-  d:['#1f4a5a','#0d2630'],m:['#2e6f8f','#163b4d'],l:['#5fa8cf','#2f6d8f'],f:['#a8d8ee','#5f9fcf'],p:['#3a5a6e','#1c2e3a'],
-  vein:'#0c2230',stroke:'#081a24',pistil:'#ffffff',pistil2:'#d8f0ff',frost:1.7},
- {id:'pink',name:'Pink Kush',icon:'🌸',cost:25000,desc:'Pistils rosés, calyx denses',
-  d:['#6e2f4a','#3a1730'],m:['#8f3f6a','#4a1f3a'],l:['#d06fa8','#8a3f66'],f:['#eea8cf','#b06f98'],p:['#4a2e6e','#24143a'],
-  vein:'#351028',stroke:'#280c1e',pistil:'#ff6f9d',pistil2:'#ffb3cc',frost:1.4}
-];
-const BUD_SIL='M150,78 C180,78 208,96 208,128 C208,150 205,166 196,184 C186,204 176,214 158,224 C152,226.5 148,226.5 142,224 C124,214 114,204 104,184 C95,166 92,150 92,128 C92,96 120,78 150,78 Z';
-function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
-function renderBud(){
-  const st=STRAINS.find(x=>x.id===s.strain)||STRAINS[0];
-  const lg=(id,c)=>`<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${c[0]}"/><stop offset="100%" stop-color="${c[1]}"/></linearGradient>`;
-  const rg=(id,h,b,d)=>`<radialGradient id="${id}" cx="32%" cy="26%" r="88%"><stop offset="0%" stop-color="${h}"/><stop offset="45%" stop-color="${b}"/><stop offset="100%" stop-color="${d}"/></radialGradient>`;
-  const lf=(id,grad)=>`<g id="leaf${id}"><use href="#leaflet" fill="url(#${grad})" stroke="${st.stroke}" stroke-width=".9" stroke-linejoin="round"/><use href="#vein"/></g>`;
-  const use=(id,a,r,s)=>`<use href="#leaf${id}" transform="translate(150,178) rotate(${a}) scale(${s}) translate(0,-${r})"/>`;
-  const fv=(.30+st.frost*.18).toFixed(3), fv2=(.12+st.frost*.08).toFixed(3);
-  let h='<defs>'
-   + lg('lgd',st.d)+lg('lgm',st.m)+lg('lgl',st.l)+lg('lgf',st.f)
-   + rg('cxD',st.m[0],st.d[0],st.d[1])+rg('cxM',st.l[0],st.m[0],st.m[1])+rg('cxL',st.f[0],st.l[0],st.l[1])
-   + `<radialGradient id="frostVeil" cx="50%" cy="28%" r="85%"><stop offset="0%" stop-color="#ffffff" stop-opacity="${fv}"/><stop offset="55%" stop-color="#ffffff" stop-opacity="${fv2}"/><stop offset="100%" stop-color="#ffffff" stop-opacity="0"/></radialGradient>`
-   + `<radialGradient id="occ" cx="50%" cy="96%" r="82%"><stop offset="0%" stop-color="#000000" stop-opacity=".5"/><stop offset="100%" stop-color="#000000" stop-opacity="0"/></radialGradient>`
-   + `<filter id="crumple" x="-15%" y="-15%" width="130%" height="130%"><feTurbulence type="fractalNoise" baseFrequency="0.025" numOctaves="3" seed="11" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="7"/></filter>`
-   + `<filter id="noiseFrost" x="0%" y="0%" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.5" numOctaves="2" seed="7" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 0"/></filter>`
-   + '<path id="leaflet" d="M0,0 L2.5,7 L6,10 L7,16 L3.5,15 L8,23 L7,30 L3.5,28 L8,36 L7,43 L3.5,41 L7,48 L6,54 L3,52 L5,59 L3,65 L1.5,63 L2,69 L1,75 L0,78 L-1,75 L-2,69 L-1.5,63 L-3,65 L-5,59 L-3,52 L-6,54 L-7,48 L-3.5,41 L-7,43 L-8,36 L-3.5,28 L-8,30 L-8,23 L-3.5,15 L-7,16 L-6,10 L-2.5,7 Z"/>'
-   + `<line id="vein" x1="0" y1="4" x2="0" y2="72" stroke="${st.vein}" stroke-width="1.2" opacity=".5" stroke-linecap="round"/>`
-   + `<linearGradient id="lgFan" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#7fae48"/><stop offset="100%" stop-color="#3a5c22"/></linearGradient>`
-   + lf('D','lgd')+lf('M','lgm')+lf('L','lgl')+lf('F','lgf')+lf('A','lgFan')
-   + '<path id="calyx" d="M0,-3 C8,3 15,12 15,23 C15,32 8,39 0,42 C-8,39 -15,32 -15,23 C-15,12 -8,3 0,-3 Z"/>'
-   + `<g id="fan"><line x1="0" y1="-8" x2="0" y2="-56" stroke="${st.stroke}" stroke-width="3.5" stroke-linecap="round"/><use href="#leafA" transform="translate(0,-56) rotate(-62) translate(0,-47) scale(.6)"/><use href="#leafA" transform="translate(0,-56) rotate(-45) translate(0,-59) scale(.75)"/><use href="#leafA" transform="translate(0,-56) rotate(-22) translate(0,-70) scale(.9)"/><use href="#leafA" transform="translate(0,-56) rotate(0) translate(0,-78) scale(1)"/><use href="#leafA" transform="translate(0,-56) rotate(22) translate(0,-70) scale(.9)"/><use href="#leafA" transform="translate(0,-56) rotate(45) translate(0,-59) scale(.75)"/><use href="#leafA" transform="translate(0,-56) rotate(62) translate(0,-47) scale(.6)"/></g>`
-   + `<clipPath id="budClip"><path d="${BUD_SIL}"/></clipPath>`
-   + '</defs>';
-  h+=`<ellipse cx="150" cy="252" rx="62" ry="13" fill="#0a1a07" opacity=".6"/>`;
-  h+=`<path d="M147,228 C147,240 150,247 150,252 C150,247 153,240 153,228 Z" fill="url(#lgd)" stroke="${st.stroke}" stroke-width=".8"/>`;
-  h+=`<use href="#fan" transform="translate(110,226) rotate(-32) scale(1.45)"/>`;
-  h+=`<use href="#fan" transform="translate(190,226) rotate(32) scale(1.45)"/>`;
-  h+=`<path d="${BUD_SIL}" fill="url(#lgd)"/>`;
-  const hw=y=>y<130?20+(y-84)*(38/46):(y<190?58-(y-130)*(8/60):50-(y-190));
-  const rnd=mulberry32(2024);
-  let cxg='<g filter="url(#crumple)">';
-  for(let i=0;i<42;i++){
-    const y=84+Math.pow(rnd(),0.7)*148;
-    const w=hw(y);
-    const x=150+(rnd()*2-1)*w*(0.35+0.65*Math.sqrt(rnd()));
-    let s=0.5+rnd()*0.55;
-    if(y>190)s*=0.8;
-    const rot=(rnd()-0.5)*30;
-    const tier=y<150?'cxL':(y<205?'cxM':'cxD');
-    cxg+=`<use href="#calyx" transform="translate(${x.toFixed(1)},${y.toFixed(1)}) rotate(${rot.toFixed(1)}) scale(${s.toFixed(2)})" fill="url(#${tier})" stroke="${st.stroke}" stroke-width=".7" stroke-linejoin="round" opacity=".97"/>`;
-  }
-  cxg+='</g>';
-  h+=cxg;
-  h+=use('F',-36,98,.42)+use('F',-18,104,.46)+use('F',0,106,.5)+use('F',18,104,.46)+use('F',36,98,.42);
-  h+=use('L',50,60,.44)+use('L',78,60,.44)+use('L',108,58,.42)+use('L',132,56,.4);
-  h+=use('L',-50,60,.44)+use('L',-78,60,.44)+use('L',-108,58,.42)+use('L',-132,56,.4);
-  h+=`<g clip-path="url(#budClip)"><ellipse cx="150" cy="150" rx="78" ry="86" fill="url(#frostVeil)"/><rect x="76" y="72" width="148" height="168" fill="url(#noiseFrost)" opacity=".5"/><ellipse cx="150" cy="238" rx="58" ry="20" fill="url(#occ)"/></g>`;
-  h+=`<path d="M150,168 C149,152 152,140 150,124" stroke="${st.pistil}" stroke-width="1.7" stroke-linecap="round" fill="none" opacity=".95"/>`;
-  h+=`<path d="M150,124 C145,118 142,112 138,106" stroke="${st.pistil}" stroke-width="1.1" stroke-linecap="round" fill="none" opacity=".9"/>`;
-  h+=`<path d="M150,124 C155,118 158,112 162,106" stroke="${st.pistil}" stroke-width="1.1" stroke-linecap="round" fill="none" opacity=".9"/>`;
-  h+=`<path d="M150,196 C148,178 156,164 150,138" stroke="${st.pistil}" stroke-width="1.9" stroke-linecap="round" fill="none" opacity=".95"/>`;
-  h+=`<path d="M150,200 C154,184 148,172 156,148" stroke="${st.pistil2}" stroke-width="1.7" stroke-linecap="round" fill="none" opacity=".9"/>`;
-  h+=`<path d="M136,192 C128,178 132,164 124,144" stroke="${st.pistil}" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>`;
-  h+=`<path d="M164,192 C172,178 168,164 176,144" stroke="${st.pistil}" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>`;
-  h+=`<path d="M142,180 C136,168 140,156 132,138" stroke="${st.pistil2}" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".85"/>`;
-  h+=`<path d="M158,180 C164,168 160,156 168,138" stroke="${st.pistil2}" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".85"/>`;
-  h+=`<path d="M126,184 C116,172 120,160 110,144" stroke="${st.pistil}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".85"/>`;
-  h+=`<path d="M174,184 C184,172 180,160 190,144" stroke="${st.pistil}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".85"/>`;
-  h+=`<path d="M138,168 C130,156 134,144 126,128" stroke="${st.pistil2}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>`;
-  h+=`<path d="M162,168 C170,156 166,144 174,128" stroke="${st.pistil2}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>`;
-  h+=`<path d="M150,170 C150,158 152,148 150,134" stroke="${st.pistil2}" stroke-width="1.3" stroke-linecap="round" fill="none" opacity=".85"/>`;
-  h+=`<path d="M118,176 C110,166 112,154 104,140" stroke="${st.pistil}" stroke-width="1.3" stroke-linecap="round" fill="none" opacity=".8"/>`;
-  h+=`<path d="M182,176 C190,166 188,154 196,140" stroke="${st.pistil}" stroke-width="1.3" stroke-linecap="round" fill="none" opacity=".8"/>`;
-  const prnd=mulberry32(99);
-  for(let i=0;i<10;i++){
-    const bx=128+prnd()*44, by=140+prnd()*55;
-    const up=prnd()*Math.PI-(Math.PI/2);
-    const len=16+prnd()*24;
-    const c1x=bx+Math.sin(up)*len*0.35, c1y=by-Math.cos(up)*len*0.3;
-    const ex=bx+Math.sin(up)*len, ey=by-Math.cos(up)*len;
-    h+=`<path d="M${bx.toFixed(1)},${by.toFixed(1)} C${c1x.toFixed(1)},${c1y.toFixed(1)} ${(ex+(prnd()-0.5)*10).toFixed(1)},${(ey-prnd()*8).toFixed(1)} ${ex.toFixed(1)},${(ey-prnd()*6).toFixed(1)}" stroke="${st.pistil}" stroke-width="${(1.0+prnd()*0.6).toFixed(1)}" stroke-linecap="round" fill="none" opacity=".9"/>`;
-  }
-  const trnd=mulberry32(777);
-  let fr='<g fill="#ffffff">';
-  for(let i=0;i<13;i++){
-    const x=118+trnd()*64, y=102+trnd()*48;
-    const dx=(trnd()-0.5)*8, dy=-4-trnd()*6;
-    fr+=`<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x+dx).toFixed(1)}" y2="${(y+dy).toFixed(1)}" stroke="#e8f5e0" stroke-width=".6"/><circle cx="${(x+dx).toFixed(1)}" cy="${(y+dy).toFixed(1)}" r="${(1.0+trnd()*0.6).toFixed(1)}"/>`;
-  }
-  const nd=Math.min(44,Math.round(40*st.frost));
-  for(let i=0;i<nd;i++){const x=Math.round(96+trnd()*108), y=Math.round(86+trnd()*124);fr+=`<circle cx="${x}" cy="${y}" r="${(0.8+trnd()*0.9).toFixed(1)}"/>`}
-  fr+='</g>';
-  h+=fr;
-  h+=`<ellipse cx="133" cy="112" rx="30" ry="22" fill="#ffffff" opacity=".08"/>`;
-  document.getElementById('bs').innerHTML=h;
-}
-function buildStrains(){
-  const w=document.getElementById('sv');w.innerHTML='';
-  for(const st of STRAINS){
-    const owned=s.stock.strains.includes(st.id),equipped=s.strain===st.id;
-    const el=document.createElement('div');
-    el.className='strain'+(owned?' owned':'');
-    el.innerHTML='<span class="st-icon">'+st.icon+'</span><div class="st-info"><div class="st-name">'+st.name+(equipped?' <span class="st-badge">Équipée</span>':'')+'</div><div class="st-desc">'+st.desc+'</div></div><div class="st-buy"><span class="st-cost">'+(owned?'':('$'+fm(st.cost)))+'</span>'+(owned?'<span class="st-ok">Possédée</span>':'<button class="bb" id="sb-'+st.id+'">Acheter</button>')+'</div>';
-    el.onclick=()=>equipStrain(st.id);
-    const btn=el.querySelector('.bb');
-    if(btn){btn.onclick=(ev)=>{ev.stopPropagation();equipStrain(st.id)};btn.disabled=s.money<st.cost}
-    w.appendChild(el);
-  }
-}
-function equipStrain(id){
-  const st=STRAINS.find(x=>x.id===id);if(!st)return;
-  const owned=s.stock.strains.includes(id);
-  if(!owned){
-    if(s.money<st.cost){sm('Pas assez d\'argent');return}
-    s.money-=st.cost;s.stock.strains.push(id);
-    sm(st.name+' débloquée !');popNum(e.m);
-  }
-  s.strain=id;renderBud();buildStrains();ud();sg();
-}
-const bc=document.getElementById('bc'),mc=document.getElementById('mc');
-const e={p:document.getElementById('p'),m:document.getElementById('m'),ar:document.getElementById('ar'),hl:document.getElementById('hl'),stm:document.getElementById('stm'),stp:document.getElementById('stp'),pm:document.getElementById('pm'),pp:document.getElementById('pp'),sm:document.getElementById('sm'),sp:document.getElementById('sp'),sa:document.getElementById('sa')};
-
-function fm(n){return n>=1e6?(n/1e6).toFixed(2)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':Math.floor(n)}
-function gc(t){return Math.floor(c[t]*Math.pow(2,s.levels[t]))}
-function pow(){let pc=s.levels.harvest+s.levels.expert*5;if(s.levels.turbo>0)pc*=2;if(s.levels.mega>0)pc*=2;return pc}
-function pps(){let r=s.levels.auto+s.levels.crew*10;return r}
-
-function buildUpgrades(){
-  const wrap=document.getElementById('ug');
-  wrap.innerHTML='';
-  for(const u of U){
-    const el=document.createElement('div');
-    el.className='upgrade';el.id='ui-'+u.id;
-    el.innerHTML='<span class="up-icon">'+u.icon+'</span><div class="up-info"><div class="up-name">'+u.name+' <span class="up-level" id="ul-'+u.id+'">Lvl 0</span></div><div class="up-desc">'+u.desc+'</div></div><div class="up-buy"><span class="up-cost" id="uc-'+u.id+'">$0</span><button class="bb" id="ub-'+u.id+'">Acheter</button></div>';
-    el.onclick=()=>buy(u.id);
-    el.querySelector('.bb').onclick=(ev)=>{ev.stopPropagation();buy(u.id)};
-    wrap.appendChild(el);
-  }
-}
-function ud(){
-  const pc=pow(),ar=pps();
-  e.p.textContent=fm(s.points);e.m.textContent='$'+fm(s.money);e.ar.textContent='+'+ar;e.hl.textContent=pc;
-  e.stm.textContent=s.stock.main+' dispo';e.stp.textContent=s.stock.premium+' dispo';
-  e.pm.textContent='$'+s.prices.main+'/u';e.pp.textContent='$'+s.prices.premium+'/u';
-  e.sm.disabled=s.stock.main<=0;e.sp.disabled=s.stock.premium<=0;e.sa.disabled=(s.stock.main+s.stock.premium)<=0;
-  for(const u of U){
-    const lv=document.getElementById('ul-'+u.id);
-    if(lv){lv.textContent='Lvl '+s.levels[u.id]}
-    const cost=document.getElementById('uc-'+u.id);
-    if(cost){cost.textContent='$'+fm(gc(u.id))}
-    const btn=document.getElementById('ub-'+u.id);
-    if(btn){btn.disabled=s.money<gc(u.id)}
-  }
-  document.querySelectorAll('[id^="sb-"]').forEach(b=>{const id=b.id.slice(3);const st=STRAINS.find(x=>x.id===id);if(!s.stock.strains.includes(id))b.disabled=s.money<st.cost});
-}
-function popNum(el){el.classList.remove('pop');void el.offsetWidth;el.classList.add('pop')}
-function harvest(ev){
-  ev.preventDefault();ev.stopPropagation();
-  const ac=pow();
-  s.points+=ac;s.stock.main+=ac;
-  const bud=document.getElementById('bs');
-  bud.classList.add('pulse-active');setTimeout(()=>bud.classList.remove('pulse-active'),280);
-  let x=50,y=45;
-  if(ev&&ev.clientX&&ev.clientY){const r=bc.getBoundingClientRect();x=((ev.clientX-r.left)/r.width)*100;y=((ev.clientY-r.top)/r.height)*100}
-  sp('+'+ac,x,y);ud();popNum(e.p);sg();
-}
-function sp(t,x,y){
-  const p=document.createElement('div');p.className='particle';p.textContent=t;
-  p.style.left=(x||50)+'%';p.style.top=(y||45)+'%';bc.appendChild(p);setTimeout(()=>p.remove(),520);
-}
-function sell(t){
-  let gain=0;
-  if(t==='main'||t==='all'){if(s.stock.main>0){gain+=s.stock.main*s.prices.main;s.stock.main=0}}
-  if(t==='premium'||t==='all'){if(s.stock.premium>0){gain+=s.stock.premium*s.prices.premium;s.stock.premium=0}}
-  if(gain>0){s.money+=gain;sm('+$'+fm(gain));popNum(e.m)}ud();sg();
-}
-function buy(t){
-  const cost=gc(t);
-  if(s.money>=cost){s.money-=cost;s.levels[t]++;sm(U.find(u=>u.id===t).name+' acheté !');popNum(e.m);ud();sg()}
-  else{sm('Pas assez d\'argent');}
-}
-function ap(){
-  const ar=pps();
-  if(ar>0){s.points+=ar;s.stock.main+=ar}
-  if(s.stock.main>10&&Math.random()<.05){s.stock.main-=5;s.stock.premium+=1}
-  ud();sg();
-}
-function sm(t){const m=document.createElement('div');m.className='ms';m.textContent=t;mc.appendChild(m);setTimeout(()=>m.remove(),2200)}
-function sg(){localStorage.setItem('budClicker',JSON.stringify(s))}
-function lg(){const d=localStorage.getItem('budClicker');if(d){const old=JSON.parse(d);Object.assign(s,old)}if(!s.strain||!STRAINS.some(x=>x.id===s.strain))s.strain='green';if(!s.stock.strains||!Array.isArray(s.stock.strains))s.stock.strains=['green']} 
-
-/* Tabs */
-function switchTab(tab){
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  const target=document.getElementById('v-'+tab);
-  if(target)target.classList.add('active');
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
-}
-document.querySelectorAll('.tab-btn').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
-
-/* Espace/clic pour récolter sur desktop */
-document.addEventListener('keydown',ev=>{
-  if(ev.code==='Space'&&!ev.repeat&&document.activeElement.tagName!=='BUTTON'){ev.preventDefault();harvest(ev)}
-});
-
-buildUpgrades();
-lg();buildStrains();renderBud();setInterval(ap,1000);setInterval(sg,10000);ud();setTimeout(()=>sm('Clique sur le bud !'),400);
-</script>
+<script src="js/game.js"></script>
+<script src="js/bud.js"></script>
+<script src="js/ui.js"></script>
 </body>
 </html>

@@ -1,0 +1,12 @@
+{
+  "name": "bud-clicker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bud Clicker — a mobile-friendly cannabis bud clicker game. Static HTML/CSS/JS, zero dependencies.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
