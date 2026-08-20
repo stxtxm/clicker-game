@@ -250,65 +250,62 @@ const STRAINS=[
   d:['#6e2f4a','#3a1730'],m:['#8f3f6a','#4a1f3a'],l:['#d06fa8','#8a3f66'],f:['#eea8cf','#b06f98'],p:['#4a2e6e','#24143a'],
   vein:'#351028',stroke:'#280c1e',pistil:'#ff6f9d',pistil2:'#ffb3cc',frost:1.4}
 ];
-const BUD_L={
- back:[[0,.55,42],[-22,.6,44],[22,.6,44],[-45,.62,44],[45,.62,44],[-68,.62,44],[68,.62,44],[-90,.6,44],[90,.6,44],[-112,.58,44],[112,.58,44],[-135,.55,44],[135,.55,44],[-157,.52,44],[157,.52,44],[180,.42,36]],
- purple:[[-80,.5,40],[80,.5,40],[-100,.5,42],[100,.5,42]],
- mid:[[0,.5,32],[-18,.5,32],[18,.5,32],[-38,.48,32],[38,.48,32],[-58,.46,32],[58,.46,32],[-80,.44,34],[80,.44,34],[-102,.44,36],[102,.44,36],[-125,.42,38],[125,.42,38],[180,.36,30]],
- front:[[0,.42,24],[-16,.42,24],[16,.42,24],[-34,.4,23],[34,.4,23],[-54,.38,22],[54,.38,22],[-74,.36,22],[74,.36,22],[-90,.34,22],[90,.34,22],[-105,.34,22],[105,.34,22]],
- crown:[[0,.68,38],[-7,.62,36],[7,.62,36],[-14,.56,34],[14,.56,34],[-30,.52,32],[30,.52,32]],
- filler:[[-22,.32,18],[22,.32,18],[0,.3,16],[-48,.3,18],[48,.3,18]]
-};
+const MASS_BASE=[[150,190,88,72],[108,178,60,68],[192,178,60,68],[150,212,78,48],[96,206,42,46],[204,206,42,46],[150,162,70,58]];
+const MASS_MID=[[150,172,60,50],[120,156,40,44],[180,156,40,44],[106,186,38,40],[194,186,38,40],[150,198,50,36],[136,212,34,32],[164,212,34,32]];
+const MASS_LIGHT=[[150,140,46,38],[126,150,30,30],[174,150,30,30],[150,164,40,30],[116,170,28,26],[184,170,28,26],[138,118,24,28],[162,118,24,28],[150,102,26,28],[105,152,22,24],[195,152,22,24]];
+const CROWN_LEAVES=[[0,42,.6],[-8,40,.55],[8,40,.55],[-24,36,.5],[24,36,.5],[-40,34,.45],[40,34,.45]];
+const SIDE_LEAVES=[[-62,42,.42],[62,42,.42],[-100,42,.36],[100,42,.36],[-140,42,.34],[140,42,.34]];
+const CALYX_BUMP=[[128,172,.55,'lgm'],[172,172,.55,'lgm'],[150,178,.6,'lgf'],[118,190,.5,'lgm'],[182,190,.5,'lgm'],[140,196,.55,'lgf'],[160,196,.55,'lgf'],[150,205,.6,'lgf'],[128,206,.5,'lgf'],[172,206,.5,'lgf'],[150,150,.45,'lgf'],[112,164,.42,'lgm'],[188,164,.42,'lgm']];
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function renderBud(){
   const st=STRAINS.find(x=>x.id===s.strain)||STRAINS[0];
   const g=(id,c)=>`<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${c[0]}"/><stop offset="100%" stop-color="${c[1]}"/></linearGradient>`;
-  const lf=(id,grad)=>`<g id="leaf${id}"><use href="#leaflet" fill="url(${grad})" stroke="${st.stroke}" stroke-width="1" stroke-linejoin="round"/><use href="#vein"/></g>`;
-  const use=(id,a,r,s)=>`<use href="#leaf${id}" transform="translate(150,172) rotate(${a}) scale(${s}) translate(0,-${r})"/>`;
-  const cx=(x,y,sc,grad)=>`<use href="#calyx" transform="translate(${x},${y}) scale(${sc})" fill="url(${grad})" stroke="${st.stroke}" stroke-width=".8"/>`;
+  const lf=(id,grad)=>`<g id="leaf${id}"><use href="#leaflet" fill="url(#${grad})" stroke="${st.stroke}" stroke-width="1" stroke-linejoin="round"/><use href="#vein"/></g>`;
+  const use=(id,a,r,s)=>`<use href="#leaf${id}" transform="translate(150,170) rotate(${a}) scale(${s}) translate(0,-${r})"/>`;
+  const el=(cx,cy,rx,ry,grad)=>`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#${grad})"/>`;
   let h='<defs>'
    + g('lgd',st.d)+g('lgm',st.m)+g('lgl',st.l)+g('lgf',st.f)+g('lgp',st.p)
-   + '<path id="leaflet" d="M0,0 L-7,14 L-2,18 L-8,30 L-3,34 L-9,46 L-4,50 L-9,62 L-4,66 L-8,78 L-2,84 L0,90 L2,84 L8,78 L4,66 L9,62 L4,50 L9,46 L3,34 L8,30 L2,18 L7,14 L0,0 Z"/>'
-   + `<line id="vein" x1="0" y1="6" x2="0" y2="84" stroke="${st.vein}" stroke-width="1.5" opacity=".5" stroke-linecap="round"/>`
+   + '<path id="leaflet" d="M0,0 C-4,8 -8,14 -10,22 C-6,20 -4,20 -5,26 C-8,34 -9,44 -6,54 C-3,51 -2,50 -2,58 C-3,68 -2,78 0,88 C2,78 3,68 2,58 C2,50 3,51 6,54 C9,44 8,34 5,26 C4,20 6,20 10,22 C8,14 4,8 0,0 Z"/>'
+   + `<line id="vein" x1="0" y1="6" x2="0" y2="82" stroke="${st.vein}" stroke-width="1.4" opacity=".5" stroke-linecap="round"/>`
    + lf('D','lgd')+lf('M','lgm')+lf('L','lgl')+lf('F','lgf')+lf('P','lgp')
-   + '<path id="calyx" d="M0,0 C6,5 11,12 11,20 C11,28 6,34 0,37 C-6,34 -11,28 -11,20 C-11,12 -6,5 0,0 Z"/>'
+   + '<path id="calyx" d="M0,0 C7,5 13,12 13,22 C13,31 7,37 0,40 C-7,37 -13,31 -13,22 C-13,12 -7,5 0,0 Z"/>'
    + '<g id="fan"><use href="#leafM" transform="rotate(-45)"/><use href="#leafM" transform="rotate(-25)"/><use href="#leafM" transform="rotate(-5)"/><use href="#leafM" transform="rotate(15)"/><use href="#leafM" transform="rotate(35)"/></g>'
    + '</defs>';
-  h+=`<ellipse cx="150" cy="258" rx="72" ry="13" fill="#0f220a" opacity=".55"/>`;
-  h+=`<path d="M142,238 C142,250 146,258 150,262 C154,258 158,250 158,238 Z" fill="url(#lgd)" stroke="${st.stroke}" stroke-width=".8"/>`;
-  h+=`<use href="#fan" transform="translate(76,242) rotate(215) scale(.7)"/>`;
-  h+=`<use href="#fan" transform="translate(224,242) rotate(145) scale(.7)"/>`;
-  for(const [a,r,s] of BUD_L.back)h+=use('D',a,r,s);
-  for(const [a,r,s] of BUD_L.purple)h+=use('P',a,r,s);
-  h+=`<path d="M140,150 C132,138 134,124 126,110" stroke="${st.pistil2}" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".8"/>`;
-  h+=`<path d="M160,150 C168,138 166,124 174,110" stroke="${st.pistil2}" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".8"/>`;
-  h+=`<path d="M150,140 C150,126 153,116 151,102" stroke="${st.pistil2}" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".8"/>`;
-  for(const [a,r,s] of BUD_L.mid)h+=use('M',a,r,s);
-  for(const [a,r,s] of BUD_L.front)h+=use('L',a,r,s);
-  for(const [a,r,s] of BUD_L.crown)h+=use('F',a,r,s);
-  for(const [a,r,s] of BUD_L.filler)h+=use('F',a,r,s);
-  h+=cx(150,196,.6,'lgf')+cx(136,204,.6,'lgl')+cx(164,204,.6,'lgl')+cx(150,208,.6,'lgf')+cx(124,208,.5,'lgf')+cx(176,208,.5,'lgf');
-  h+=cx(120,180,.4,'lgl')+cx(180,180,.4,'lgl')+cx(138,168,.4,'lgf')+cx(162,168,.4,'lgf')+cx(150,182,.45,'lgf');
-  h+=`<path d="M150,168 C149,152 152,140 150,124" stroke="${st.pistil}" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".95"/>`;
+  h+=`<ellipse cx="150" cy="256" rx="70" ry="12" fill="#0f220a" opacity=".55"/>`;
+  h+=`<path d="M143,238 C143,250 147,256 150,260 C153,256 157,250 157,238 Z" fill="url(#lgd)" stroke="${st.stroke}" stroke-width=".8"/>`;
+  h+=`<use href="#fan" transform="translate(80,244) rotate(215) scale(.6)"/>`;
+  h+=`<use href="#fan" transform="translate(220,244) rotate(145) scale(.6)"/>`;
+  for(const e of MASS_BASE)h+=el(...e,'lgd');
+  for(const e of MASS_MID)h+=el(...e,'lgm');
+  for(const [a,r,s] of SIDE_LEAVES)h+=use('L',a,r,s);
+  for(const e of MASS_LIGHT)h+=el(...e,'lgl');
+  for(const [a,r,s] of CROWN_LEAVES)h+=use('F',a,r,s);
+  h+=`<path d="M138,150 C130,138 132,124 124,108" stroke="${st.pistil2}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>`;
+  h+=`<path d="M162,150 C170,138 168,124 176,108" stroke="${st.pistil2}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>`;
+  for(const [x,y,sc,grad] of CALYX_BUMP)h+=`<use href="#calyx" transform="translate(${x},${y}) scale(${sc})" fill="url(#${grad})" stroke="${st.stroke}" stroke-width=".8"/>`;
+  h+=`<path d="M150,168 C149,152 152,140 150,124" stroke="${st.pistil}" stroke-width="1.7" stroke-linecap="round" fill="none" opacity=".95"/>`;
   h+=`<path d="M150,124 C145,118 142,112 138,106" stroke="${st.pistil}" stroke-width="1.1" stroke-linecap="round" fill="none" opacity=".9"/>`;
   h+=`<path d="M150,124 C155,118 158,112 162,106" stroke="${st.pistil}" stroke-width="1.1" stroke-linecap="round" fill="none" opacity=".9"/>`;
-  h+=`<path d="M150,196 C148,178 156,164 150,140" stroke="${st.pistil}" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".95"/>`;
-  h+=`<path d="M150,200 C154,184 148,172 156,150" stroke="${st.pistil2}" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>`;
-  h+=`<path d="M136,192 C128,178 132,164 124,146" stroke="${st.pistil}" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>`;
-  h+=`<path d="M164,192 C172,178 168,164 176,146" stroke="${st.pistil}" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>`;
-  h+=`<path d="M142,180 C136,168 140,156 132,140" stroke="${st.pistil2}" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".85"/>`;
-  h+=`<path d="M158,180 C164,168 160,156 168,140" stroke="${st.pistil2}" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".85"/>`;
-  h+=`<path d="M126,184 C116,172 120,160 110,146" stroke="${st.pistil}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".85"/>`;
-  h+=`<path d="M174,184 C184,172 180,160 190,146" stroke="${st.pistil}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".85"/>`;
-  h+=`<path d="M138,168 C130,156 134,144 126,130" stroke="${st.pistil2}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>`;
-  h+=`<path d="M162,168 C170,156 166,144 174,130" stroke="${st.pistil2}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>`;
-  h+=`<path d="M150,170 C150,158 152,148 150,136" stroke="${st.pistil2}" stroke-width="1.3" stroke-linecap="round" fill="none" opacity=".85"/>`;
-  h+=`<ellipse cx="132" cy="122" rx="72" ry="58" fill="#ffffff" opacity="${(.06+st.frost*.02).toFixed(3)}"/>`;
-  h+=`<ellipse cx="150" cy="136" rx="55" ry="40" fill="#ffffff" opacity="${(.04+st.frost*.015).toFixed(3)}"/>`;
-  h+=`<g stroke="#e8f5e0" stroke-width=".6" fill="#ffffff"><line x1="146" y1="128" x2="144" y2="120"/><circle cx="144" cy="119" r="1.5"/><line x1="158" y1="132" x2="160" y2="124"/><circle cx="160" cy="123" r="1.5"/><line x1="128" y1="148" x2="125" y2="140"/><circle cx="125" cy="139" r="1.4"/><line x1="172" y1="148" x2="175" y2="140"/><circle cx="175" cy="139" r="1.4"/><line x1="138" y1="156" x2="136" y2="148"/><circle cx="136" cy="147" r="1.3"/><line x1="162" y1="156" x2="164" y2="148"/><circle cx="164" cy="147" r="1.3"/><line x1="150" y1="138" x2="150" y2="129"/><circle cx="150" cy="128" r="1.6"/></g>`;
+  h+=`<path d="M150,196 C148,178 156,164 150,138" stroke="${st.pistil}" stroke-width="1.9" stroke-linecap="round" fill="none" opacity=".95"/>`;
+  h+=`<path d="M150,200 C154,184 148,172 156,148" stroke="${st.pistil2}" stroke-width="1.7" stroke-linecap="round" fill="none" opacity=".9"/>`;
+  h+=`<path d="M136,192 C128,178 132,164 124,144" stroke="${st.pistil}" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>`;
+  h+=`<path d="M164,192 C172,178 168,164 176,144" stroke="${st.pistil}" stroke-width="1.6" stroke-linecap="round" fill="none" opacity=".9"/>`;
+  h+=`<path d="M142,180 C136,168 140,156 132,138" stroke="${st.pistil2}" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".85"/>`;
+  h+=`<path d="M158,180 C164,168 160,156 168,138" stroke="${st.pistil2}" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".85"/>`;
+  h+=`<path d="M126,184 C116,172 120,160 110,144" stroke="${st.pistil}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".85"/>`;
+  h+=`<path d="M174,184 C184,172 180,160 190,144" stroke="${st.pistil}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".85"/>`;
+  h+=`<path d="M138,168 C130,156 134,144 126,128" stroke="${st.pistil2}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>`;
+  h+=`<path d="M162,168 C170,156 166,144 174,128" stroke="${st.pistil2}" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>`;
+  h+=`<path d="M150,170 C150,158 152,148 150,134" stroke="${st.pistil2}" stroke-width="1.3" stroke-linecap="round" fill="none" opacity=".85"/>`;
+  h+=`<path d="M118,176 C110,166 112,154 104,140" stroke="${st.pistil}" stroke-width="1.3" stroke-linecap="round" fill="none" opacity=".8"/>`;
+  h+=`<path d="M182,176 C190,166 188,154 196,140" stroke="${st.pistil}" stroke-width="1.3" stroke-linecap="round" fill="none" opacity=".8"/>`;
+  h+=`<ellipse cx="150" cy="128" rx="58" ry="40" fill="#ffffff" opacity="${(.05+st.frost*.02).toFixed(3)}"/>`;
+  h+=`<ellipse cx="130" cy="120" rx="52" ry="38" fill="#ffffff" opacity="${(.04+st.frost*.015).toFixed(3)}"/>`;
+  h+=`<g stroke="#e8f5e0" stroke-width=".6" fill="#ffffff"><line x1="146" y1="128" x2="144" y2="120"/><circle cx="144" cy="119" r="1.5"/><line x1="158" y1="132" x2="160" y2="124"/><circle cx="160" cy="123" r="1.5"/><line x1="128" y1="148" x2="125" y2="140"/><circle cx="125" cy="139" r="1.4"/><line x1="172" y1="148" x2="175" y2="140"/><circle cx="175" cy="139" r="1.4"/><line x1="138" y1="158" x2="136" y2="150"/><circle cx="136" cy="149" r="1.3"/><line x1="162" y1="158" x2="164" y2="150"/><circle cx="164" cy="149" r="1.3"/><line x1="150" y1="140" x2="150" y2="131"/><circle cx="150" cy="130" r="1.6"/></g>`;
   const rnd=mulberry32(1337);
-  const n=Math.min(50,Math.round(40*st.frost));
+  const n=Math.min(52,Math.round(44*st.frost));
   h+='<g fill="#ffffff" opacity=".9">';
-  for(let i=0;i<n;i++){const x=Math.round(104+rnd()*92),y=Math.round(84+rnd()*122),r=(0.8+rnd()*0.8).toFixed(1);h+=`<circle cx="${x}" cy="${y}" r="${r}"/>`}
+  for(let i=0;i<n;i++){const x=Math.round(102+rnd()*96),y=Math.round(78+rnd()*134),r=(0.8+rnd()*0.9).toFixed(1);h+=`<circle cx="${x}" cy="${y}" r="${r}"/>`}
   h+='</g>';
   document.getElementById('bs').innerHTML=h;
 }
