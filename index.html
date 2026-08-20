@@ -117,9 +117,10 @@ button:focus{outline:none}
   .stat{padding:10px 14px;flex-direction:row;justify-content:space-between;gap:10px}
   .stat b{font-size:1.3rem}
   .layout{flex-direction:row}
-  .view{display:flex;padding:28px 32px}
-  .view-harvest{flex:1 1 55%;border-right:1px solid var(--border)}
-  .view-sell,.view-upgrades{flex:1 1 45%;display:flex;padding:32px}
+  .view-harvest{flex:1 1 50%;border-right:1px solid var(--border);display:flex;overflow-y:auto}
+  .shop{flex:1 1 50%;min-width:0;display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain;padding:30px 34px}
+  .view-sell,.view-upgrades{display:flex;flex:0 0 auto;overflow:visible;padding:0}
+  .view-sell{margin-bottom:30px}
   .bud-cont{width:min(38vh,360px)}
   .bottom-nav{display:none}
   .bud-stage{gap:20px}
@@ -127,7 +128,7 @@ button:focus{outline:none}
   .hint{font-size:.85rem}
   .upgrades{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .upgrade{padding:14px}
-  .sell-cards{grid-template-columns:1fr 1fr;display:grid;gap:12px}
+  .sell-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .sell-all{max-width:100%}
 }
 @media (min-width:820px) and (max-height:680px){
@@ -218,6 +219,7 @@ button:focus{outline:none}
     </div>
   </section>
 
+  <div class="shop">
   <!-- Sell -->
   <section class="view view-sell" id="v-sell">
     <div class="panel-head"><h2>Vendre</h2><p>Transforme ta récolte en argent</p></div>
@@ -241,6 +243,7 @@ button:focus{outline:none}
     <div class="panel-head"><h2>Upgrades</h2><p>Améliore ta production</p></div>
     <div class="upgrades" id="ug"></div>
   </section>
+  </div>
 
 </main>
 
