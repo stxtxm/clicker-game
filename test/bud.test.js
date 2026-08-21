@@ -77,7 +77,8 @@ test('every url(...) gradient reference is prefixed with # (regression: black le
 test('structural counts (calyxes, fan leaflets, sugar leaves, fans)', () => {
   for (const id of STRAIN_IDS) {
     const svg = Bud.renderBudSvg(id);
-    assert.strictEqual((svg.match(/href="#calyx"/g) || []).length, 42, id);
+    // dense cola: rows of bracts in 3 depth passes (deep + mid + protruding)
+    assert.strictEqual((svg.match(/href="#calyx"/g) || []).length, 116, id);
     // the fan <def> holds 7 leaflets; it is shared by both fan leaves
     assert.strictEqual((svg.match(/href="#leafA"/g) || []).length, 7, id);
     // 5 crown (F) + 8 side (L) sugar leaves
