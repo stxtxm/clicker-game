@@ -1,9 +1,14 @@
 /**
- * Bud Clicker — GitHub Gist cloud save.
+ * Bud Clicker — jsonblob.com cloud save.
  *
- * Thin async wrapper around the Gist REST API. Pure logic: every function
- * takes a `fetch` implementation as its last argument (defaults to the
- * global one), which keeps it fully testable in Node.js without network.
+ * Zero-friction persistence: no account, no token. A JSON blob is created on
+ * the first save and identified by its URL (stored in localStorage). The blob
+ * stays alive as long as the player uses the game (30-day inactivity expiry).
+ *
+ * API:
+ *   POST /api/jsonBlob       → create (returns Location header with URL)
+ *   GET  /api/jsonBlob/:id   → read
+ *   PUT  /api/jsonBlob/:id   → update
  *
  * Browser: `window.BudCloud`   Node: `module.exports`
  */
@@ -14,92 +19,87 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const API = 'https://api.github.com/gists';
-  const FILE = 'bud-clicker-save.json';
+  const BASE = 'https://jsonblob.com/api/jsonBlob';
+  const STORAGE_KEY = 'budCloudBlobUrl';
 
-  function headers(token) {
-    return {
-      'Accept': 'application/vnd.github+json',
-      'Authorization': 'Bearer ' + token,
-      'Content-Type': 'application/json',
-      'X-GitHub-Api-Version': '2022-11-28'
-    };
+  /** Extract the blob id from the full URL returned by jsonblob.com. */
+  function blobId(url) {
+    return url ? url.replace(/^.*\/jsonBlob\//, '') : '';
+  }
+
+  /** Persist / read the blob URL in localStorage. */
+  function getBlobUrl() {
+    try { return localStorage.getItem(STORAGE_KEY) || ''; } catch { return ''; }
+  }
+  function setBlobUrl(url) {
+    try { localStorage.setItem(STORAGE_KEY, url); } catch {}
   }
 
   /**
-   * Create the secret save gist. Returns { ok, id?, reason? }.
-   * @param {string} token GitHub personal access token (gist scope)
-   * @param {string} content serialized game state
+   * Create a brand-new blob. Resolves { ok, url?, reason? }.
    */
-  function createGist(token, content, fetchImpl) {
+  function create(state, fetchImpl) {
     const f = fetchImpl || fetch;
-    return f(API, {
+    return f(BASE, {
       method: 'POST',
-      headers: headers(token),
-      body: JSON.stringify({
-        description: 'Bud Clicker cloud save',
-        public: false,
-        files: { [FILE]: { content } }
-      })
-    }).then((r) => r.json().then((d) => ({ ok: r.ok, status: r.status, data: d })))
-      .then(({ ok, status, data }) => {
-        if (!ok) {
-          return { ok: false, status, reason: status === 401 ? 'token' : (status === 403 ? 'rate' : 'http') };
-        }
-        return { ok: true, id: data.id };
-      });
-  }
-
-  /** Push new content to an existing gist. Returns { ok, reason? }. */
-  function updateGist(token, gistId, content, fetchImpl) {
-    const f = fetchImpl || fetch;
-    return f(API + '/' + encodeURIComponent(gistId), {
-      method: 'PATCH',
-      headers: headers(token),
-      body: JSON.stringify({ files: { [FILE]: { content } } })
-    }).then((r) => r.json().then((d) => ({ ok: r.ok, status: r.status, data: d })))
-      .then(({ ok, status }) =>
-        ok ? { ok: true } : { ok: false, status, reason: status === 404 ? 'gist' : (status === 401 ? 'token' : (status === 403 ? 'rate' : 'http')) });
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(wrap(state))
+    }).then((r) => {
+      const url = r.headers.get('Location');
+      if (r.ok && url) {
+        setBlobUrl(url);
+        return { ok: true, url };
+      }
+      return { ok: false, reason: 'http' };
+    });
   }
 
   /**
-   * Pull the saved payload from a gist.
-   * @returns {{ok:true, savedAt?:number, state?:object}|{ok:false,reason:string}}
+   * Update an existing blob. Resolves { ok, reason? }.
    */
-  function fetchGist(token, gistId, fetchImpl) {
+  function update(state, fetchImpl) {
+    const url = getBlobUrl();
+    if (!url) return Promise.resolve({ ok: false, reason: 'none' });
     const f = fetchImpl || fetch;
-    return f(API + '/' + encodeURIComponent(gistId), { headers: headers(token) })
+    return f(url, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(wrap(state))
+    }).then((r) => r.ok ? { ok: true } : { ok: false, status: r.status, reason: r.status === 404 ? 'gone' : 'http' });
+  }
+
+  /**
+   * Pull the saved payload. Resolves { ok, state?, savedAt?, reason? }.
+   */
+  function pull(fetchImpl) {
+    const url = getBlobUrl();
+    if (!url) return Promise.resolve({ ok: false, reason: 'none' });
+    const f = fetchImpl || fetch;
+    return f(url)
       .then((r) => r.json().then((d) => ({ ok: r.ok, status: r.status, data: d })))
       .then(({ ok, status, data }) => {
-        if (!ok) {
-          return { ok: false, reason: status === 404 ? 'gist' : (status === 401 ? 'token' : (status === 403 ? 'rate' : 'http')) };
+        if (!ok) return { ok: false, reason: status === 404 ? 'gone' : 'http' };
+        if (data && typeof data === 'object' && data.state) {
+          return { ok: true, savedAt: data.savedAt || 0, state: data.state };
         }
-        const file = data.files && data.files[FILE];
-        if (!file) return { ok: false, reason: 'empty' };
-        try {
-          const payload = JSON.parse(file.content);
-          // Payload is either { savedAt, state } or a bare legacy state object.
-          if (payload && typeof payload === 'object' && payload.state) {
-            return { ok: true, savedAt: payload.savedAt || 0, state: payload.state };
-          }
-          return { ok: true, savedAt: 0, state: payload };
-        } catch (e) {
-          return { ok: false, reason: 'corrupt' };
-        }
+        return { ok: true, savedAt: 0, state: data };
       });
   }
 
-  /** Wrap state with a timestamp for conflict-free "last write wins". */
-  function pack(state, now) {
-    return JSON.stringify({ savedAt: now || Date.now(), state });
+  /** Wrap state with a timestamp. */
+  function wrap(state) {
+    return { savedAt: Date.now(), state };
   }
 
-  /** @returns {{savedAt:number, state:object}} unpacked payload. */
-  function unpack(raw) {
-    const p = JSON.parse(raw);
-    if (p && typeof p === 'object' && p.state) return { savedAt: p.savedAt || 0, state: p.state };
-    return { savedAt: 0, state: p };
+  /** @returns {boolean} whether a blob has been created previously. */
+  function hasBlob() {
+    return !!getBlobUrl();
   }
 
-  return { API, FILE, createGist, updateGist, fetchGist, pack, unpack };
+  /** @returns {string} the blob id for display / copy. */
+  function id() {
+    return blobId(getBlobUrl());
+  }
+
+  return { BASE, STORAGE_KEY, create, update, pull, wrap, hasBlob, id, blobId, getBlobUrl };
 });

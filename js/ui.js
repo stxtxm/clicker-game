@@ -16,8 +16,6 @@
   const Bud = window.BudRender;
   const Cloud = window.BudCloud;
   const SAVE_KEY = 'budClicker';
-  const TOKEN_KEY = 'budClickerToken';
-  const GIST_KEY = 'budClickerGist';
 
   // --- DOM references --------------------------------------------------------
   const el = {
@@ -48,7 +46,6 @@
     pdist: document.getElementById('pdist'),
     ms: document.getElementById('ms'),
     rb: document.getElementById('rb'),
-    ccToken: document.getElementById('cctoken'),
     ccStatus: document.getElementById('ccstatus'),
     ccGist: document.getElementById('ccgist')
   };
@@ -310,28 +307,14 @@
   }
 
   // --- cloud persistence ------------------------------------------------------
-  const CLOUD_PUSH_INTERVAL = 60000; // auto-push every 60s
+  const CLOUD_PUSH_INTERVAL = 60000;
   let cloudTimer = null;
-  let cloudReady = false;
 
   function renderCloud() {
-    const token = tryGetToken();
-    const gist = localStorage.getItem(GIST_KEY);
-    el.ccGist.textContent = gist ? 'Gist: ' + gist : '';
+    const url = Cloud.getBlobUrl();
+    el.ccGist.textContent = url ? 'ID: ' + Cloud.blobId(url) : '— aucune sauvegarde —';
     el.ccStatus.textContent = '';
     el.ccStatus.className = 'cc-status';
-    if (!el.ccToken.dataset.loaded && token) {
-      el.ccToken.value = token;
-      el.ccToken.dataset.loaded = '1';
-    }
-  }
-
-  function tryGetToken() {
-    try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; }
-  }
-
-  function persistToken(token) {
-    try { localStorage.setItem(TOKEN_KEY, token); } catch {}
   }
 
   function cloudStatus(text, ok) {
@@ -339,52 +322,24 @@
     el.ccStatus.className = 'cc-status' + (ok === true ? ' ok' : ok === false ? ' err' : '');
   }
 
-  function cloudEnabled() {
-    return !!tryGetToken() && !!localStorage.getItem(GIST_KEY);
-  }
-
   async function cloudPush() {
-    const token = tryGetToken();
-    if (!token) return;
-    const gistId = localStorage.getItem(GIST_KEY);
-    if (!gistId) return; // first push needs a gist — handled below
-    const payload = Cloud.pack(state, Date.now());
-    try {
-      const res = await Cloud.updateGist(token, gistId, payload);
-      if (res.ok) { cloudStatus('Sauvegardé ✓', true); }
-      else if (res.reason === 'token') { cloudStatus('Token invalide', false); }
-      else { cloudStatus('Erreur (' + (res.status || '?') + ')', false); }
-    } catch (e) {
-      cloudStatus('Erreur réseau', false);
-    }
-  }
-
-  async function cloudCreate() {
-    const token = tryGetToken();
-    if (!token) return;
-    const payload = Cloud.pack(state, Date.now());
-    try {
-      const res = await Cloud.createGist(token, payload);
+    if (!Cloud.hasBlob()) {
+      const res = await Cloud.create(state);
       if (res.ok) {
-        localStorage.setItem(GIST_KEY, res.id);
-        el.ccGist.textContent = 'Gist: ' + res.id;
+        renderCloud();
         cloudStatus('Sauvegardé ✓', true);
-      } else if (res.reason === 'token') {
-        cloudStatus('Token invalide ou sans scope gist', false);
-      } else {
-        cloudStatus('Erreur (' + (res.status || '?') + ')', false);
-      }
-    } catch (e) {
-      cloudStatus('Erreur réseau', false);
+      } else cloudStatus('Erreur réseau', false);
+    } else {
+      const res = await Cloud.update(state);
+      if (res.ok) cloudStatus('Sauvegardé ✓', true);
+      else cloudStatus(res.reason === 'gone' ? 'Sauvegarde expirée — nouvelle création…' : 'Erreur', false);
     }
   }
 
   async function cloudPull() {
-    const token = tryGetToken();
-    const gistId = localStorage.getItem(GIST_KEY);
-    if (!token || !gistId) return;
+    if (!Cloud.hasBlob()) return;
     try {
-      const res = await Cloud.fetchGist(token, gistId);
+      const res = await Cloud.pull();
       if (!res.ok || !res.state) return;
       state = Game.deserialize(JSON.stringify(res.state));
       renderBud();
@@ -394,27 +349,12 @@
       save();
       const ts = res.savedAt ? new Date(res.savedAt).toLocaleString('fr-FR') : '';
       cloudStatus('Chargé' + (ts ? ' (save du ' + ts + ')' : ''), true);
-    } catch (e) {
-      // silent — boot pull should not disrupt
-    }
+    } catch (e) { /* silent on boot */ }
   }
 
-  // Save on token change.
-  el.ccToken.addEventListener('input', () => {
-    const token = el.ccToken.value.trim();
-    persistToken(token);
-    el.ccToken.dataset.loaded = '1';
-    // If no gist yet, create one on first token entry.
-    if (token && !localStorage.getItem(GIST_KEY)) {
-      cloudCreate();
-    }
-  });
-
   function startCloudAuto() {
-    // On boot: pull if configured.
-    if (cloudEnabled()) cloudPull();
-    // Push every 60s.
-    cloudTimer = setInterval(() => { if (cloudEnabled()) cloudPush(); }, CLOUD_PUSH_INTERVAL);
+    if (Cloud.hasBlob()) cloudPull();
+    cloudTimer = setInterval(() => cloudPush(), CLOUD_PUSH_INTERVAL);
   }
   // --- persistence -----------------------------------------------------------
   let cloudPushPending = null;
@@ -423,7 +363,7 @@
       localStorage.setItem(SAVE_KEY, Game.serialize(state));
     } catch (e) { /* quota / private mode: ignore */ }
     // Debounced cloud push: coalesce rapid saves into a single push 2s later.
-    if (cloudEnabled() && !cloudPushPending) {
+    if (!cloudPushPending) {
       cloudPushPending = setTimeout(() => {
         cloudPushPending = null;
         cloudPush();
