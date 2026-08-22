@@ -311,8 +311,8 @@
   let cloudTimer = null;
 
   function renderCloud() {
-    const url = Cloud.getBlobUrl();
-    el.ccGist.textContent = url ? 'ID: ' + Cloud.blobId(url) : '— aucune sauvegarde —';
+    const nid = Cloud.getId();
+    el.ccGist.textContent = nid ? 'ID: ' + nid : '— aucune sauvegarde —';
     el.ccStatus.textContent = '';
     el.ccStatus.className = 'cc-status';
   }

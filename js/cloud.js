@@ -1,14 +1,14 @@
 /**
- * Bud Clicker — jsonblob.com cloud save.
+ * Bud Clicker — npoint.io cloud save.
  *
- * Zero-friction persistence: no account, no token. A JSON blob is created on
- * the first save and identified by its URL (stored in localStorage). The blob
- * stays alive as long as the player uses the game (30-day inactivity expiry).
+ * Online persistence: no account, no token, permanent. A JSON document is
+ * created on the first save (POST) and identified by its id stored in
+ * localStorage. Subsequent saves overwrite it (POST to same id).
  *
- * API:
- *   POST /api/jsonBlob       → create (returns Location header with URL)
- *   GET  /api/jsonBlob/:id   → read
- *   PUT  /api/jsonBlob/:id   → update
+ * API (CORS enabled):
+ *   POST https://api.npoint.io/api              → create  {id, url}
+ *   GET  https://api.npoint.io/api/:id           → read    {state, savedAt}
+ *   POST https://api.npoint.io/api/:id           → update
  *
  * Browser: `window.BudCloud`   Node: `module.exports`
  */
@@ -19,87 +19,81 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  const BASE = 'https://jsonblob.com/api/jsonBlob';
-  const STORAGE_KEY = 'budCloudBlobUrl';
+  const BASE = 'https://api.npoint.io/api';
+  const STORAGE_KEY = 'budCloudNpointId';
 
-  /** Extract the blob id from the full URL returned by jsonblob.com. */
-  function blobId(url) {
-    return url ? url.replace(/^.*\/jsonBlob\//, '') : '';
-  }
-
-  /** Persist / read the blob URL in localStorage. */
-  function getBlobUrl() {
+  function getId() {
     try { return localStorage.getItem(STORAGE_KEY) || ''; } catch { return ''; }
   }
-  function setBlobUrl(url) {
-    try { localStorage.setItem(STORAGE_KEY, url); } catch {}
+  function setId(id) {
+    try { localStorage.setItem(STORAGE_KEY, id); } catch {}
   }
 
-  /**
-   * Create a brand-new blob. Resolves { ok, url?, reason? }.
-   */
+  function wrap(state) {
+    return { savedAt: Date.now(), state };
+  }
+
+  /** Extract id from npoint url or raw id. */
+  function extractId(v) {
+    if (!v) return '';
+    const m = String(v).match(/\/api\/([a-z0-9-]+)/i);
+    return m ? m[1] : String(v);
+  }
+
+  function hasBlob() {
+    return !!getId();
+  }
+
+  function id() {
+    return getId();
+  }
+
   function create(state, fetchImpl) {
     const f = fetchImpl || fetch;
     return f(BASE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(wrap(state))
-    }).then((r) => {
-      const url = r.headers.get('Location');
-      if (r.ok && url) {
-        setBlobUrl(url);
-        return { ok: true, url };
-      }
-      return { ok: false, reason: 'http' };
-    });
+    }).then((r) => r.json().then((d) => ({ ok: r.ok, status: r.status, data: d })))
+      .then(({ ok, status, data }) => {
+        if (!ok) return { ok: false, status, reason: 'http' };
+        const nid = extractId(data.id || data.url || '');
+        if (!nid) return { ok: false, reason: 'http' };
+        setId(nid);
+        return { ok: true, id: nid };
+      });
   }
 
-  /**
-   * Update an existing blob. Resolves { ok, reason? }.
-   */
   function update(state, fetchImpl) {
-    const url = getBlobUrl();
-    if (!url) return Promise.resolve({ ok: false, reason: 'none' });
+    const nid = getId();
+    if (!nid) return Promise.resolve({ ok: false, reason: 'none' });
     const f = fetchImpl || fetch;
-    return f(url, {
-      method: 'PUT',
+    return f(BASE + '/' + encodeURIComponent(nid), {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(wrap(state))
     }).then((r) => r.ok ? { ok: true } : { ok: false, status: r.status, reason: r.status === 404 ? 'gone' : 'http' });
   }
 
-  /**
-   * Pull the saved payload. Resolves { ok, state?, savedAt?, reason? }.
-   */
   function pull(fetchImpl) {
-    const url = getBlobUrl();
-    if (!url) return Promise.resolve({ ok: false, reason: 'none' });
+    const nid = getId();
+    if (!nid) return Promise.resolve({ ok: false, reason: 'none' });
     const f = fetchImpl || fetch;
-    return f(url)
+    return f(BASE + '/' + encodeURIComponent(nid))
       .then((r) => r.json().then((d) => ({ ok: r.ok, status: r.status, data: d })))
       .then(({ ok, status, data }) => {
         if (!ok) return { ok: false, reason: status === 404 ? 'gone' : 'http' };
         if (data && typeof data === 'object' && data.state) {
           return { ok: true, savedAt: data.savedAt || 0, state: data.state };
         }
+        // Legacy bare payload
         return { ok: true, savedAt: 0, state: data };
       });
   }
 
-  /** Wrap state with a timestamp. */
-  function wrap(state) {
-    return { savedAt: Date.now(), state };
-  }
+  // Compatibility shims (ui.js legacy names)
+  function getBlobUrl() { return getId(); }
+  function blobId(v) { return extractId(v); }
 
-  /** @returns {boolean} whether a blob has been created previously. */
-  function hasBlob() {
-    return !!getBlobUrl();
-  }
-
-  /** @returns {string} the blob id for display / copy. */
-  function id() {
-    return blobId(getBlobUrl());
-  }
-
-  return { BASE, STORAGE_KEY, create, update, pull, wrap, hasBlob, id, blobId, getBlobUrl };
+  return { BASE, STORAGE_KEY, create, update, pull, wrap, hasBlob, id, getId, extractId, getBlobUrl, blobId };
 });
