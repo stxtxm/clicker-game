@@ -49,8 +49,6 @@
     ms: document.getElementById('ms'),
     rb: document.getElementById('rb'),
     ccToken: document.getElementById('cctoken'),
-    ccSave: document.getElementById('ccsave'),
-    ccLoad: document.getElementById('ccload'),
     ccStatus: document.getElementById('ccstatus'),
     ccGist: document.getElementById('ccgist')
   };
@@ -312,8 +310,9 @@
   }
 
   // --- cloud persistence ------------------------------------------------------
-  const CLOUD_SAVE_INTERVAL = 60000; // auto-push every 60s if configured
+  const CLOUD_PUSH_INTERVAL = 60000; // auto-push every 60s
   let cloudTimer = null;
+  let cloudReady = false;
 
   function renderCloud() {
     const token = tryGetToken();
@@ -321,7 +320,6 @@
     el.ccGist.textContent = gist ? 'Gist: ' + gist : '';
     el.ccStatus.textContent = '';
     el.ccStatus.className = 'cc-status';
-    // Restore persisted token into the input (only once on boot).
     if (!el.ccToken.dataset.loaded && token) {
       el.ccToken.value = token;
       el.ccToken.dataset.loaded = '1';
@@ -346,30 +344,35 @@
   }
 
   async function cloudPush() {
-    const token = el.ccToken.value.trim() || tryGetToken();
-    if (!token) { cloudStatus('Token manquant', false); return; }
-    persistToken(token);
-    const payload = Cloud.pack(state, Date.now());
+    const token = tryGetToken();
+    if (!token) return;
     const gistId = localStorage.getItem(GIST_KEY);
+    if (!gistId) return; // first push needs a gist — handled below
+    const payload = Cloud.pack(state, Date.now());
     try {
-      let res;
-      if (gistId) {
-        res = await Cloud.updateGist(token, gistId, payload);
-      } else {
-        res = await Cloud.createGist(token, payload);
-      }
+      const res = await Cloud.updateGist(token, gistId, payload);
+      if (res.ok) { cloudStatus('Sauvegardé ✓', true); }
+      else if (res.reason === 'token') { cloudStatus('Token invalide', false); }
+      else { cloudStatus('Erreur (' + (res.status || '?') + ')', false); }
+    } catch (e) {
+      cloudStatus('Erreur réseau', false);
+    }
+  }
+
+  async function cloudCreate() {
+    const token = tryGetToken();
+    if (!token) return;
+    const payload = Cloud.pack(state, Date.now());
+    try {
+      const res = await Cloud.createGist(token, payload);
       if (res.ok) {
-        if (res.id) {
-          localStorage.setItem(GIST_KEY, res.id);
-          el.ccGist.textContent = 'Gist: ' + res.id;
-        }
+        localStorage.setItem(GIST_KEY, res.id);
+        el.ccGist.textContent = 'Gist: ' + res.id;
         cloudStatus('Sauvegardé ✓', true);
       } else if (res.reason === 'token') {
         cloudStatus('Token invalide ou sans scope gist', false);
-      } else if (res.reason === 'rate') {
-        cloudStatus('Limite GitHub atteinte — réessaie plus tard', false);
       } else {
-        cloudStatus('Erreur serveur (' + (res.status || '?') + ')', false);
+        cloudStatus('Erreur (' + (res.status || '?') + ')', false);
       }
     } catch (e) {
       cloudStatus('Erreur réseau', false);
@@ -377,45 +380,55 @@
   }
 
   async function cloudPull() {
-    const token = el.ccToken.value.trim() || tryGetToken();
+    const token = tryGetToken();
     const gistId = localStorage.getItem(GIST_KEY);
-    if (!token) { cloudStatus('Token manquant', false); return; }
-    if (!gistId) { cloudStatus('Aucun gist sauvegardé — sauvegarde d\'abord', false); return; }
-    persistToken(token);
+    if (!token || !gistId) return;
     try {
       const res = await Cloud.fetchGist(token, gistId);
-      if (!res.ok) {
-        cloudStatus(res.reason === 'token' ? 'Token invalide' : 'Chargement impossible', false);
-        return;
-      }
-      if (!res.state || !Game.deserialize) {
-        cloudStatus('Données cloud corrompues', false);
-        return;
-      }
+      if (!res.ok || !res.state) return;
       state = Game.deserialize(JSON.stringify(res.state));
       renderBud();
       renderUpgrades();
       renderStrains();
       refreshStats();
       save();
-      const ts = res.savedAt ? new Date(res.savedAt).toLocaleString('fr-FR') : 'inconnu';
-      cloudStatus('Chargé (save du ' + ts + ')', true);
+      const ts = res.savedAt ? new Date(res.savedAt).toLocaleString('fr-FR') : '';
+      cloudStatus('Chargé' + (ts ? ' (save du ' + ts + ')' : ''), true);
     } catch (e) {
-      cloudStatus('Erreur réseau', false);
+      // silent — boot pull should not disrupt
     }
   }
 
-  el.ccSave.addEventListener('click', cloudPush);
-  el.ccLoad.addEventListener('click', cloudPull);
+  // Save on token change.
+  el.ccToken.addEventListener('input', () => {
+    const token = el.ccToken.value.trim();
+    persistToken(token);
+    el.ccToken.dataset.loaded = '1';
+    // If no gist yet, create one on first token entry.
+    if (token && !localStorage.getItem(GIST_KEY)) {
+      cloudCreate();
+    }
+  });
 
   function startCloudAuto() {
-    if (cloudTimer) clearInterval(cloudTimer);
-    cloudTimer = setInterval(() => { if (cloudEnabled()) cloudPush(); }, CLOUD_SAVE_INTERVAL);
+    // On boot: pull if configured.
+    if (cloudEnabled()) cloudPull();
+    // Push every 60s.
+    cloudTimer = setInterval(() => { if (cloudEnabled()) cloudPush(); }, CLOUD_PUSH_INTERVAL);
   }
+  // --- persistence -----------------------------------------------------------
+  let cloudPushPending = null;
   function save() {
     try {
       localStorage.setItem(SAVE_KEY, Game.serialize(state));
     } catch (e) { /* quota / private mode: ignore */ }
+    // Debounced cloud push: coalesce rapid saves into a single push 2s later.
+    if (cloudEnabled() && !cloudPushPending) {
+      cloudPushPending = setTimeout(() => {
+        cloudPushPending = null;
+        cloudPush();
+      }, 2000);
+    }
   }
 
   function load() {

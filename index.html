@@ -153,11 +153,6 @@ button:focus{outline:none}
 .cc-status.ok{color:var(--green-soft)}
 .cc-status.err{color:#ff6b7a}
 .cc-gist{font-size:.68rem;color:#666;font-family:monospace;word-break:break-all;margin-bottom:6px}
-.cc-btn{flex-shrink:0;cursor:pointer}
-.cc-btn.cloud-pull{background:linear-gradient(135deg,#0e4d6f,#1e6fa0);color:#fff}
-.cc-btn.cloud-push{background:linear-gradient(135deg,#1a5c2c,var(--green-dim));color:#fff}
-.cc-btn:disabled{background:#2a2a2a;color:#555}
-.cc-or{font-size:.7rem;color:#555;text-align:center;margin-bottom:8px}
 .panel-head.sub{margin-top:4px}
 .milestones{display:flex;flex-direction:column;gap:8px}
 .ms-item{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,var(--panel),var(--panel2));border:1px solid var(--border);border-radius:12px;padding:10px 12px;opacity:.55}
@@ -288,11 +283,9 @@ button:focus{outline:none}
 
     <div class="cloud-card">
       <div class="pc-top"><span class="cc-title">☁️ Sauvegarde en ligne</span><span class="cc-status" id="ccstatus"></span></div>
-      <p class="cc-desc">Stocke ta progression sur <b>GitHub Gist</b> (secret). Ton token reste dans le navigateur.</p>
+      <p class="cc-desc">Sync auto sur <b>GitHub Gist</b> (secret). Ton token reste dans le navigateur.</p>
       <div class="cc-row">
         <input class="cc-input" id="cctoken" type="password" placeholder="Token GitHub (gist scope)" autocomplete="off"/>
-        <button class="sell-all cc-btn cloud-push" id="ccsave">Sauvegarder</button>
-        <button class="sell-all cc-btn cloud-pull" id="ccload">Charger</button>
       </div>
       <div class="cc-gist" id="ccgist"></div>
     </div>
