@@ -54,14 +54,18 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(wrap(state))
-    }).then((r) => r.json().then((d) => ({ ok: r.ok, status: r.status, data: d })))
-      .then(({ ok, status, data }) => {
+    }).then((r) => {
+      const p = typeof r.text === 'function'
+        ? r.text().then((t) => { try { return t ? JSON.parse(t) : null; } catch { return null; } })
+        : r.json().catch(() => null);
+      return p.then((data) => ({ ok: r.ok, status: r.status, data }));
+    }).then(({ ok, status, data }) => {
         if (!ok) return { ok: false, status, reason: 'http' };
-        const nid = extractId(data.id || data.url || '');
+        const nid = extractId((data && (data.id || data.url)) || '');
         if (!nid) return { ok: false, reason: 'http' };
         setId(nid);
         return { ok: true, id: nid };
-      });
+      }).catch(() => ({ ok: false, reason: 'http' }));
   }
 
   function update(state, fetchImpl) {
@@ -80,15 +84,22 @@
     if (!nid) return Promise.resolve({ ok: false, reason: 'none' });
     const f = fetchImpl || fetch;
     return f(BASE + '/' + encodeURIComponent(nid))
-      .then((r) => r.json().then((d) => ({ ok: r.ok, status: r.status, data: d })))
+      .then((r) => {
+        // Support both real fetch (text/json) and test mocks (json only)
+        const p = typeof r.text === 'function'
+          ? r.text().then((t) => { try { return t ? JSON.parse(t) : null; } catch { return null; } })
+          : r.json().catch(() => null);
+        return p.then((data) => ({ ok: r.ok, status: r.status, data }));
+      })
       .then(({ ok, status, data }) => {
         if (!ok) return { ok: false, reason: status === 404 ? 'gone' : 'http' };
-        if (data && typeof data === 'object' && data.state) {
+        if (!data) return { ok: false, reason: 'empty' };
+        if (typeof data === 'object' && data.state) {
           return { ok: true, savedAt: data.savedAt || 0, state: data.state };
         }
         // Legacy bare payload
         return { ok: true, savedAt: 0, state: data };
-      });
+      }).catch(() => ({ ok: false, reason: 'http' }));
   }
 
   // Compatibility shims (ui.js legacy names)

@@ -292,7 +292,7 @@
       toast(res.name + ' acheté !');
       popNum(el.m);
     } else {
-      toast('Pas assez d'argent');
+      toast("Pas assez d'argent");
     }
     refreshStats();
     save();
@@ -301,7 +301,7 @@
   function equipStrain(id) {
     const res = Game.equipStrain(state, id);
     if (!res.ok) {
-      if (res.reason === 'funds') toast('Pas assez d'argent');
+      if (res.reason === 'funds') toast("Pas assez d'argent");
       else if (res.reason === 'level') {
         const st = Game.getStrain(id);
         toast('Niveau ' + (st ? st.unlock : '?') + ' requis');
