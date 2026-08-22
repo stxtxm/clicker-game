@@ -24,13 +24,18 @@
     ar: document.getElementById('ar'),
     lv: document.getElementById('lv'),
     hl: document.getElementById('hl'),
-    stm: document.getElementById('stm'),
-    stp: document.getElementById('stp'),
-    pm: document.getElementById('pm'),
-    pp: document.getElementById('pp'),
-    sm: document.getElementById('sm'),
-    sp: document.getElementById('sp'),
+    stw: document.getElementById('stw'),
+    sth: document.getElementById('sth'),
+    str: document.getElementById('str'),
+    pw: document.getElementById('pw'),
+    ph: document.getElementById('ph'),
+    pr: document.getElementById('pr'),
+    sw: document.getElementById('sw'),
+    sh: document.getElementById('sh'),
+    sr: document.getElementById('sr'),
     sa: document.getElementById('sa'),
+    cbHash: document.getElementById('cb-hash'),
+    cbResin: document.getElementById('cb-resin'),
     bc: document.getElementById('bc'),
     mc: document.getElementById('mc'),
     bs: document.getElementById('bs'),
@@ -92,7 +97,7 @@
         '<div class="up-info"><div class="up-name">' + u.name +
           ' <span class="up-level" id="ul-' + u.id + '">Lvl 0</span></div>' +
           '<div class="up-desc">' + u.desc + '</div></div>' +
-        '<div class="up-buy"><span class="up-cost" id="uc-' + u.id + '">$0</span>' +
+        '<div class="up-buy"><span class="up-cost" id="uc-' + u.id + '">0 €</span>' +
           '<button class="bb" id="ub-' + u.id + '">Acheter</button></div>';
       card.addEventListener('click', () => buyUpgrade(u.id));
       card.querySelector('.bb').addEventListener('click', (ev) => {
@@ -116,11 +121,11 @@
         '<span class="st-icon">' + st.icon + '</span>' +
         '<div class="st-info"><div class="st-name">' + st.name +
           (equipped ? ' <span class="st-badge">Équipée</span>' : '') + '</div>' +
-          '<div class="st-desc">' + st.desc + '</div></div>' +
+          '<div class="st-desc">' + st.desc + ' (x' + st.yieldMult + ' rendement, x' + st.priceMult + ' prix)</div></div>' +
         '<div class="st-buy">' +
           (owned ? ''
             : locked ? '<span class="st-lock">🔒 Niveau ' + st.unlock + '</span>'
-            : '<span class="st-cost">$' + fmt(st.cost) + '</span>') +
+            : '<span class="st-cost">' + fmt(st.cost) + ' €</span>') +
           (owned ? '<span class="st-ok">Possédée</span>'
                  : locked ? ''
                  : '<button class="bb" id="sb-' + st.id + '">Acheter</button>') +
@@ -177,30 +182,43 @@
   function refreshStats() {
     const pc = Game.perClick(state);
     const ar = Game.perSecond(state);
-    el.p.textContent = fmt(state.points);
-    el.m.textContent = '$' + fmt(state.money);
+    const st = Game.getStrain(state.strain);
+    const pMult = st ? st.priceMult : 1.0;
+
+    el.p.textContent = fmt(state.weed) + 'g';
+    el.m.textContent = fmt(state.money) + ' €';
     el.ar.textContent = '+' + ar;
     el.hl.textContent = pc;
-    el.stm.textContent = state.stock.main + ' dispo';
-    el.stp.textContent = state.stock.premium + ' dispo';
-    el.pm.textContent = '$' + state.prices.main + '/u';
-    el.pp.textContent = '$' + state.prices.premium + '/u';
-    el.sm.disabled = state.stock.main <= 0;
-    el.sp.disabled = state.stock.premium <= 0;
-    el.sa.disabled = (state.stock.main + state.stock.premium) <= 0;
+
+    el.stw.textContent = fmt(state.stock.weed) + 'g dispo';
+    el.sth.textContent = fmt(state.stock.hash) + ' dispo';
+    el.str.textContent = fmt(state.stock.resin) + ' dispo';
+
+    el.pw.textContent = Math.round(state.prices.weed * pMult) + ' €/g';
+    el.ph.textContent = Math.round(state.prices.hash * pMult) + ' €/u';
+    el.pr.textContent = Math.round(state.prices.resin * pMult) + ' €/u';
+
+    el.sw.disabled = state.stock.weed <= 0;
+    el.sh.disabled = (state.stock.hash || 0) <= 0;
+    el.sr.disabled = (state.stock.resin || 0) <= 0;
+    el.sa.disabled = (state.stock.weed + (state.stock.hash || 0) + (state.stock.resin || 0)) <= 0;
+
+    el.cbHash.disabled = state.stock.weed < Game.HASH_CONVERT_COST;
+    el.cbResin.disabled = state.stock.weed < Game.RESIN_CONVERT_COST;
+
     for (const u of Game.UPGRADES) {
       const lv = document.getElementById('ul-' + u.id);
       if (lv) lv.textContent = 'Lvl ' + state.levels[u.id];
       const cost = document.getElementById('uc-' + u.id);
-      if (cost) cost.textContent = '$' + fmt(Game.upgradeCost(state, u.id));
+      if (cost) cost.textContent = fmt(Game.upgradeCost(state, u.id)) + ' €';
       const btn = document.getElementById('ub-' + u.id);
       if (btn) btn.disabled = state.money < Game.upgradeCost(state, u.id);
     }
     document.querySelectorAll('[id^="sb-"]').forEach((b) => {
       const id = b.id.slice(3);
-      const st = Game.getStrain(id);
-      if (st && !state.stock.strains.includes(id)) {
-        b.disabled = Game.levelFromXp(state.xp) < st.unlock || state.money < st.cost;
+      const stDef = Game.getStrain(id);
+      if (stDef && !state.stock.strains.includes(id)) {
+        b.disabled = Game.levelFromXp(state.xp) < stDef.unlock || state.money < stDef.cost;
       }
     });
     renderProgress();
@@ -211,8 +229,8 @@
     ev.preventDefault();
     ev.stopPropagation();
     const ac = Game.perClick(state);
-    state.points += ac;
-    state.stock.main += ac;
+    state.weed += ac;
+    state.stock.weed += ac;
     const xp = Game.earnXp(state, ac);
     el.bs.classList.add('pulse-active');
     setTimeout(() => el.bs.classList.remove('pulse-active'), 280);
@@ -222,7 +240,7 @@
       x = ((ev.clientX - r.left) / r.width) * 100;
       y = ((ev.clientY - r.top) / r.height) * 100;
     }
-    spawnParticle('+' + ac, x, y);
+    spawnParticle('+' + ac + 'g', x, y);
     refreshStats();
     popNum(el.p);
     save();
@@ -246,12 +264,22 @@
     setTimeout(() => p.remove(), 520);
   }
 
+  function onCraft(type) {
+    const res = Game.craftProduct(state, type);
+    if (res.ok) {
+      toast(type === 'hash' ? '📦 1 Hash conditionné !' : '🍯 1 Résine supérieure !');
+      popNum(el.p);
+    } else {
+      toast('Pas assez de weed (' + (type === 'hash' ? '5g' : '20g') + ' requis)');
+    }
+    refreshStats();
+    save();
+  }
+
   function onSell(type) {
     const gain = Game.sellStock(state, type);
     if (gain > 0) {
-      state.money += gain;
-      state.totalEarned = (state.totalEarned || 0) + gain;
-      toast('+$' + fmt(gain));
+      toast('+' + fmt(gain) + ' €');
       popNum(el.m);
     }
     refreshStats();
@@ -264,7 +292,7 @@
       toast(res.name + ' acheté !');
       popNum(el.m);
     } else {
-      toast('Pas assez d\'argent');
+      toast('Pas assez d'argent');
     }
     refreshStats();
     save();
@@ -273,7 +301,7 @@
   function equipStrain(id) {
     const res = Game.equipStrain(state, id);
     if (!res.ok) {
-      if (res.reason === 'funds') toast('Pas assez d\'argent');
+      if (res.reason === 'funds') toast('Pas assez d'argent');
       else if (res.reason === 'level') {
         const st = Game.getStrain(id);
         toast('Niveau ' + (st ? st.unlock : '?') + ' requis');
@@ -294,13 +322,18 @@
   function autoProduce() {
     const ar = Game.perSecond(state);
     if (ar > 0) {
-      state.points += ar;
-      state.stock.main += ar;
+      state.weed += ar;
+      state.stock.weed += ar;
       Game.earnXp(state, ar);
     }
-    if (state.stock.main > 10 && Math.random() < Game.PREMIUM_DROP_CHANCE) {
-      state.stock.main -= Game.PREMIUM_DROP_COST;
-      state.stock.premium += 1;
+    if (state.stock.weed > 20 && Math.random() < Game.PRODUCT_DROP_CHANCE) {
+      if (Math.random() < 0.3) {
+        state.stock.weed -= 20;
+        state.stock.resin = (state.stock.resin || 0) + 1;
+      } else {
+        state.stock.weed -= 5;
+        state.stock.hash = (state.stock.hash || 0) + 1;
+      }
     }
     refreshStats();
     save();
@@ -362,7 +395,6 @@
     try {
       localStorage.setItem(SAVE_KEY, Game.serialize(state));
     } catch (e) { /* quota / private mode: ignore */ }
-    // Debounced cloud push: coalesce rapid saves into a single push 2s later.
     if (!cloudPushPending) {
       cloudPushPending = setTimeout(() => {
         cloudPushPending = null;
@@ -390,9 +422,13 @@
 
   // --- wiring -----------------------------------------------------------------
   el.bs.addEventListener('click', onHarvest);
-  el.sm.addEventListener('click', () => onSell('main'));
-  el.sp.addEventListener('click', () => onSell('premium'));
+  el.sw.addEventListener('click', () => onSell('weed'));
+  el.sh.addEventListener('click', () => onSell('hash'));
+  el.sr.addEventListener('click', () => onSell('resin'));
   el.sa.addEventListener('click', () => onSell('all'));
+  el.cbHash.addEventListener('click', () => onCraft('hash'));
+  el.cbResin.addEventListener('click', () => onCraft('resin'));
+
   document.querySelectorAll('.tab-btn').forEach((b) =>
     b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
@@ -411,7 +447,6 @@
     save();
   });
 
-  // Hard reset ("Zone de danger"): two-step confirm, wipes the entire save.
   let rbTimer = null;
   function disarmReset() {
     clearTimeout(rbTimer);
@@ -439,7 +474,6 @@
     toast('Nouvelle partie, bon courage 🌱');
   });
 
-  // Space bar = harvest (desktop), unless a button has focus.
   document.addEventListener('keydown', (ev) => {
     if (ev.code === 'Space' && !ev.repeat && document.activeElement.tagName !== 'BUTTON') {
       ev.preventDefault();

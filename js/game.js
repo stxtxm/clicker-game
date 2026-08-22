@@ -12,13 +12,18 @@
  *
  * State shape (see `defaultState`):
  *   state = {
- *     points: number,                    // harvested buds (never sold)
- *     money:  number,                    // currency used to buy upgrades/strains
+ *     weed: number,                      // harvested weed buds (grams)
+ *     money:  number,                    // money in € used to buy upgrades/strains
  *     strain: string,                    // currently equipped strain id
- *     stock:  { main, premium, strains[] },
- *     prices: { main, premium },         // sell price per unit
-*   levels: { harvest, auto, expert, crew, turbo, mega },
- *     xp: number,                         // lifetime XP (= total buds ever harvested)
+ *     stock:  {
+ *       weed: number,                    // raw buds stock to sell
+ *       hash: number,                    // hash stock (conditionné)
+ *       resin: number,                   // resin stock (supérieur / conditionné)
+ *       strains: string[]
+ *     },
+ *     prices: { weed: number, hash: number, resin: number }, // sell prices per unit
+ *     levels: { harvest, auto, expert, crew, turbo, mega },
+ *     xp: number,                         // lifetime XP (= total weed ever harvested)
  *     genomes: number,                    // prestige currency, +25% production each
  *     milestones: string[],               // awarded milestone ids
  *     totalEarned: number                 // lifetime cash earned
@@ -33,34 +38,32 @@
 
   /** Upgrades catalog: id, display name, icon, description, base cost. */
   const UPGRADES = [
-    { id: 'harvest', name: 'Ciseaux',     icon: '✂️',   desc: '+1 point par clic',        cost: 50 },
-    { id: 'auto',    name: 'Auto-récolte',icon: '🤖',   desc: '+1 point par seconde',     cost: 200 },
-    { id: 'expert',  name: 'Expert',      icon: '🧑‍🌾', desc: '+5 points par clic',        cost: 500 },
-    { id: 'crew',    name: 'Équipe',      icon: '👥',   desc: '+10 points par seconde',   cost: 2000 },
-    { id: 'turbo',   name: 'Turbo',       icon: '⚡',   desc: 'x2 points par clic',       cost: 10000 },
-    { id: 'mega',    name: 'Mega',        icon: '🌟',   desc: 'x2 toute la production',   cost: 50000 }
+    { id: 'harvest', name: 'Ciseaux Pro',    icon: '✂️',   desc: '+1g de weed par clic',      cost: 80 },
+    { id: 'auto',    name: 'Système Auto',   icon: '🤖',   desc: '+1g de weed par seconde',   cost: 350 },
+    { id: 'expert',  name: 'Taille Expert',  icon: '🧑‍🌾', desc: '+5g de weed par clic',      cost: 900 },
+    { id: 'crew',    name: 'Équipe de Serre',icon: '👥',   desc: '+15g de weed par seconde',  cost: 3500 },
+    { id: 'turbo',   name: 'Éclairage Turbo',icon: '⚡',   desc: 'x2 production de weed',     cost: 18000 },
+    { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: 'x2 production globale',     cost: 90000 }
   ];
 
   /**
    * Strain catalog.
-   * Each strain defines its own gradient palette used by the SVG renderer:
-   *   d/m/l/f — dark / mid / light / frost gradient stops (two colors each)
-   *   vein, stroke — leaf vein + outline colors
-   *   pistil / pistil2 — hair colors
-   *   frost — frost intensity multiplier (drives trichome count / frost veil)
-   *   unlock — player level required to buy the strain
+   * Each strain brings unique multi-dimensional bonuses (multiplier on yield and value):
+   *   yieldMult: multiplicative bonus on weed harvested per click / second
+   *   priceMult: multiplicative bonus on selling prices
+   *   d/m/l/f — dark / mid / light / frost gradient stops
    */
   const STRAINS = [
-    { id: 'green',  name: 'Green Dream', icon: '🌿', cost: 0,     unlock: 1,  desc: 'La classique, résineuse et généreuse',
+    { id: 'green',  name: 'Green Dream', icon: '🌿', cost: 0,     unlock: 1,  yieldMult: 1.0, priceMult: 1.0, desc: 'La classique, résineuse et généreuse',
       d: ['#3f6d2c', '#1b3b13'], m: ['#5f8f3c', '#2c521f'], l: ['#a8d172', '#4c7a2e'], f: ['#d3eaa2', '#7fae48'],
       vein: '#173012', stroke: '#102a0c', pistil: '#ff8c00', pistil2: '#ff9d1f', frost: 1 },
-    { id: 'purple', name: 'Purple Haze', icon: '🟣', cost: 1500, unlock: 3,  desc: 'Notes violettes et sucrées',
+    { id: 'purple', name: 'Purple Haze', icon: '🟣', cost: 2500, unlock: 4,  yieldMult: 1.5, priceMult: 1.4, desc: 'Notes violettes et sucrées, haut rendement',
       d: ['#4a2f6e', '#241243'], m: ['#6a3fa0', '#341a58'], l: ['#a06fd0', '#5c2f8a'], f: ['#cfa8ee', '#8a55c0'],
       vein: '#1c0f38', stroke: '#150a2c', pistil: '#ffab2e', pistil2: '#ffc46e', frost: 1.25 },
-    { id: 'blue',   name: 'Blue Frost',  icon: '💠', cost: 8000, unlock: 6,  desc: 'Givrée bleutée, très cristalline',
+    { id: 'blue',   name: 'Blue Frost',  icon: '💠', cost: 15000, unlock: 8,  yieldMult: 2.2, priceMult: 2.0, desc: 'Givrée bleutée, très cristalline et puissante',
       d: ['#1f4a5a', '#0d2630'], m: ['#2e6f8f', '#163b4d'], l: ['#5fa8cf', '#2f6d8f'], f: ['#a8d8ee', '#5f9fcf'],
       vein: '#0c2230', stroke: '#081a24', pistil: '#ffffff', pistil2: '#d8f0ff', frost: 1.7 },
-    { id: 'pink',   name: 'Pink Kush',   icon: '🌸', cost: 25000, unlock: 10, desc: 'Pistils rosés, calyx denses',
+    { id: 'pink',   name: 'Pink Kush',   icon: '🌸', cost: 60000, unlock: 13, yieldMult: 3.5, priceMult: 3.0, desc: 'Pistils rosés denses, valeur exceptionnelle',
       d: ['#6e2f4a', '#3a1730'], m: ['#8f3f6a', '#4a1f3a'], l: ['#d06fa8', '#8a3f66'], f: ['#eea8cf', '#b06f98'],
       vein: '#351028', stroke: '#280c1e', pistil: '#ff6f9d', pistil2: '#ffb3cc', frost: 1.4 }
   ];
@@ -71,31 +74,23 @@
   /** Default upgrade levels for a brand new game. */
   const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, crew: 0, turbo: 0, mega: 0 };
 
-  /** Chance per tick that 5 regular buds convert into 1 premium bud. */
-  const PREMIUM_DROP_CHANCE = 0.05;
-  /** Conversion amount: 5 buds -> 1 premium. */
-  const PREMIUM_DROP_COST = 5;
+  /** Chance per tick that harvested weed converts into Hash or Resin conditionné. */
+  const PRODUCT_DROP_CHANCE = 0.08;
+  const HASH_CONVERT_COST = 5;  // 5g weed -> 1g Hash
+  const RESIN_CONVERT_COST = 20; // 20g weed -> 1g Resin (or craft directly)
 
-  /* ---- progression curve ---------------------------------------------------
-   * XP = 1 per harvested bud, earned forever. The level curve is a
-   * quadratic-exponential hybrid (`60 * n² * 1.15^n` cumulative XP): early
-   * levels come fast, then each one costs noticeably more, keeping strain
-   * unlocks meaningful and making prestige attractive around level 10.
-   * Each level adds +10% production; every owned strain beyond the first adds
-   * +5%; each milestone and each prestige genome add their own permanent
-   * multipliers. All of them multiply together.
-   */
-  const XP_BASE = 60;
-  const XP_GROWTH = 1.15;
-  const PRESTIGE_BASE = 10000;
+  /* ---- progression curve (Slower, deeper & more rewarding) ---------------- */
+  const XP_BASE = 120;
+  const XP_GROWTH = 1.22;
+  const PRESTIGE_BASE = 25000;
 
   /** Milestones: permanent production bonuses granted at lifetime-XP thresholds. */
   const MILESTONES = [
-    { id: 'm1', xp: 100,     bonus: 5,  name: 'Premiers pas',         icon: '🌱' },
-    { id: 'm2', xp: 1000,    bonus: 10, name: 'En pleine croissance', icon: '🌿' },
-    { id: 'm3', xp: 10000,   bonus: 15, name: 'Serre industrielle',   icon: '🏭' },
-    { id: 'm4', xp: 100000,  bonus: 25, name: 'Mogul du cannabis',    icon: '💎' },
-    { id: 'm5', xp: 1000000, bonus: 50, name: 'Roi du bud',           icon: '👑' }
+    { id: 'm1', xp: 200,     bonus: 5,  name: 'Premiers bocal',       icon: '🌱' },
+    { id: 'm2', xp: 2500,    bonus: 10, name: 'Récolte abondante',    icon: '🌿' },
+    { id: 'm3', xp: 30000,   bonus: 15, name: 'Laboratoire de prod',  icon: '🏭' },
+    { id: 'm4', xp: 350000,  bonus: 25, name: 'Baron de la résine',   icon: '💎' },
+    { id: 'm5', xp: 4000000, bonus: 50, name: 'Légende internationale',icon: '👑' }
   ];
 
   /** Lazily extended cumulative-XP table (index = level; index 1 = 0 XP). */
@@ -133,13 +128,14 @@
   }
 
   /**
-   * Total production multiplier from level, owned strains, prestige genomes
+   * Total production multiplier from level, strain yieldMult, prestige genomes
    * and awarded milestones.
    * @param {object} s state
    */
   function productionMult(s) {
-    let m = 1 + 0.10 * levelFromXp(s.xp);
-    m *= 1 + 0.05 * Math.max(0, (s.stock.strains.length || 1) - 1);
+    let m = 1 + 0.08 * levelFromXp(s.xp);
+    const st = getStrain(s.strain);
+    if (st) m *= st.yieldMult;
     m *= 1 + 0.25 * (s.genomes || 0);
     const bonus = MILESTONES.reduce((a, mi) =>
       a + ((s.milestones || []).includes(mi.id) ? mi.bonus : 0), 0);
@@ -147,7 +143,7 @@
     return m;
   }
 
-  /** Add lifetime XP (e.g. from a harvest), returns what just happened. */
+  /** Add lifetime XP (e.g. from harvested weed), returns what just happened. */
   function earnXp(s, n) {
     const before = levelFromXp(s.xp);
     s.xp = (s.xp || 0) + n;
@@ -186,9 +182,9 @@
     const gain = prestigeGain(s);
     if (gain < 1) return { ok: false, reason: 'threshold' };
     s.genomes = (s.genomes || 0) + gain;
-    s.points = 0;
+    s.weed = 0;
     s.money = 0;
-    s.stock = { main: 0, premium: 0, strains: s.stock.strains };
+    s.stock = { weed: 0, hash: 0, resin: 0, strains: s.stock.strains };
     s.levels = { ...DEFAULT_LEVELS };
     s.strain = 'green';
     return { ok: true, gain };
@@ -196,9 +192,6 @@
 
   /**
    * Deterministic pseudo-random generator (mulberry32).
-   * Used by the bud renderer so a given strain always produces the same SVG.
-   * @param {number} seed any 32-bit-ish integer
-   * @returns {() => number} function returning floats in [0, 1)
    */
   function mulberry32(seed) {
     let a = seed | 0;
@@ -216,11 +209,11 @@
    */
   function defaultState() {
     return {
-      points: 0,
+      weed: 0,
       money: 0,
       strain: 'green',
-      stock: { main: 0, premium: 0, strains: ['green'] },
-      prices: { main: 10, premium: 50 },
+      stock: { weed: 0, hash: 0, resin: 0, strains: ['green'] },
+      prices: { weed: 12, hash: 65, resin: 280 },
       levels: { ...DEFAULT_LEVELS },
       xp: 0,
       genomes: 0,
@@ -235,12 +228,7 @@
   }
 
   /**
-   * Buds gained per click.
-   *   base  = harvest + expert*5
-   *   turbo : x2 clicks
-   *   mega  : x2 everything
-   * then scaled by the production multiplier (level / strains / genomes / milestones).
-   * @param {object} s state
+   * Weed gained per click (grams).
    */
   function perClick(s) {
     let pc = s.levels.harvest + s.levels.expert * 5;
@@ -250,26 +238,21 @@
   }
 
   /**
-   * Buds gained per second (auto production), scaled by the production
-   * multiplier.
-   * @param {object} s state
+   * Weed gained per second (auto production), scaled by production multiplier.
    */
   function perSecond(s) {
-    return Math.round((s.levels.auto + s.levels.crew * 10) * productionMult(s));
+    return Math.round((s.levels.auto + s.levels.crew * 15) * productionMult(s));
   }
 
   /**
    * Current purchase price of an upgrade: base cost doubles per owned level.
-   * @param {object} s state
-   * @param {string} id upgrade id
    */
   function upgradeCost(s, id) {
-    return Math.floor(BASE_COST[id] * Math.pow(2, s.levels[id]));
+    return Math.floor(BASE_COST[id] * Math.pow(2.1, s.levels[id] - (id === 'harvest' ? 1 : 0)));
   }
 
   /**
    * Try to buy an upgrade. Mutates state on success only.
-   * @returns {{ok:boolean, reason?:string, cost?:number, name?:string}}
    */
   function buyUpgrade(s, id) {
     const cost = upgradeCost(s, id);
@@ -281,32 +264,55 @@
   }
 
   /**
-   * Sell stock and return the cash gained (does NOT add it to `s.money`;
-   * the caller decides). Selling 'main' or 'premium' empties that stock;
-   * 'all' empties both.
+   * Transform raw weed into Hash or Resin conditionné.
    * @param {object} s state
-   * @param {'main'|'premium'|'all'} type which stock to sell
+   * @param {'hash'|'resin'} type product type
+   * @returns {{ok:boolean, reason?:string, amount?:number}}
+   */
+  function craftProduct(s, type) {
+    const cost = type === 'hash' ? HASH_CONVERT_COST : RESIN_CONVERT_COST;
+    if (s.stock.weed < cost) return { ok: false, reason: 'weed' };
+    s.stock.weed -= cost;
+    s.stock[type] = (s.stock[type] || 0) + 1;
+    return { ok: true, amount: 1 };
+  }
+
+  /**
+   * Sell stock and return the cash gained (€).
+   * Prices scale with strain priceMult.
+   * @param {object} s state
+   * @param {'weed'|'hash'|'resin'|'all'} type which stock to sell
    * @returns {number} cash gained
    */
   function sellStock(s, type) {
+    const st = getStrain(s.strain);
+    const pMult = st ? st.priceMult : 1.0;
+    const prices = {
+      weed: Math.round(s.prices.weed * pMult),
+      hash: Math.round(s.prices.hash * pMult),
+      resin: Math.round(s.prices.resin * pMult)
+    };
+
     let gain = 0;
-    if (type === 'main' || type === 'all') {
-      gain += s.stock.main * s.prices.main;
-      s.stock.main = 0;
+    if (type === 'weed' || type === 'all') {
+      gain += s.stock.weed * prices.weed;
+      s.stock.weed = 0;
     }
-    if (type === 'premium' || type === 'all') {
-      gain += s.stock.premium * s.prices.premium;
-      s.stock.premium = 0;
+    if (type === 'hash' || type === 'all') {
+      gain += (s.stock.hash || 0) * prices.hash;
+      s.stock.hash = 0;
     }
+    if (type === 'resin' || type === 'all') {
+      gain += (s.stock.resin || 0) * prices.resin;
+      s.stock.resin = 0;
+    }
+    s.money += gain;
+    s.totalEarned = (s.totalEarned || 0) + gain;
     return gain;
   }
 
   /**
-   * Equip a strain; buys it first if not owned. Buying is gated by the player
-   * level (`st.unlock`) and the cash price.
-   * @param {object} s state
-   * @param {string} id strain id
-   * @returns {{ok:boolean, reason?:string, justUnlocked?:boolean, name?:string}}
+   * Equip a strain; buys it first if not owned.
    */
   function equipStrain(s, id) {
     const st = getStrain(id);
@@ -326,8 +332,6 @@
 
   /**
    * Serialize state to the localStorage string.
-   * @param {object} s state
-   * @returns {string} JSON
    */
   function serialize(s) {
     return JSON.stringify(s);
@@ -335,10 +339,6 @@
 
   /**
    * Load + sanitize state from a localStorage string.
-   * Never throws: a corrupted or missing payload falls back to a default
-   * state merged over whatever was parseable.
-   * @param {string|null|undefined} raw
-   * @returns {object} a valid state
    */
   function deserialize(raw) {
     const d = defaultState();
@@ -349,11 +349,14 @@
     } catch {
       return d;
     }
-    // Sanitize: levels/stock must have valid shape.
     d.levels = { ...DEFAULT_LEVELS, ...(d.levels || {}) };
-    if (!d.stock || typeof d.stock !== 'object') d.stock = { main: 0, premium: 0, strains: ['green'] };
+    if (!d.stock || typeof d.stock !== 'object') d.stock = { weed: 0, hash: 0, resin: 0, strains: ['green'] };
+    if (typeof d.stock.weed !== 'number') d.stock.weed = d.stock.main || d.points || 0;
+    if (typeof d.stock.hash !== 'number') d.stock.hash = d.stock.premium || 0;
+    if (typeof d.stock.resin !== 'number') d.stock.resin = 0;
     if (!Array.isArray(d.stock.strains)) d.stock.strains = ['green'];
     if (!getStrain(d.strain)) d.strain = 'green';
+    d.weed = typeof d.weed === 'number' && d.weed >= 0 ? d.weed : (d.points || 0);
     d.xp = typeof d.xp === 'number' && d.xp >= 0 ? d.xp : 0;
     d.genomes = typeof d.genomes === 'number' && d.genomes >= 0 ? d.genomes : 0;
     d.totalEarned = typeof d.totalEarned === 'number' && d.totalEarned >= 0 ? d.totalEarned : 0;
@@ -368,8 +371,9 @@
     STRAINS,
     BASE_COST,
     DEFAULT_LEVELS,
-    PREMIUM_DROP_CHANCE,
-    PREMIUM_DROP_COST,
+    PRODUCT_DROP_CHANCE,
+    HASH_CONVERT_COST,
+    RESIN_CONVERT_COST,
     XP_BASE,
     XP_GROWTH,
     PRESTIGE_BASE,
@@ -390,6 +394,7 @@
     perSecond,
     upgradeCost,
     buyUpgrade,
+    craftProduct,
     sellStock,
     equipStrain,
     serialize,

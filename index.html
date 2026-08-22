@@ -76,9 +76,18 @@ button:focus{outline:none}
 .sc-avail{font-size:.78rem;color:var(--muted)}
 .sc-price{font-size:1.05rem;font-weight:800;color:var(--gold);white-space:nowrap}
 .sell-card.premium .sc-icon{filter:drop-shadow(0 0 10px rgba(255,193,7,.4))}
+.sell-card.resin .sc-icon{filter:drop-shadow(0 0 10px rgba(139,195,74,.5))}
 .sell-all{width:100%;background:linear-gradient(135deg,var(--gold-soft),var(--gold));color:#1a1200;border:none;border-radius:14px;padding:15px;font-size:1rem;font-weight:800;cursor:pointer;transition:all .15s cubic-bezier(.4,0,.2,1);box-shadow:0 4px 16px rgba(255,193,7,.25)}
 .sell-all:active{transform:scale(.98)}
 .sell-all:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;transform:none}
+
+/* ===== Crafting section ===== */
+.craft-box{background:linear-gradient(135deg,rgba(127,208,75,.06),var(--panel2));border:1px solid var(--border2);border-radius:14px;padding:14px;margin-bottom:16px}
+.craft-title{font-size:.95rem;font-weight:800;margin-bottom:8px;color:var(--green-soft)}
+.craft-row{display:flex;gap:8px}
+.craft-btn{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 8px;font-size:.8rem;font-weight:800;color:var(--text);cursor:pointer;transition:all .15s}
+.craft-btn:hover:not(:disabled){border-color:var(--green);background:rgba(127,208,75,.1)}
+.craft-btn:disabled{opacity:.4;cursor:not-allowed}
 
 /* ===== Upgrades view ===== */
 .upgrades{display:flex;flex-direction:column;gap:10px}
@@ -209,13 +218,13 @@ button:focus{outline:none}
 <header class="topbar">
   <div class="brand">
     <h1 class="title">BUD CLICKER</h1>
-    <span class="subtitle">Clique pour récolter</span>
+    <span class="subtitle">Récolte & Transformation</span>
   </div>
   <div class="stats-bar">
-    <div class="stat"><b id="p">0</b><span>Points</span></div>
-    <div class="stat"><b id="ar">+0</b><span>/sec</span></div>
+    <div class="stat"><b id="p">0g</b><span>Weed</span></div>
+    <div class="stat"><b id="ar">+0</b><span>g/sec</span></div>
     <div class="stat"><b id="lv">1</b><span>Niveau</span></div>
-    <div class="stat money"><b id="m">$0</b><span>Argent</span></div>
+    <div class="stat money"><b id="m">0 €</b><span>Argent</span></div>
   </div>
 </header>
 
@@ -228,7 +237,7 @@ button:focus{outline:none}
        <div class="bud-halo"></div>
         <svg class="bud-svg" id="bs" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"></svg>
       </div>
-      <div class="per-click">+<b id="hl">1</b> / clic</div>
+      <div class="per-click">+<b id="hl">1</b>g / clic</div>
       <div class="hint">Clique ou appuie sur le bud</div>
     </div>
   </section>
@@ -236,17 +245,31 @@ button:focus{outline:none}
   <div class="shop">
   <!-- Sell -->
   <section class="view view-sell" id="v-sell">
-    <div class="panel-head"><h2>Vendre</h2><p>Transforme ta récolte en argent</p></div>
+    <div class="panel-head"><h2>Marché & Produits</h2><p>Vends ta weed ou transforme-la en conditionnements de choix</p></div>
+
+    <div class="craft-box">
+      <div class="craft-title">🧪 Laboratoire de transformation</div>
+      <div class="craft-row">
+        <button class="craft-btn" id="cb-hash">📦 Hash (5g ➔ 1u)</button>
+        <button class="craft-btn" id="cb-resin">🍯 Résine (20g ➔ 1u)</button>
+      </div>
+    </div>
+
     <div class="sell-cards">
-      <button class="sell-card" id="sm">
+      <button class="sell-card" id="sw">
         <span class="sc-icon">🌿</span>
-        <span class="sc-info"><span class="sc-name">Têtes</span><span class="sc-avail" id="stm">0 dispo</span></span>
-        <span class="sc-price" id="pm">$10/u</span>
+        <span class="sc-info"><span class="sc-name">Têtes (Weed)</span><span class="sc-avail" id="stw">0g dispo</span></span>
+        <span class="sc-price" id="pw">12 €/g</span>
       </button>
-      <button class="sell-card premium" id="sp">
-        <span class="sc-icon">💎</span>
-        <span class="sc-info"><span class="sc-name">Premium</span><span class="sc-avail" id="stp">0 dispo</span></span>
-        <span class="sc-price" id="pp">$50/u</span>
+      <button class="sell-card premium" id="sh">
+        <span class="sc-icon">📦</span>
+        <span class="sc-info"><span class="sc-name">Hash Conditionné</span><span class="sc-avail" id="sth">0 dispo</span></span>
+        <span class="sc-price" id="ph">65 €/u</span>
+      </button>
+      <button class="sell-card resin" id="sr">
+        <span class="sc-icon">🍯</span>
+        <span class="sc-info"><span class="sc-name">Résine Supérieure</span><span class="sc-avail" id="str">0 dispo</span></span>
+        <span class="sc-price" id="pr">280 €/u</span>
       </button>
     </div>
     <button class="sell-all" id="sa">Tout vendre</button>
@@ -254,13 +277,13 @@ button:focus{outline:none}
 
   <!-- Upgrades -->
   <section class="view view-upgrades" id="v-upgrades">
-    <div class="panel-head"><h2>Upgrades</h2><p>Améliore ta production</p></div>
+    <div class="panel-head"><h2>Upgrades</h2><p>Améliore ton matériel de culture</p></div>
     <div class="upgrades" id="ug"></div>
   </section>
 
   <!-- Strains -->
   <section class="view view-strains" id="v-strains">
-    <div class="panel-head"><h2>Variétés</h2><p>Choisis la génétique de ta culture</p></div>
+    <div class="panel-head"><h2>Variétés</h2><p>Chaque variété multiplie tes rendements et prix de vente</p></div>
     <div class="strains" id="sv"></div>
   </section>
 
@@ -271,13 +294,13 @@ button:focus{outline:none}
     <div class="xp-card">
       <div class="xp-top"><b id="xplv">Niveau 1</b><span id="xpmult">x1.00</span></div>
       <div class="xp-bar"><div class="xp-fill" id="xpf"></div></div>
-      <div class="xp-bottom"><span id="xpcur">0</span><span id="xpnext">/ 60 XP</span></div>
+      <div class="xp-bottom"><span id="xpcur">0</span><span id="xpnext">/ 120 XP</span></div>
     </div>
 
     <div class="prestige-card">
       <div class="pc-top"><span class="pc-title">🧬 Nouvelle génération</span><span class="pc-gain" id="pg">+0</span></div>
       <p class="pc-desc">Réinitialise argent et upgrades, conserve variétés, niveau et jalons, et gagne <b>+25% de production permanent</b> par génome.</p>
-      <div class="pc-progress" id="pdist">0 / 10 000 XP</div>
+      <div class="pc-progress" id="pdist">0 / 25 000 XP</div>
       <button class="sell-all prestige-btn" id="pb" disabled>Recycler la récolte</button>
     </div>
 
@@ -302,7 +325,7 @@ button:focus{outline:none}
 
 <nav class="bottom-nav">
   <button class="tab-btn active" data-tab="harvest"><span>🌿</span><span>Récolte</span></button>
-  <button class="tab-btn" data-tab="sell"><span>💰</span><span>Vendre</span></button>
+  <button class="tab-btn" data-tab="sell"><span>💰</span><span>Marché</span></button>
   <button class="tab-btn" data-tab="upgrades"><span>🚀</span><span>Upgrades</span></button>
   <button class="tab-btn" data-tab="strains"><span>🌱</span><span>Variétés</span></button>
   <button class="tab-btn" data-tab="progress"><span>📈</span><span>Progression</span></button>
