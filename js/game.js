@@ -77,13 +77,16 @@
   const PREMIUM_DROP_COST = 5;
 
   /* ---- progression curve ---------------------------------------------------
-   * XP = 1 per harvested bud, earned forever. The level curve is quadratic
-   * (60 * (level-1)^2 cumulative XP), so early levels come fast and later ones
-   * demand real runs. Each level adds +10% production; every owned strain
-   * beyond the first adds +5%; each milestone and each prestige genome add
-   * their own permanent multipliers. All of them multiply together.
+   * XP = 1 per harvested bud, earned forever. The level curve is a
+   * quadratic-exponential hybrid (`60 * n² * 1.15^n` cumulative XP): early
+   * levels come fast, then each one costs noticeably more, keeping strain
+   * unlocks meaningful and making prestige attractive around level 10.
+   * Each level adds +10% production; every owned strain beyond the first adds
+   * +5%; each milestone and each prestige genome add their own permanent
+   * multipliers. All of them multiply together.
    */
   const XP_BASE = 60;
+  const XP_GROWTH = 1.15;
   const PRESTIGE_BASE = 10000;
 
   /** Milestones: permanent production bonuses granted at lifetime-XP thresholds. */
@@ -95,14 +98,30 @@
     { id: 'm5', xp: 1000000, bonus: 50, name: 'Roi du bud',           icon: '👑' }
   ];
 
+  /** Lazily extended cumulative-XP table (index = level; index 1 = 0 XP). */
+  const _xpTable = [0, 0];
+
   /** Cumulative XP required to reach `level` (level 1 needs 0 XP). */
   function xpForLevel(level) {
-    return XP_BASE * (level - 1) * (level - 1);
+    const l = Math.max(1, Math.min(9999, Math.floor(Number(level) || 1)));
+    while (_xpTable.length <= l) {
+      const n = _xpTable.length - 1; // entry for level n+1 uses exponent n
+      _xpTable.push(Math.round(XP_BASE * n * n * Math.pow(XP_GROWTH, n)));
+    }
+    return _xpTable[l];
   }
 
   /** Player level for a given lifetime XP. Always >= 1. */
   function levelFromXp(xp) {
-    return 1 + Math.floor(Math.sqrt(Math.max(0, xp || 0) / XP_BASE));
+    const x = Math.max(0, Number(xp) || 0);
+    let lo = 1, hi = 2;
+    while (xpForLevel(hi) <= x && hi < 8192) hi *= 2;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (xpForLevel(mid) <= x) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo;
   }
 
   /** Level, XP earned inside it and XP still needed for the next level. */
@@ -352,6 +371,7 @@
     PREMIUM_DROP_CHANCE,
     PREMIUM_DROP_COST,
     XP_BASE,
+    XP_GROWTH,
     PRESTIGE_BASE,
     MILESTONES,
     mulberry32,

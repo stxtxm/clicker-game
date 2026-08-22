@@ -14,7 +14,7 @@ A simple, mobile-friendly clicker game: click the bud, stack up buds, sell them,
 
 ## Progression
 
-Every harvested bud is 1 **XP**, earned forever. XP drives a quadratic level curve (level N needs `60*(N-1)²` lifetime XP).
+Every harvested bud is 1 **XP**, earned forever. XP drives a hybrid level curve (level N needs `60*(N-1)²*1.15^(N-1)` lifetime XP): fast early levels, then each one costs noticeably more.
 
 - **Levels**: each level adds **+10%** to all production. Strains unlock at levels 3, 6 and 10.
 - **Strains**: each owned strain beyond the first adds **+5%** production.
@@ -60,6 +60,7 @@ npm test        # node --test, 37 tests
 ```
 
 Test files:
+- `test/cloud.test.js` — GitHub Gist API calls (mock fetch), pack/unpack round-trip
 - `test/game.test.js` — economy (upgrade costs, sell prices, buying), strains + level gates, progression (level curve, XP, milestones, prestige), save/load round-trip
 - `test/bud.test.js` — SVG validity, determinism, `url(#…)` reference regression, structural counts (calyxes, pistils, frost dots, fan leaves)
 
@@ -81,7 +82,7 @@ clicker-game/
 
 ### Modules
 
-- **`js/game.js`** — no DOM, fully testable. Exports `UPGRADES`, `STRAINS`, `BASE_COST`, `DEFAULT_LEVELS`, `PREMIUM_DROP_CHANCE`, `PREMIUM_DROP_COST`, `XP_BASE`, `PRESTIGE_BASE`, `MILESTONES`, and the pure functions `getStrain`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `checkMilestones`, `prestigeGain`, `canPrestige`, `prestige`, `perClick`, `perSecond`, `upgradeCost`, `buyUpgrade`, `sellStock`, `equipStrain`, `serialize`, `deserialize`. State is created by `defaultState()` and its shape is saved under the localStorage key `budClicker`.
+- **`js/game.js`** — no DOM, fully testable. Exports `UPGRADES`, `STRAINS`, `BASE_COST`, `DEFAULT_LEVELS`, `PREMIUM_DROP_CHANCE`, `PREMIUM_DROP_COST`, `XP_BASE`, `XP_GROWTH`, `PRESTIGE_BASE`, `MILESTONES`, and the pure functions `getStrain`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `checkMilestones`, `prestigeGain`, `canPrestige`, `prestige`, `perClick`, `perSecond`, `upgradeCost`, `buyUpgrade`, `sellStock`, `equipStrain`, `serialize`, `deserialize`. State is created by `defaultState()` and its shape is saved under the localStorage key `budClicker`.
 - **`js/bud.js`** — `renderBudSvg(strainId)` returns the full `<svg>` string for a strain. Deterministic (seeded RNG: calyxes `2024`, pistils `99`, trichomes `777`), so tests can assert exact structure.
 - **`js/ui.js`** — browser-only glue: wires events (no inline `onclick`), runs `autoProduce` every 1s, autosaves every 10s, handles Space-to-harvest and tab switching.
 
@@ -89,7 +90,7 @@ clicker-game/
 
 - **Strains** — edit `STRAINS` in `js/game.js` (each entry drives the bud gradient, pistil color, sugar-leaf color, frostiness in `js/bud.js`, plus the unlock level and cash price).
 - **Economy** — edit `UPGRADES`, `BASE_COST`, `PREMIUM_DROP_CHANCE/COST` in `js/game.js`.
-- **Progression curve** — edit `XP_BASE` (level speed), `PRESTIGE_BASE` (first prestige threshold), `MILESTONES` (permanent bonuses) in `js/game.js`.
+- **Progression curve** — edit `XP_BASE` / `XP_GROWTH` (level speed + steepness), `PRESTIGE_BASE` (first prestige threshold), `MILESTONES` (permanent bonuses) in `js/game.js`.
 - **Leaf layout** — the fan positions/scales live in `renderBudSvg` in `js/bud.js`; keep the fans inside the 300x300 viewBox or they get clipped by the container.
 
 Edit and refresh; no rebuild needed.

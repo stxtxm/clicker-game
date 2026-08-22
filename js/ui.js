@@ -14,7 +14,10 @@
 
   const Game = window.BudGame;
   const Bud = window.BudRender;
+  const Cloud = window.BudCloud;
   const SAVE_KEY = 'budClicker';
+  const TOKEN_KEY = 'budClickerToken';
+  const GIST_KEY = 'budClickerGist';
 
   // --- DOM references --------------------------------------------------------
   const el = {
@@ -43,7 +46,13 @@
     pg: document.getElementById('pg'),
     pb: document.getElementById('pb'),
     pdist: document.getElementById('pdist'),
-    ms: document.getElementById('ms')
+    ms: document.getElementById('ms'),
+    rb: document.getElementById('rb'),
+    ccToken: document.getElementById('cctoken'),
+    ccSave: document.getElementById('ccsave'),
+    ccLoad: document.getElementById('ccload'),
+    ccStatus: document.getElementById('ccstatus'),
+    ccGist: document.getElementById('ccgist')
   };
 
   let state = Game.defaultState();
@@ -302,7 +311,107 @@
     save();
   }
 
-  // --- persistence -----------------------------------------------------------
+  // --- cloud persistence ------------------------------------------------------
+  const CLOUD_SAVE_INTERVAL = 60000; // auto-push every 60s if configured
+  let cloudTimer = null;
+
+  function renderCloud() {
+    const token = tryGetToken();
+    const gist = localStorage.getItem(GIST_KEY);
+    el.ccGist.textContent = gist ? 'Gist: ' + gist : '';
+    el.ccStatus.textContent = '';
+    el.ccStatus.className = 'cc-status';
+    // Restore persisted token into the input (only once on boot).
+    if (!el.ccToken.dataset.loaded && token) {
+      el.ccToken.value = token;
+      el.ccToken.dataset.loaded = '1';
+    }
+  }
+
+  function tryGetToken() {
+    try { return localStorage.getItem(TOKEN_KEY) || ''; } catch { return ''; }
+  }
+
+  function persistToken(token) {
+    try { localStorage.setItem(TOKEN_KEY, token); } catch {}
+  }
+
+  function cloudStatus(text, ok) {
+    el.ccStatus.textContent = text;
+    el.ccStatus.className = 'cc-status' + (ok === true ? ' ok' : ok === false ? ' err' : '');
+  }
+
+  function cloudEnabled() {
+    return !!tryGetToken() && !!localStorage.getItem(GIST_KEY);
+  }
+
+  async function cloudPush() {
+    const token = el.ccToken.value.trim() || tryGetToken();
+    if (!token) { cloudStatus('Token manquant', false); return; }
+    persistToken(token);
+    const payload = Cloud.pack(state, Date.now());
+    const gistId = localStorage.getItem(GIST_KEY);
+    try {
+      let res;
+      if (gistId) {
+        res = await Cloud.updateGist(token, gistId, payload);
+      } else {
+        res = await Cloud.createGist(token, payload);
+      }
+      if (res.ok) {
+        if (res.id) {
+          localStorage.setItem(GIST_KEY, res.id);
+          el.ccGist.textContent = 'Gist: ' + res.id;
+        }
+        cloudStatus('Sauvegardé ✓', true);
+      } else if (res.reason === 'token') {
+        cloudStatus('Token invalide ou sans scope gist', false);
+      } else if (res.reason === 'rate') {
+        cloudStatus('Limite GitHub atteinte — réessaie plus tard', false);
+      } else {
+        cloudStatus('Erreur serveur (' + (res.status || '?') + ')', false);
+      }
+    } catch (e) {
+      cloudStatus('Erreur réseau', false);
+    }
+  }
+
+  async function cloudPull() {
+    const token = el.ccToken.value.trim() || tryGetToken();
+    const gistId = localStorage.getItem(GIST_KEY);
+    if (!token) { cloudStatus('Token manquant', false); return; }
+    if (!gistId) { cloudStatus('Aucun gist sauvegardé — sauvegarde d\'abord', false); return; }
+    persistToken(token);
+    try {
+      const res = await Cloud.fetchGist(token, gistId);
+      if (!res.ok) {
+        cloudStatus(res.reason === 'token' ? 'Token invalide' : 'Chargement impossible', false);
+        return;
+      }
+      if (!res.state || !Game.deserialize) {
+        cloudStatus('Données cloud corrompues', false);
+        return;
+      }
+      state = Game.deserialize(JSON.stringify(res.state));
+      renderBud();
+      renderUpgrades();
+      renderStrains();
+      refreshStats();
+      save();
+      const ts = res.savedAt ? new Date(res.savedAt).toLocaleString('fr-FR') : 'inconnu';
+      cloudStatus('Chargé (save du ' + ts + ')', true);
+    } catch (e) {
+      cloudStatus('Erreur réseau', false);
+    }
+  }
+
+  el.ccSave.addEventListener('click', cloudPush);
+  el.ccLoad.addEventListener('click', cloudPull);
+
+  function startCloudAuto() {
+    if (cloudTimer) clearInterval(cloudTimer);
+    cloudTimer = setInterval(() => { if (cloudEnabled()) cloudPush(); }, CLOUD_SAVE_INTERVAL);
+  }
   function save() {
     try {
       localStorage.setItem(SAVE_KEY, Game.serialize(state));
@@ -349,6 +458,34 @@
     save();
   });
 
+  // Hard reset ("Zone de danger"): two-step confirm, wipes the entire save.
+  let rbTimer = null;
+  function disarmReset() {
+    clearTimeout(rbTimer);
+    rbTimer = null;
+    el.rb.classList.remove('armed');
+    el.rb.textContent = 'Recommencer la progression';
+  }
+  el.rb.addEventListener('click', () => {
+    if (!rbTimer) {
+      el.rb.classList.add('armed');
+      el.rb.textContent = '⚠ Confirmer la remise à zéro';
+      toast('Reclique pour tout effacer !');
+      rbTimer = setTimeout(disarmReset, 4000);
+      return;
+    }
+    disarmReset();
+    try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
+    state = Game.defaultState();
+    renderBud();
+    renderUpgrades();
+    renderStrains();
+    switchTab('harvest');
+    refreshStats();
+    save();
+    toast('Nouvelle partie, bon courage 🌱');
+  });
+
   // Space bar = harvest (desktop), unless a button has focus.
   document.addEventListener('keydown', (ev) => {
     if (ev.code === 'Space' && !ev.repeat && document.activeElement.tagName !== 'BUTTON') {
@@ -362,6 +499,8 @@
   load();
   renderStrains();
   renderBud();
+  renderCloud();
+  startCloudAuto();
   setInterval(autoProduce, 1000);
   setInterval(save, 10000);
   refreshStats();
