@@ -290,11 +290,7 @@
     .up-buy .bb:disabled, .st-buy .bb:disabled { background: var(--panel); color: #555; border: 1px solid var(--border); opacity: 1; cursor: not-allowed; transform: none; }
 
     /* ===== Strains view ===== */
-    .strains, .shop-storage, .shop-strains, .shop-varietal { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 100%; width: 100%; box-sizing: border-box; }
-    .varietal-card { background: linear-gradient(135deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
-    .varietal-head { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: .9rem; }
-    .varietal-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-    .varietal-actions .mc-btn { flex: 1; min-width: 0; }
+    .strains, .shop-storage, .shop-strains { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 100%; width: 100%; box-sizing: border-box; }
     .strain {
       background: linear-gradient(135deg, var(--panel), var(--panel2));
       border: 1px solid var(--border);
@@ -460,9 +456,6 @@
         </div>
 
       </div>
-
-      <div class="panel-head sub" style="margin-top:18px"><h2>Ventes par variété</h2><p>Vends ton stock au prix de chaque génétique possédée</p></div>
-      <div class="shop-varietal" id="shop-varietal"></div>
 
       <div class="panel-head sub" style="margin-top:18px"><h2>Stockage</h2><p>Augmente ta capacité</p></div>
       <div class="shop-storage" id="shop-storage"></div>
