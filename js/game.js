@@ -43,7 +43,9 @@
     { id: 'expert',  name: 'Taille Expert',  icon: '🧑‍🌾', desc: '+5g de weed par clic',      cost: 900 },
     { id: 'crew',    name: 'Équipe de Serre',icon: '👥',   desc: '+15g de weed par seconde',  cost: 3500 },
     { id: 'turbo',   name: 'Éclairage Turbo',icon: '⚡',   desc: 'x2 production de weed',     cost: 18000 },
-    { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: 'x2 production globale',     cost: 90000 }
+    { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: 'x2 production globale',     cost: 90000 },
+    { id: 'sbox',    name: 'Boîte Étanche',  icon: '📦',   desc: '+500g capacité weed max',   cost: 500 },
+    { id: 'coldroom',name: 'Chambre Froide', icon: '❄️',   desc: '+2500g capacité weed max',  cost: 8500 }
   ];
 
   /**
@@ -65,24 +67,38 @@
       vein: '#0c2230', stroke: '#081a24', pistil: '#ffffff', pistil2: '#d8f0ff', frost: 1.7 },
     { id: 'pink',   name: 'Pink Kush',   icon: '🌸', cost: 60000, unlock: 13, yieldMult: 3.5, priceMult: 3.0, desc: 'Pistils rosés denses, valeur exceptionnelle',
       d: ['#6e2f4a', '#3a1730'], m: ['#8f3f6a', '#4a1f3a'], l: ['#d06fa8', '#8a3f66'], f: ['#eea8cf', '#b06f98'],
-      vein: '#351028', stroke: '#280c1e', pistil: '#ff6f9d', pistil2: '#ffb3cc', frost: 1.4 }
+      vein: '#351028', stroke: '#280c1e', pistil: '#ff6f9d', pistil2: '#ffb3cc', frost: 1.4 },
+    { id: 'lemon',  name: 'Lemon Haze',  icon: '🍋', cost: 220000, unlock: 19, yieldMult: 5.2, priceMult: 4.5, desc: 'Arômes acidulés toniques, production fulgurante',
+      d: ['#6d6d2c', '#3b3b13'], m: ['#8f8f3c', '#52521f'], l: ['#d1d172', '#7a7a2e'], f: ['#eaeaa2', '#aeae48'],
+      vein: '#303012', stroke: '#2a2a0c', pistil: '#ffea00', pistil2: '#ffff55', frost: 1.8 },
+    { id: 'northern',name: 'Northern Lights', icon: '🌌', cost: 850000, unlock: 26, yieldMult: 8.0, priceMult: 7.0, desc: 'Indica légendaire et givrée de trichomes',
+      d: ['#2c3f6d', '#131b3b'], m: ['#3c5f8f', '#1f2c52'], l: ['#72a8d1', '#2e4c7a'], f: ['#a2d3ea', '#487fae'],
+      vein: '#121730', stroke: '#0c102a', pistil: '#00ffff', pistil2: '#88ffff', frost: 2.1 },
+    { id: 'gorilla', name: 'Gorilla Glue', icon: '🦍', cost: 3500000, unlock: 34, yieldMult: 13.0, priceMult: 11.0, desc: 'Résine ultra-collante, puissance maximale',
+      d: ['#5a4a2f', '#30260d'], m: ['#8f723e', '#4d3b16'], l: ['#cfa86e', '#7a5f2e'], f: ['#eecda8', '#ae8848'],
+      vein: '#30220c', stroke: '#241a08', pistil: '#ffaa00', pistil2: '#ffcc44', frost: 2.5 },
+    { id: 'widow',  name: 'White Widow', icon: '🕷️', cost: 15000000, unlock: 45, yieldMult: 22.0, priceMult: 18.0, desc: 'Blanche de trichomes, le sommet absolu',
+      d: ['#4a4a4a', '#202020'], m: ['#707070', '#383838'], l: ['#a8a8a8', '#5a5a5a'], f: ['#e0e0e0', '#888888'],
+      vein: '#1f1f1f', stroke: '#121212', pistil: '#ffffff', pistil2: '#ffffff', frost: 3.0 }
   ];
 
   /** Base cost of each upgrade, indexed by id. */
   const BASE_COST = Object.fromEntries(UPGRADES.map((u) => [u.id, u.cost]));
 
   /** Default upgrade levels for a brand new game. */
-  const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, crew: 0, turbo: 0, mega: 0 };
+  const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, crew: 0, turbo: 0, mega: 0, sbox: 0, coldroom: 0 };
 
-  /** Chance per tick that harvested weed converts into Hash or Resin conditionné. */
+  /** Product drop chance and crafting costs. */
   const PRODUCT_DROP_CHANCE = 0.08;
-  const HASH_CONVERT_COST = 5;  // 5g weed -> 1g Hash
-  const RESIN_CONVERT_COST = 20; // 20g weed -> 1g Resin (or craft directly)
+  const HASH_CONVERT_COST = 5;       // 5g weed -> 1g Hash
+  const RESIN_CONVERT_COST = 20;     // 20g weed -> 1g Resin
+  const ROSIN_CONVERT_COST = 50;     // 50g weed -> 1g Rosin
+  const MOONROCK_CONVERT_COST = 150; // 150g weed -> 1g Moonrock
 
   /* ---- progression curve (Slower, deeper & more rewarding) ---------------- */
-  const XP_BASE = 120;
-  const XP_GROWTH = 1.22;
-  const PRESTIGE_BASE = 25000;
+  const XP_BASE = 150;
+  const XP_GROWTH = 1.28;
+  const PRESTIGE_BASE = 50000;
 
   /** Milestones: permanent production bonuses granted at lifetime-XP thresholds. */
   const MILESTONES = [
@@ -90,7 +106,8 @@
     { id: 'm2', xp: 2500,    bonus: 10, name: 'Récolte abondante',    icon: '🌿' },
     { id: 'm3', xp: 30000,   bonus: 15, name: 'Laboratoire de prod',  icon: '🏭' },
     { id: 'm4', xp: 350000,  bonus: 25, name: 'Baron de la résine',   icon: '💎' },
-    { id: 'm5', xp: 4000000, bonus: 50, name: 'Légende internationale',icon: '👑' }
+    { id: 'm5', xp: 4000000, bonus: 40, name: 'Légende internationale',icon: '👑' },
+    { id: 'm6', xp: 50000000,bonus: 75, name: 'Empereur du Cannabis',icon: '🪐' }
   ];
 
   /** Lazily extended cumulative-XP table (index = level; index 1 = 0 XP). */
@@ -203,6 +220,16 @@
     };
   }
 
+  /** Maximum weed storage capacity based on upgrades. */
+  function maxWeedStorage(s) {
+    let cap = 1000;
+    if (s && s.levels) {
+      cap += (s.levels.sbox || 0) * 500;
+      cap += (s.levels.coldroom || 0) * 2500;
+    }
+    return cap;
+  }
+
   /**
    * Fresh game state.
    * @returns {object} a brand new, unmodified default state
@@ -212,8 +239,8 @@
       weed: 0,
       money: 0,
       strain: 'green',
-      stock: { weed: 0, hash: 0, resin: 0, strains: ['green'] },
-      prices: { weed: 12, hash: 65, resin: 280 },
+      stock: { weed: 0, hash: 0, resin: 0, rosin: 0, moonrock: 0, strains: ['green'] },
+      prices: { weed: 12, hash: 65, resin: 280, rosin: 900, moonrock: 3500 },
       levels: { ...DEFAULT_LEVELS },
       xp: 0,
       genomes: 0,
@@ -264,13 +291,17 @@
   }
 
   /**
-   * Transform raw weed into Hash or Resin conditionné.
+   * Transform raw weed into Hash, Resin, Rosin or Moonrock conditionné.
    * @param {object} s state
-   * @param {'hash'|'resin'} type product type
+   * @param {'hash'|'resin'|'rosin'|'moonrock'} type product type
    * @returns {{ok:boolean, reason?:string, amount?:number}}
    */
   function craftProduct(s, type) {
-    const cost = type === 'hash' ? HASH_CONVERT_COST : RESIN_CONVERT_COST;
+    let cost = HASH_CONVERT_COST;
+    if (type === 'resin') cost = RESIN_CONVERT_COST;
+    else if (type === 'rosin') cost = ROSIN_CONVERT_COST;
+    else if (type === 'moonrock') cost = MOONROCK_CONVERT_COST;
+
     if (s.stock.weed < cost) return { ok: false, reason: 'weed' };
     s.stock.weed -= cost;
     s.stock[type] = (s.stock[type] || 0) + 1;
@@ -281,7 +312,7 @@
    * Sell stock and return the cash gained (€).
    * Prices scale with strain priceMult.
    * @param {object} s state
-   * @param {'weed'|'hash'|'resin'|'all'} type which stock to sell
+   * @param {'weed'|'hash'|'resin'|'rosin'|'moonrock'|'all'} type which stock to sell
    * @returns {number} cash gained
    */
   function sellStock(s, type) {
@@ -290,7 +321,9 @@
     const prices = {
       weed: Math.round(s.prices.weed * pMult),
       hash: Math.round(s.prices.hash * pMult),
-      resin: Math.round(s.prices.resin * pMult)
+      resin: Math.round(s.prices.resin * pMult),
+      rosin: Math.round(s.prices.rosin * pMult),
+      moonrock: Math.round(s.prices.moonrock * pMult)
     };
 
     let gain = 0;
@@ -305,6 +338,14 @@
     if (type === 'resin' || type === 'all') {
       gain += (s.stock.resin || 0) * prices.resin;
       s.stock.resin = 0;
+    }
+    if (type === 'rosin' || type === 'all') {
+      gain += (s.stock.rosin || 0) * prices.rosin;
+      s.stock.rosin = 0;
+    }
+    if (type === 'moonrock' || type === 'all') {
+      gain += (s.stock.moonrock || 0) * prices.moonrock;
+      s.stock.moonrock = 0;
     }
     s.money += gain;
     s.totalEarned = (s.totalEarned || 0) + gain;
