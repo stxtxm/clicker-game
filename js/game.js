@@ -132,7 +132,7 @@
     kind: 'both',
     icon: '⚙️',
     name: 'Chaîne ' + p.name,
-    desc: 'Fabrique et vend 1u/s maximum — ton stock manuel reste intact',
+    desc: 'Fabrique 1u/s et écoule aussi ton stock manuel (1u/s) au prix du marché',
     cost: Math.round(p.price * 500),
     unlock: p.unlock + 5
   }));
@@ -414,9 +414,10 @@
    *   1. Auto-craft owned chains, most expensive product first: when weed is
    *      scarce the highest €/g conversion wins. Throughput is hard-capped at
    *      1 unit/s per product.
-   *   2. Dealers sell EXACTLY the units their chain just crafted — never the
-   *      player's manual stock. A chain is therefore a capped idle trickle
-   *      (1u/s × product price), while hand-made bulk sales stay interactive.
+   *   2. Dealers sell up to 2u/s: their chain's fresh output FIRST, then dip
+   *      into the player's manual stock (1u/s) at the CURRENT market price —
+   *      pulse included. Idle income even without weed, but hoarded stock
+   *      slowly leaks (maybe at -30%): hand-made bulk sales stay the smart move.
    *
    * No XP is granted: consistent with manual crafting/selling which only move €.
    * @param {object} s state (mutated)
@@ -431,9 +432,10 @@
       if (r.ok) res.crafted[p.id] = r.amount;
     }
     for (const p of PRODUCTS) {
+      if (!hasAuto(s, 'sell', p.id)) continue;
       const made = res.crafted[p.id] || 0;
-      if (!hasAuto(s, 'sell', p.id) || made <= 0) continue;
-      const gain = sellStock(s, p.id, made, now);
+      // dealer quota: chain output + 1u/s dipped from manual stock (may be 0 if empty)
+      const gain = sellStock(s, p.id, made + 1, now);
       if (gain > 0) res.soldMoney[p.id] = gain;
     }
     return res;

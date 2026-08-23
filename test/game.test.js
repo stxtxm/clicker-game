@@ -409,7 +409,7 @@ test('autoTick: no-op without any hire owned', () => {
   assert.strictEqual(s.money, 0);
 });
 
-test('autoTick: chain crafts 1u/s and sells ONLY its own output', () => {
+test('autoTick: dealer sells chain output + dips 1u/s into manual stock', () => {
   const s = Game.defaultState();
   s.xp = Game.xpForLevel(6);
   s.money = 100000;
@@ -418,18 +418,29 @@ test('autoTick: chain crafts 1u/s and sells ONLY its own output', () => {
   s.stock.weed = 21;
   const t = Game.autoTick(s, 0);
   assert.strictEqual(t.crafted.joint, 1);               // capped at 1u/s
-  assert.strictEqual(t.soldMoney.joint, px(14, 'joint')); // sells the crafted unit only
-  assert.strictEqual(s.stock.joint, 5);                 // manual stock untouched!
+  assert.strictEqual(t.soldMoney.joint, 2 * px(14, 'joint')); // chain unit + 1 manual unit
+  assert.strictEqual(s.stock.joint, 4);                 // manual stock leaks 1u/s
   assert.strictEqual(s.stock.weed, 19);
-  assert.strictEqual(s.money, 100000 - 7000 + px(14, 'joint')); // hire paid, trickle earned
+  assert.strictEqual(s.money, 100000 - 7000 + 2 * px(14, 'joint'));
 });
 
-test('autoTick: dealer without crafter output sells nothing', () => {
+test('autoTick: idle dealer drains manual stock even without weed', () => {
   const s = Game.defaultState();
-  s.auto.sell.joint = true; // sell-only flag (legacy partial save)
+  s.auto.sell.joint = true; // dealer (legacy partial save or starved ouvrier)
   s.stock.joint = 3;
-  Game.autoTick(s);
-  assert.strictEqual(s.stock.joint, 3);             // nothing crafted -> nothing sold
+  s.stock.weed = 0;
+  const t = Game.autoTick(s, 0);
+  assert.deepStrictEqual(t.crafted, {});
+  assert.strictEqual(t.soldMoney.joint, px(14, 'joint')); // 1 manual unit sold
+  assert.strictEqual(s.stock.joint, 2);
+});
+
+test('autoTick: dealer quota stops at empty stock', () => {
+  const s = Game.defaultState();
+  s.auto.sell.joint = true;
+  s.stock.joint = 0;
+  const t = Game.autoTick(s, 0);
+  assert.deepStrictEqual(t.soldMoney, {});
   assert.strictEqual(s.money, 0);
 });
 
