@@ -31,6 +31,7 @@
     pw: document.getElementById('pw'),
     ph: document.getElementById('ph'),
     pr: document.getElementById('pr'),
+    swMarket: document.getElementById('sw-market'),
     sh: document.getElementById('sh'),
     sr: document.getElementById('sr'),
     cbHash: document.getElementById('cb-hash'),
@@ -61,13 +62,15 @@
       : Math.floor(n);
   }
 
-  /** Short toast notification. */
+  /** Short toast notification — max 3 visibles, les plus anciens sortent. */
   function toast(text) {
     const m = document.createElement('div');
     m.className = 'ms';
     m.textContent = text;
+    // limite à 3 toasts simultanés
+    while (el.mc.children.length >= 3) el.mc.firstElementChild.remove();
     el.mc.appendChild(m);
-    setTimeout(() => m.remove(), 2200);
+    setTimeout(() => { if (m.parentNode) m.remove(); }, 2200);
   }
 
   /** Re-trigger the "pop" animation on a stat element. */
@@ -245,6 +248,7 @@
     if (el.ph) el.ph.textContent = Math.round(state.prices.hash * pMult) + ' €/u';
     if (el.pr) el.pr.textContent = Math.round(state.prices.resin * pMult) + ' €/u';
 
+    if (el.swMarket) el.swMarket.disabled = state.stock.weed <= 0;
     if (el.sh) el.sh.disabled = (state.stock.hash || 0) <= 0;
     if (el.sr) el.sr.disabled = (state.stock.resin || 0) <= 0;
 
@@ -415,6 +419,7 @@
   // --- wiring -----------------------------------------------------------------
   if (el.bs) el.bs.addEventListener('click', onHarvest);
   else if (el.bc) el.bc.addEventListener('click', onHarvest);
+  if (el.swMarket) el.swMarket.addEventListener('click', () => onSell('weed'));
   if (el.sh) el.sh.addEventListener('click', () => onSell('hash'));
   if (el.sr) el.sr.addEventListener('click', () => onSell('resin'));
   if (el.cbHash) el.cbHash.addEventListener('click', () => onCraft('hash'));
