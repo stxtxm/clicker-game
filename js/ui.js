@@ -283,7 +283,10 @@
     if (el.hl) el.hl.textContent = pc;
 
     const cap = Game.maxWeedStorage(state);
-    const isFull = (state.stock.weed || 0) >= cap;
+    // 97% threshold (not exact cap): owned chains drain a few g/s continuously,
+    // so the stock hovers just under the cap while clicks are still wasted —
+    // the banner must stay up for the player to reach the Marché.
+    const isFull = (state.stock.weed || 0) >= cap * 0.97;
     if (el.stw) {
       el.stw.textContent = fmt(state.stock.weed) + ' / ' + fmt(cap) + 'g';
       el.stw.parentElement?.classList.toggle('full', isFull);
