@@ -549,7 +549,25 @@
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('sw.js').then((reg) => {
+        // Notify when a new version is waiting to take over after reload.
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener('statechange', () => {
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+              const mc = document.getElementById('mc');
+              if (!mc) return;
+              const t = document.createElement('div');
+              t.className = 'ms';
+              t.textContent = '🆕 Nouvelle version dispo — recharge la page !';
+              while (mc.children.length >= 3) mc.firstElementChild.remove();
+              mc.appendChild(t);
+              setTimeout(() => { if (t.parentNode) t.remove(); }, 5000);
+            }
+          });
+        });
+      }).catch(() => {});
     });
   }
 

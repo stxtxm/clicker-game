@@ -548,5 +548,8 @@
   setInterval(autoProduce, 1000);
   setInterval(save, 10000);
   refreshStats();
+  // deep link: manifest shortcuts & PWA open ?tab=sell|upgrades|strains…
+  const wanted = new URLSearchParams(location.search).get('tab');
+  if (wanted && document.getElementById('v-' + wanted)) switchTab(wanted);
   setTimeout(() => toast('Clique sur le bud !'), 400);
 })();
