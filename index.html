@@ -283,7 +283,7 @@
     .up-buy .bb:disabled, .st-buy .bb:disabled { background: var(--panel); color: #555; border: 1px solid var(--border); opacity: 1; cursor: not-allowed; transform: none; }
 
     /* ===== Strains view ===== */
-    .strains { display: flex; flex-direction: column; gap: 10px; }
+    .strains, .shop-storage, .shop-strains { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 100%; }
     .strain {
       background: linear-gradient(135deg, var(--panel), var(--panel2));
       border: 1px solid var(--border);
@@ -423,9 +423,7 @@
         <div class="market-card">
           <div class="mc-top"><div class="mc-title">🌿 Weed Brute</div><div class="mc-price" id="pw">12 €/g</div></div>
           <div class="mc-stock" id="sth-w">0g disponibles</div>
-          <div class="mc-actions">
-            <button class="mc-btn sell" id="sw-market" disabled>Tout vendre</button>
-          </div>
+          <div class="mc-hint" style="font-size:.75rem;color:var(--muted);margin-top:6px">À transformer en hash/résine avant vente</div>
         </div>
 
         <!-- Hash -->
@@ -448,9 +446,13 @@
           </div>
         </div>
 
-        <!-- Sell All -->
-        <button class="qs-btn" id="sa" disabled>Tout vendre (Weed + Produits)</button>
       </div>
+
+      <div class="panel-head sub" style="margin-top:18px"><h2>Stockage</h2><p>Augmente ta capacité</p></div>
+      <div class="shop-storage" id="shop-storage"></div>
+
+      <div class="panel-head sub" style="margin-top:18px"><h2>Génétiques débloquées</h2><p>Variétés disponibles au shop</p></div>
+      <div class="shop-strains" id="shop-strains"></div>
     </section>
 
     <!-- Upgrades -->

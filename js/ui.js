@@ -18,7 +18,6 @@
   const SAVE_KEY = 'budClicker';
 
   // --- DOM references --------------------------------------------------------
-  // Support both old and new HTML ids (ar→sec, hl→cl, sw-market alias, sa optional)
   const el = {
     p: document.getElementById('p'),
     m: document.getElementById('m'),
@@ -28,13 +27,12 @@
     stw: document.getElementById('stw'),
     sth: document.getElementById('sth'),
     str: document.getElementById('str'),
+    sthW: document.getElementById('sth-w'),
     pw: document.getElementById('pw'),
     ph: document.getElementById('ph'),
     pr: document.getElementById('pr'),
-    sw: document.getElementById('sw') || document.getElementById('sw-market'),
     sh: document.getElementById('sh'),
     sr: document.getElementById('sr'),
-    sa: document.getElementById('sa'),
     cbHash: document.getElementById('cb-hash'),
     cbResin: document.getElementById('cb-resin'),
     bc: document.getElementById('bc'),
@@ -42,6 +40,8 @@
     bs: document.getElementById('bs'),
     ug: document.getElementById('ug'),
     sv: document.getElementById('sv'),
+    shopStorage: document.getElementById('shop-storage'),
+    shopStrains: document.getElementById('shop-strains'),
     xplv: document.getElementById('xplv'),
     xpmult: document.getElementById('xpmult'),
     xpf: document.getElementById('xpf'),
@@ -141,6 +141,53 @@
     }
   }
 
+  function renderShopStorage() {
+    if (!el.shopStorage) return;
+    el.shopStorage.innerHTML = '';
+    const storageUpgrades = Game.UPGRADES.filter((u) => ['sbox', 'coldroom'].includes(u.id));
+    for (const u of storageUpgrades) {
+      const level = state.levels[u.id] || 0;
+      const cost = Game.upgradeCost(state, u.id);
+      const affordable = state.money >= cost;
+      const card = document.createElement('div');
+      card.className = 'upgrade' + (affordable ? ' affordable' : '');
+      card.innerHTML =
+        '<span class="up-icon">' + u.icon + '</span>' +
+        '<div class="up-info"><div class="up-name">' + u.name + ' <span class="up-level">Lvl ' + level + '</span></div>' +
+        '<div class="up-desc">' + u.desc + '</div></div>' +
+        '<div class="up-buy"><span class="up-cost">' + fmt(cost) + ' €</span><button class="bb">Acheter</button></div>';
+      const btn = card.querySelector('.bb');
+      btn.disabled = !affordable;
+      btn.addEventListener('click', () => buyUpgrade(u.id));
+      el.shopStorage.appendChild(card);
+    }
+  }
+
+  function renderShopStrains() {
+    if (!el.shopStrains) return;
+    el.shopStrains.innerHTML = '';
+    const level = Game.levelFromXp(state.xp);
+    const available = Game.STRAINS.filter((st) => !state.stock.strains.includes(st.id) && level >= st.unlock);
+    if (available.length === 0) {
+      el.shopStrains.innerHTML = '<p style="font-size:.8rem;color:var(--muted)">Aucune nouvelle variété débloquée — gagne des niveaux !</p>';
+      return;
+    }
+    for (const st of available) {
+      const card = document.createElement('div');
+      card.className = 'strain';
+      if (state.money >= st.cost) card.classList.add('affordable');
+      card.innerHTML =
+        '<span class="st-icon">' + st.icon + '</span>' +
+        '<div class="st-info"><div class="st-name">' + st.name + '</div>' +
+        '<div class="st-desc">' + st.desc + ' (x' + st.yieldMult + ' rendement, x' + st.priceMult + ' prix)</div></div>' +
+        '<div class="st-buy"><span class="st-cost">' + fmt(st.cost) + ' €</span><button class="bb">Acheter</button></div>';
+      const btn = card.querySelector('.bb');
+      btn.disabled = state.money < st.cost;
+      btn.addEventListener('click', () => equipStrain(st.id));
+      el.shopStrains.appendChild(card);
+    }
+  }
+
   /** Render the progression panel: level/XP bar and milestones. */
   function renderProgress() {
     const prog = Game.xpProgress(state.xp);
@@ -190,6 +237,7 @@
       el.stw.textContent = fmt(state.stock.weed) + ' / ' + fmt(cap) + 'g';
       el.stw.parentElement?.classList.toggle('full', state.stock.weed >= cap);
     }
+    if (el.sthW) el.sthW.textContent = fmt(state.stock.weed) + 'g disponibles';
     if (el.sth) el.sth.textContent = fmt(state.stock.hash) + ' dispo';
     if (el.str) el.str.textContent = fmt(state.stock.resin) + ' dispo';
 
@@ -197,13 +245,15 @@
     if (el.ph) el.ph.textContent = Math.round(state.prices.hash * pMult) + ' €/u';
     if (el.pr) el.pr.textContent = Math.round(state.prices.resin * pMult) + ' €/u';
 
-    if (el.sw) el.sw.disabled = state.stock.weed <= 0;
     if (el.sh) el.sh.disabled = (state.stock.hash || 0) <= 0;
     if (el.sr) el.sr.disabled = (state.stock.resin || 0) <= 0;
-    if (el.sa) el.sa.disabled = (state.stock.weed + (state.stock.hash || 0) + (state.stock.resin || 0)) <= 0;
 
     if (el.cbHash) el.cbHash.disabled = state.stock.weed < Game.HASH_CONVERT_COST;
     if (el.cbResin) el.cbResin.disabled = state.stock.weed < Game.RESIN_CONVERT_COST;
+
+    // shop extras (stockage & variétés débloquées)
+    renderShopStorage();
+    renderShopStrains();
 
     for (const u of Game.UPGRADES) {
       const lv = document.getElementById('ul-' + u.id);
@@ -365,13 +415,8 @@
   // --- wiring -----------------------------------------------------------------
   if (el.bs) el.bs.addEventListener('click', onHarvest);
   else if (el.bc) el.bc.addEventListener('click', onHarvest);
-  if (el.sw) el.sw.addEventListener('click', () => onSell('weed'));
-  // also wire market card sell button
-  const swMarket = document.getElementById('sw-market');
-  if (swMarket) swMarket.addEventListener('click', () => onSell('weed'));
   if (el.sh) el.sh.addEventListener('click', () => onSell('hash'));
   if (el.sr) el.sr.addEventListener('click', () => onSell('resin'));
-  if (el.sa) el.sa.addEventListener('click', () => onSell('all'));
   if (el.cbHash) el.cbHash.addEventListener('click', () => onCraft('hash'));
   if (el.cbResin) el.cbResin.addEventListener('click', () => onCraft('resin'));
 
