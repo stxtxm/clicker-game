@@ -18,19 +18,20 @@
   const SAVE_KEY = 'budClicker';
 
   // --- DOM references --------------------------------------------------------
+  // Support both old and new HTML ids (ar→sec, hl→cl, sw-market alias, sa optional)
   const el = {
     p: document.getElementById('p'),
     m: document.getElementById('m'),
-    ar: document.getElementById('ar'),
+    ar: document.getElementById('ar') || document.getElementById('sec'),
     lv: document.getElementById('lv'),
-    hl: document.getElementById('hl'),
+    hl: document.getElementById('hl') || document.getElementById('cl'),
     stw: document.getElementById('stw'),
     sth: document.getElementById('sth'),
     str: document.getElementById('str'),
     pw: document.getElementById('pw'),
     ph: document.getElementById('ph'),
     pr: document.getElementById('pr'),
-    sw: document.getElementById('sw'),
+    sw: document.getElementById('sw') || document.getElementById('sw-market'),
     sh: document.getElementById('sh'),
     sr: document.getElementById('sr'),
     sa: document.getElementById('sa'),
@@ -78,7 +79,14 @@
 
   // --- rendering -------------------------------------------------------------
   function renderBud() {
-    el.bs.innerHTML = Bud.renderBudSvg(state.strain);
+    if (!el.bs) return;
+    const svg = Bud.renderBudSvg(state.strain);
+    // bs may be <svg> (old) or <div> (new) — handle both
+    if (el.bs.tagName.toLowerCase() === 'svg') {
+      el.bs.innerHTML = svg;
+    } else {
+      el.bs.innerHTML = '<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">' + svg + '</svg>';
+    }
   }
 
   function renderUpgrades() {
@@ -141,27 +149,31 @@
   function renderProgress() {
     const prog = Game.xpProgress(state.xp);
     const mult = Game.productionMult(state);
-    el.lv.textContent = prog.level;
-    el.xplv.textContent = 'Niveau ' + prog.level;
-    el.xpmult.textContent = 'x' + mult.toFixed(2);
-    const pct = prog.needed > 0 ? Math.min(100, Math.round((prog.current / prog.needed) * 100)) : 100;
-    el.xpf.style.width = pct + '%';
-    el.xpcur.textContent = fmt(prog.current);
-    el.xpnext.textContent = ' / ' + fmt(prog.needed) + ' XP';
+    if (el.lv) el.lv.textContent = prog.level;
+    if (el.xplv) el.xplv.textContent = 'Niveau ' + prog.level;
+    if (el.xpmult) el.xpmult.textContent = 'x' + mult.toFixed(2);
+    if (el.xpf) {
+      const pct = prog.needed > 0 ? Math.min(100, Math.round((prog.current / prog.needed) * 100)) : 100;
+      el.xpf.style.width = pct + '%';
+    }
+    if (el.xpcur) el.xpcur.textContent = fmt(prog.current);
+    if (el.xpnext) el.xpnext.textContent = ' / ' + fmt(prog.needed) + ' XP';
 
-    el.ms.innerHTML = '';
-    for (const mi of Game.MILESTONES) {
-      const done = state.milestones.includes(mi.id);
-      const item = document.createElement('div');
-      item.className = 'ms-item' + (done ? ' done' : '');
-      const pct2 = Math.min(100, Math.round((state.xp / mi.xp) * 100));
-      item.innerHTML =
-        '<span class="ms-icon">' + mi.icon + '</span>' +
-        '<div class="ms-info"><div class="ms-name">' + mi.name +
-          (done ? ' <span class="ms-badge">+' + mi.bonus + '%</span>' : '') + '</div>' +
-          '<div class="ms-bar"><div class="ms-fill" style="width:' + pct2 + '%"></div></div></div>' +
-        '<span class="ms-xp">' + (done ? '✓' : fmt(mi.xp) + ' XP') + '</span>';
-      el.ms.appendChild(item);
+    if (el.ms) {
+      el.ms.innerHTML = '';
+      for (const mi of Game.MILESTONES) {
+        const done = state.milestones.includes(mi.id);
+        const item = document.createElement('div');
+        item.className = 'ms-item' + (done ? ' done' : '');
+        const pct2 = Math.min(100, Math.round((state.xp / mi.xp) * 100));
+        item.innerHTML =
+          '<span class="ms-icon">' + mi.icon + '</span>' +
+          '<div class="ms-info"><div class="ms-name">' + mi.name +
+            (done ? ' <span class="ms-badge">+' + mi.bonus + '%</span>' : '') + '</div>' +
+            '<div class="ms-bar"><div class="ms-fill" style="width:' + pct2 + '%"></div></div></div>' +
+          '<span class="ms-xp">' + (done ? '✓' : fmt(mi.xp) + ' XP') + '</span>';
+        el.ms.appendChild(item);
+      }
     }
   }
 
@@ -172,26 +184,26 @@
     const st = Game.getStrain(state.strain);
     const pMult = st ? st.priceMult : 1.0;
 
-    el.p.textContent = fmt(state.weed) + 'g';
-    el.m.textContent = fmt(state.money) + ' €';
-    el.ar.textContent = '+' + ar;
-    el.hl.textContent = pc;
+    if (el.p) el.p.textContent = fmt(state.weed) + 'g';
+    if (el.m) el.m.textContent = fmt(state.money) + ' €';
+    if (el.ar) el.ar.textContent = '+' + ar;
+    if (el.hl) el.hl.textContent = pc;
 
-    el.stw.textContent = fmt(state.stock.weed) + 'g dispo';
-    el.sth.textContent = fmt(state.stock.hash) + ' dispo';
-    el.str.textContent = fmt(state.stock.resin) + ' dispo';
+    if (el.stw) el.stw.textContent = fmt(state.stock.weed) + 'g dispo';
+    if (el.sth) el.sth.textContent = fmt(state.stock.hash) + ' dispo';
+    if (el.str) el.str.textContent = fmt(state.stock.resin) + ' dispo';
 
-    el.pw.textContent = Math.round(state.prices.weed * pMult) + ' €/g';
-    el.ph.textContent = Math.round(state.prices.hash * pMult) + ' €/u';
-    el.pr.textContent = Math.round(state.prices.resin * pMult) + ' €/u';
+    if (el.pw) el.pw.textContent = Math.round(state.prices.weed * pMult) + ' €/g';
+    if (el.ph) el.ph.textContent = Math.round(state.prices.hash * pMult) + ' €/u';
+    if (el.pr) el.pr.textContent = Math.round(state.prices.resin * pMult) + ' €/u';
 
-    el.sw.disabled = state.stock.weed <= 0;
-    el.sh.disabled = (state.stock.hash || 0) <= 0;
-    el.sr.disabled = (state.stock.resin || 0) <= 0;
-    el.sa.disabled = (state.stock.weed + (state.stock.hash || 0) + (state.stock.resin || 0)) <= 0;
+    if (el.sw) el.sw.disabled = state.stock.weed <= 0;
+    if (el.sh) el.sh.disabled = (state.stock.hash || 0) <= 0;
+    if (el.sr) el.sr.disabled = (state.stock.resin || 0) <= 0;
+    if (el.sa) el.sa.disabled = (state.stock.weed + (state.stock.hash || 0) + (state.stock.resin || 0)) <= 0;
 
-    el.cbHash.disabled = state.stock.weed < Game.HASH_CONVERT_COST;
-    el.cbResin.disabled = state.stock.weed < Game.RESIN_CONVERT_COST;
+    if (el.cbHash) el.cbHash.disabled = state.stock.weed < Game.HASH_CONVERT_COST;
+    if (el.cbResin) el.cbResin.disabled = state.stock.weed < Game.RESIN_CONVERT_COST;
 
     for (const u of Game.UPGRADES) {
       const lv = document.getElementById('ul-' + u.id);
@@ -352,13 +364,17 @@
   }
 
   // --- wiring -----------------------------------------------------------------
-  el.bs.addEventListener('click', onHarvest);
-  el.sw.addEventListener('click', () => onSell('weed'));
-  el.sh.addEventListener('click', () => onSell('hash'));
-  el.sr.addEventListener('click', () => onSell('resin'));
-  el.sa.addEventListener('click', () => onSell('all'));
-  el.cbHash.addEventListener('click', () => onCraft('hash'));
-  el.cbResin.addEventListener('click', () => onCraft('resin'));
+  if (el.bs) el.bs.addEventListener('click', onHarvest);
+  else if (el.bc) el.bc.addEventListener('click', onHarvest);
+  if (el.sw) el.sw.addEventListener('click', () => onSell('weed'));
+  // also wire market card sell button
+  const swMarket = document.getElementById('sw-market');
+  if (swMarket) swMarket.addEventListener('click', () => onSell('weed'));
+  if (el.sh) el.sh.addEventListener('click', () => onSell('hash'));
+  if (el.sr) el.sr.addEventListener('click', () => onSell('resin'));
+  if (el.sa) el.sa.addEventListener('click', () => onSell('all'));
+  if (el.cbHash) el.cbHash.addEventListener('click', () => onCraft('hash'));
+  if (el.cbResin) el.cbResin.addEventListener('click', () => onCraft('resin'));
 
   document.querySelectorAll('.tab-btn').forEach((b) =>
     b.addEventListener('click', () => switchTab(b.dataset.tab)));
