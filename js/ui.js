@@ -32,9 +32,8 @@
     sb: document.getElementById('sb'),
     ug: document.getElementById('ug'),
     sv: document.getElementById('sv'),
-    shopStorage: document.getElementById('shop-storage'),
-    shopStrains: document.getElementById('shop-strains'),
     shopAuto: document.getElementById('shop-auto'),
+    fw: document.getElementById('full-warn'),
     xplv: document.getElementById('xplv'),
     xpmult: document.getElementById('xpmult'),
     xpf: document.getElementById('xpf'),
@@ -141,61 +140,10 @@
     }
   }
 
-  function renderShopStorage() {
-    if (!el.shopStorage) return;
-    el.shopStorage.innerHTML = '';
-    const storageUpgrades = Game.UPGRADES.filter((u) => ['sbox', 'coldroom'].includes(u.id));
-    for (const u of storageUpgrades) {
-      const level = state.levels[u.id] || 0;
-      const cost = Game.upgradeCost(state, u.id);
-      const affordable = state.money >= cost;
-      const card = document.createElement('div');
-      card.className = 'upgrade' + (affordable ? ' affordable' : '');
-      card.innerHTML =
-        '<span class="up-icon">' + u.icon + '</span>' +
-        '<div class="up-info"><div class="up-name">' + u.name + ' <span class="up-level">Lvl ' + level + '</span></div>' +
-        '<div class="up-desc">' + u.desc + '</div></div>' +
-        '<div class="up-buy"><span class="up-cost">' + fmt(cost) + ' €</span><button class="bb">Acheter</button></div>';
-      const btn = card.querySelector('.bb');
-      btn.disabled = !affordable;
-      btn.addEventListener('click', () => buyUpgrade(u.id));
-      el.shopStorage.appendChild(card);
-    }
-  }
-
-  function renderShopStrains() {
-    if (!el.shopStrains) return;
-    el.shopStrains.innerHTML = '';
-    const level = Game.levelFromXp(state.xp);
-    const available = Game.STRAINS.filter((st) => !state.stock.strains.includes(st.id) && level >= st.unlock);
-    if (available.length === 0) {
-      el.shopStrains.innerHTML = '<p style="font-size:.8rem;color:var(--muted)">Aucune nouvelle variété débloquée — gagne des niveaux !</p>';
-      return;
-    }
-    for (const st of available) {
-      const card = document.createElement('div');
-      card.className = 'strain';
-      if (state.money >= st.cost) card.classList.add('affordable');
-      card.innerHTML =
-        '<span class="st-icon">' + st.icon + '</span>' +
-        '<div class="st-info"><div class="st-name">' + st.name + '</div>' +
-        '<div class="st-desc">' + st.desc + ' (x' + st.yieldMult + ' rendement, x' + st.priceMult + ' prix)</div></div>' +
-        '<div class="st-buy"><span class="st-cost">' + fmt(st.cost) + ' €</span><button class="bb">Acheter</button></div>';
-      const btn = card.querySelector('.bb');
-      btn.disabled = state.money < st.cost;
-      btn.addEventListener('click', () => equipStrain(st.id));
-      el.shopStrains.appendChild(card);
-    }
-  }
-
-  /** Resolve the current qty preset to a concrete amount for `have` stock. */
-  function qtyAmount(have) {
-    return qtyMode === 'max' ? Infinity : Math.min(qtyMode, have);
-  }
-
   /**
    * Render the automation shop: one card per market product with its two
    * one-time hires (Ouvrier = auto-craft, Dealer = auto-sell).
+   * Lives in the Upgrades view.
    */
   function renderAutomation() {
     if (!el.shopAuto) return;
@@ -344,17 +292,19 @@
     if (el.hl) el.hl.textContent = pc;
 
     const cap = Game.maxWeedStorage(state);
+    const isFull = (state.stock.weed || 0) >= cap;
     if (el.stw) {
       el.stw.textContent = fmt(state.stock.weed) + ' / ' + fmt(cap) + 'g';
-      el.stw.parentElement?.classList.toggle('full', state.stock.weed >= cap);
+      el.stw.parentElement?.classList.toggle('full', isFull);
     }
+    // storage-full feedback: pulsing bud + clickable warning banner
+    if (el.bc) el.bc.classList.toggle('storage-full', isFull);
+    if (el.fw) el.fw.hidden = !isFull;
 
     renderMarket();
 
-    // shop extras (automatisation, stockage & variétés à acheter)
+    // upgrades view extras (automation hires)
     renderAutomation();
-    renderShopStorage();
-    renderShopStrains();
 
     for (const u of Game.UPGRADES) {
       const lv = document.getElementById('ul-' + u.id);
@@ -378,21 +328,34 @@
   }
 
   // --- game actions ----------------------------------------------------------
+  /** Timestamp of the last "stock plein" toast (throttle: 1 per 2.5s max). */
+  let lastFullToast = 0;
+
   function onHarvest(ev) {
     ev.preventDefault();
     ev.stopPropagation();
     const ac = Game.perClick(state);
     const added = Game.addWeed(state, ac);
-    if (added < ac) toast('Stock plein ! Vends ou agrandis 📦');
+    const full = added < ac;
+    if (full && Date.now() - lastFullToast > 2500) {
+      toast('Stock plein ! Vends ou agrandis 📦');
+      lastFullToast = Date.now();
+    }
     const xp = Game.earnXp(state, added);
     // retrigger animation even on rapid taps
     el.bc.classList.remove('pulse-active');
     void el.bc.offsetWidth;
     el.bc.classList.add('pulse-active');
     setTimeout(() => el.bc.classList.remove('pulse-active'), 400);
-    spawnParticle('+' + ac + 'g');
+    if (added > 0) {
+      spawnParticle('+' + ac + 'g');
+      popNum(el.stw);
+    } else {
+      // storage capped: red feedback instead of a fake gain
+      spawnParticle('Plein !', true);
+      popNum(el.stw);
+    }
     refreshStats();
-    if (el.stw) popNum(el.stw);
     save();
     if (xp.leveledUp) {
       toast('Niveau ' + xp.level + ' !');
@@ -404,9 +367,9 @@
     }
   }
 
-  function spawnParticle(text) {
+  function spawnParticle(text, warn) {
     const p = document.createElement('div');
-    p.className = 'click-fx';
+    p.className = 'click-fx' + (warn ? ' warn' : '');
     p.textContent = text;
     // léger jitter horizontal pour les taps rapides, vertical fixe
     p.style.left = (50 + (Math.random() - 0.5) * 16) + '%';
@@ -524,6 +487,7 @@
   if (el.bs) el.bs.addEventListener('click', onHarvest);
   else if (el.bc) el.bc.addEventListener('click', onHarvest);
   if (el.sellAll) el.sellAll.addEventListener('click', () => onSell('all'));
+  if (el.fw) el.fw.addEventListener('click', () => switchTab('sell'));
   if (el.qtyRow) {
     el.qtyRow.querySelectorAll('.qty-pill').forEach((b) => {
       b.addEventListener('click', () => {

@@ -8,9 +8,11 @@ A mobile-friendly idle grower: click the bud, craft products, sell for €, auto
 2. **Craft** weed into 8 market products in *Marché* — from 🚬 Joint Roulé (2g → 28 €) to 🌟 Live Rosin (300g → 8 500 €). Higher tiers convert weed at a better €/g but unlock at higher levels.
 3. **Sell** raw weed (12 €/g) or crafted products. Prices scale with equipped strain (`priceMult`). Use the **x1/x10/x100/MAX** pills and **💸 Tout vendre** to move big stocks fast.
 4. **Automate** in *Marché → Automatisation*: hire an **Ouvrier** (auto-craft, up to 1u/s) and a **Dealer** (auto-sell whole stock every tick) per product. One-time purchases, like AdCap managers.
-5. **Spend cash on upgrades** — click power, auto-production and storage.
+5. **Spend cash on upgrades** — *Upgrades* tab holds hardware (click power, auto-production, storage) **and** all automation hires.
 6. **Switch strains** in *Variétés* — 8 genetics with yield/price multipliers, unlocked by level.
 7. **Progress** in *Progression* — level up and collect milestone bonuses. Use *Zone de danger* to hard-reset.
+
+> **Stock plein ?** When weed hits the cap the bud pulses red, a clickable `⚠️ Stock plein` banner appears (jumps straight to the Marché) and clicks spawn a red `Plein !` — clicking is wasted until you sell or expand storage.
 
 ## Progression
 
@@ -57,7 +59,7 @@ Market actions support quantity presets **x1 / x10 / x100 / MAX** (craft & sell)
 
 ## Automation (Ouvriers & Dealers)
 
-Adventure-Capitalist-style managers in `AUTOMATION` (`js/game.js`): for every product there are two one-time hires, gated by the same level as the product:
+Adventure-Capitalist-style managers in `AUTOMATION` (`js/game.js`), purchased from the **Upgrades** tab: for every product there are two one-time hires, gated by the same level as the product:
 
 - 🛠️ **Ouvrier** (`craft-<id>`) — auto-crafts up to 1 unit/s while weed lasts. Cost ≈ `90× unit price`.
 - 💰 **Dealer** (`sell-<id>`) — auto-sells the whole stock of that product each tick. Cost ≈ `140× unit price`.
@@ -119,7 +121,15 @@ clicker-game/
 
 - **`js/game.js`** — no DOM. Exports `UPGRADES`, `STRAINS`, `PRODUCTS`, `AUTOMATION`, `BASE_COST`, `DEFAULT_LEVELS`, `XP_BASE`, `XP_GROWTH`, `MILESTONES`, `mulberry32`, `maxWeedStorage`, `defaultState`, `getStrain`, `getProduct`, `productUnitPrice`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `checkMilestones`, `perClick`, `perSecond`, `upgradeCost`, `buyUpgrade`, `hasAuto`, `buyAutomation`, `autoTick`, `craftProduct`, `sellStock`, `sellByStrain`, `equipStrain`, `serialize`, `deserialize`. State under localStorage `budClicker`.
 - **`js/bud.js`** — `renderBudSvg(strainId)` deterministic (seeds: calyxes 2024, pistils 99, trichomes 777).
-- **`js/ui.js`** — wiring, market rendering (`renderMarket` qty pills, `renderAutomation` hires), `autoProduce` 1s (weed growth + `autoTick`), autosave 10s, Space-to-harvest, tabs, storage cap, shop extras (automatisation, stockage & variétés débloquées dans le Marché).
+- **`js/ui.js`** — wiring, market rendering (`renderMarket` qty pills), automation hires rendered in the Upgrades view (`renderAutomation`), `autoProduce` 1s (weed growth + `autoTick`), autosave 10s, Space-to-harvest, tabs, storage-full feedback (pulsing bud + warning banner), stock-full click guard.
+
+### View layout
+
+- **Récolte** — bud, stats, strain badge, stock-full banner.
+- **Marché** — quantity pills, 💸 Tout vendre, the 9 product cards. Nothing else.
+- **Upgrades** — hardware upgrades grid + Automatisation (16 hires).
+- **Variétés** — buy/equip strains.
+- **Progression** — XP, milestones, hard-reset.
 
 ## Customization
 
