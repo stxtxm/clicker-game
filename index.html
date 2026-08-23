@@ -154,14 +154,23 @@
       transition: filter .12s;
     }
     .bud-container:active { filter: brightness(1.12) saturate(1.15); }
+    #bs { display: block; width: 100%; height: 100%; animation: budSway 5.5s ease-in-out infinite; transform-origin: 50% 88%; will-change: transform; }
+    @keyframes budSway { 0%, 100% { transform: rotate(-1.4deg); } 50% { transform: rotate(1.4deg); } }
+    @media (prefers-reduced-motion: reduce) { #bs { animation: none; } }
     .bud-container.pulse-active { animation: budPop .38s cubic-bezier(.34,1.56,.64,1); transform-origin: center bottom; }
 
     /* ===== Stock-full feedback ===== */
-    @keyframes fullPulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.45), var(--sh); }
-      50% { box-shadow: 0 0 26px 8px rgba(248, 113, 113, 0.28), var(--sh); }
+    .bud-container.storage-full { border-radius: 50%; }
+    .bud-container.storage-full::after {
+      content: '';
+      position: absolute;
+      inset: -6%;
+      border-radius: 50%;
+      box-shadow: 0 0 34px 10px rgba(248, 113, 113, 0.4);
+      animation: ringPulse 1.5s ease-in-out infinite;
+      pointer-events: none;
     }
-    .bud-container.storage-full { animation: fullPulse 1.5s ease-in-out infinite; border-radius: 50%; }
+    @keyframes ringPulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
     .stat-pill.full .val { color: #f87171; }
     .full-warn {
       display: block;
@@ -234,6 +243,7 @@
     .panel-head p { font-size: .78rem; color: var(--muted); }
     .market-grid { display: flex; flex-direction: column; gap: 12px; }
     .market-card {
+      contain: content;
       background: linear-gradient(135deg, var(--panel), var(--panel2));
       border: 1px solid var(--border);
       border-radius: 14px;
@@ -262,7 +272,9 @@
       cursor: pointer;
       transition: background .15s;
     }
+    .mc-btn { touch-action: manipulation; }
     .mc-btn:hover { background: rgba(74,222,128,0.1); }
+    .mc-btn:active:not(:disabled) { transform: scale(.96); filter: brightness(1.12); }
     .mc-btn.sell { background: linear-gradient(135deg, var(--green-dim), var(--green)); color: #070a07; border: none; font-weight: 800; }
     .mc-btn:disabled { opacity: .4; cursor: not-allowed; }
     .qty-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -276,7 +288,9 @@
       font-weight: 700;
       cursor: pointer;
       transition: all .15s;
+      touch-action: manipulation;
     }
+    .qty-pill:active { transform: scale(.94); }
     .qty-pill.active { background: var(--green); color: #070a07; border-color: var(--green); font-weight: 800; }
     .mc-qty { font-size: .68rem; color: var(--muted); font-weight: 700; background: rgba(255,255,255,0.06); padding: 2px 7px; border-radius: 999px; }
     .market-card.locked { opacity: .55; }
@@ -408,9 +422,7 @@
       bottom: 0;
       left: 0;
       right: 0;
-      background: rgba(7, 10, 7, 0.9);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
+      background: rgba(7, 10, 7, 0.97);
       border-top: 1px solid var(--border);
       display: flex;
       justify-content: space-around;
@@ -430,8 +442,10 @@
       cursor: pointer;
       padding: 4px 8px;
       border-radius: 10px;
-      transition: color .15s;
+      transition: color .15s, transform .12s;
+      touch-action: manipulation;
     }
+    .tab-btn:active { transform: scale(.92); }
     .tab-btn span:first-child { font-size: 1.25rem; }
     .tab-btn.active { color: var(--green-soft); }
 

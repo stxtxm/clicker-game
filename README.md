@@ -41,7 +41,7 @@ sessions, strains and chains when unlocked + affordable — and asserts pacing:
 | 2h ceiling | < 10 B€ lifetime |
 
 An optimal sim ≈ 2-4× faster than a real player. The levers, in order of impact:
-**storage cost growth (×4.2)** — income ≈ cap × €/g, so storage gates everything;
+**storage cost growth (×3.0)** — income ≈ cap × €/g, so storage gates everything;
 **strain costs** (exponential income jumps); **XP_GROWTH 1.32** (level gates);
 **product €/g ladder** (crafting depth). Tune those, re-run the sim, compare.
 
@@ -52,7 +52,7 @@ Every harvested gram is 1 **XP**, earned forever. XP drives a hybrid curve (leve
 - **Levels**: each level adds **+8%** to all production. Strains unlock at 1, 4, 8, 13, 19, 26, 34, 45.
 - **Strains**: `yieldMult` multiplies weed per click/second, `priceMult` the sale prices — together they are the big progression jumps, gated by steep costs (Purple 4 K€ → Widow 200 M€).
 - **Milestones**: permanent bonuses at 200 → +5%, 2.5K → +10%, 30K → +15%, 350K → +25%, 4M → +40%, 50M → +75%.
-- **Storage**: `maxWeedStorage()` = 1000 + 600×BoîteÉtanche + 3000×ChambreFroide. Harvest is capped, toast `Stock plein !` when full. Income ≈ cap × €/g, so **storage is the main money sink**: its cost grows ×4.2 per level (see Upgrades).
+- **Storage**: `maxWeedStorage()` = 1000 + 700×BoîteÉtanche + 3500×ChambreFroide. Harvest is capped, toast `Stock plein !` when full. Income ≈ cap × €/g, so **storage is the main money sink**: its cost grows ×3.0 per level (see Upgrades).
 
 All bonuses multiply.
 
@@ -67,10 +67,10 @@ All bonuses multiply.
 | Équipe de Serre | +15g per second | 25 000 € | 1.85 |
 | Éclairage Turbo | x2 weed production | 90 000 € | 1.85 |
 | Laboratoire+ | x2 all production | 750 000 € | 1.85 |
-| Boîte Étanche | +600g max weed | 8 000 € | **4.2** |
-| Chambre Froide | +3000g max weed | 500 000 € | **4.2** |
+| Boîte Étanche | +700g max weed | 4 500 € | **3.0** |
+| Chambre Froide | +3500g max weed | 240 000 € | **3.0** |
 
-Cost = `BASE_COST * growth^(level - (harvest?1:0))`. Hardware grows ×1.85/level; storage grows ×4.2/level because income scales with cap — each storage level must take meaningfully longer to pay back.
+Cost = `BASE_COST * growth^(level - (harvest?1:0))`. Hardware grows ×1.85/level; storage grows ×3.0/level because income scales with cap — each storage level must take meaningfully longer to pay back.
 
 ## Market Pulse
 
