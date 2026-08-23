@@ -311,15 +311,16 @@
       const hasCraft = Game.hasAuto(state, 'craft', a.productId);
       const hasSell = Game.hasAuto(state, 'sell', a.productId);
       const anyOwned = hasCraft || hasSell;
+      const levelOk = Game.levelFromXp(state.xp) >= a.unlock;
       const lv = document.getElementById('ul-' + a.id);
       if (lv) {
-        lv.textContent = anyOwned ? '✓ Actif' : (Game.levelFromXp(state.xp) < a.unlock ? '🔒 Niv. ' + a.unlock : 'Unique');
+        lv.textContent = anyOwned ? '✓ Actif' : (!levelOk ? '🔒 Niv. ' + a.unlock : 'Unique');
         lv.classList.toggle('owned', anyOwned);
       }
       const btn = document.getElementById('ub-' + a.id);
-      if (btn) btn.disabled = (hasCraft && hasSell) || state.money < a.cost;
+      if (btn) btn.disabled = (hasCraft && hasSell) || !levelOk || state.money < a.cost;
       const card = document.getElementById('ui-' + a.id);
-      if (card) card.classList.toggle('affordable', !(hasCraft && hasSell) && state.money >= a.cost);
+      if (card) card.classList.toggle('affordable', !(hasCraft && hasSell) && levelOk && state.money >= a.cost);
       if (card) card.classList.toggle('owned', anyOwned);
     }
     document.querySelectorAll('[id^="sb-"]').forEach((b) => {
@@ -426,6 +427,9 @@
       popNum(el.m);
     } else if (res.reason === 'funds') {
       toast("Pas assez d'argent");
+    } else if (res.reason === 'level') {
+      const a = Game.AUTOMATION.find((x) => x.id === id);
+      toast('Niveau ' + (a ? a.unlock : '?') + ' requis');
     }
     refreshStats();
     save();

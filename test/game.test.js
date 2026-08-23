@@ -357,6 +357,7 @@ test('automation catalog: one hire per product, coherent costs', () => {
 
 test('buyAutomation: funds check, deducts money and unlocks craft+sell', () => {
   const s = Game.defaultState();
+  s.xp = Game.xpForLevel(6); // auto-joint unlock level
   const COST = Game.AUTOMATION.find((a) => a.id === 'auto-joint').cost; // 18 * 400 = 7200
   assert.strictEqual(COST, 7200);
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').reason, 'funds');
@@ -370,8 +371,22 @@ test('buyAutomation: funds check, deducts money and unlocks craft+sell', () => {
   assert.strictEqual(Game.hasAuto(s, 'sell', 'joint'), true);
 });
 
+test('buyAutomation: level gate blocks early purchases even when rich', () => {
+  const s = Game.defaultState();
+  s.money = 1e9; // rich but level 1
+  // auto-joint unlocks at 6, auto-rosin at 50
+  assert.strictEqual(Game.buyAutomation(s, 'auto-joint').reason, 'level');
+  assert.strictEqual(Game.buyAutomation(s, 'auto-rosin').reason, 'level');
+  assert.strictEqual(s.money, 1e9); // nothing charged
+  assert.deepStrictEqual(s.auto, { craft: {}, sell: {} });
+  s.xp = Game.xpForLevel(6); // exactly level 6
+  assert.strictEqual(Game.buyAutomation(s, 'auto-joint').ok, true);
+  assert.strictEqual(Game.buyAutomation(s, 'auto-sachet').reason, 'level'); // unlock 9
+});
+
 test('buyAutomation: rejects duplicate and unknown hires', () => {
   const s = Game.defaultState();
+  s.xp = Game.xpForLevel(6);
   s.money = 100000;
   assert.strictEqual(Game.buyAutomation(s, 'nope').reason, 'unknown');
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').ok, true);
@@ -394,6 +409,7 @@ test('autoTick: no-op without any hire owned', () => {
 
 test('autoTick: chain crafts 1u/s and sells ONLY its own output', () => {
   const s = Game.defaultState();
+  s.xp = Game.xpForLevel(6);
   s.money = 100000;
   Game.buyAutomation(s, 'auto-joint');    // cost 7200; 2g -> 1 joint
   s.stock.joint = 5;                      // hand-made stock
@@ -418,6 +434,7 @@ test('autoTick: dealer without crafter output sells nothing', () => {
 test('autoTick: scarce weed goes to the most expensive product first', () => {
   const s = Game.defaultState();
   s.money = 1e9;
+  s.xp = Game.xpForLevel(50); // rosin chain unlock
   for (const id of ['auto-rosin', 'auto-hash', 'auto-joint']) {
     assert.strictEqual(Game.buyAutomation(s, id).ok, true);
   }
@@ -431,6 +448,7 @@ test('autoTick: scarce weed goes to the most expensive product first', () => {
 test('automation flags survive serialize/deserialize roundtrip', () => {
   const s = Game.defaultState();
   s.money = 10000000; // enough for every hire
+  s.xp = Game.xpForLevel(50);
   Game.buyAutomation(s, 'auto-joint');
   Game.buyAutomation(s, 'auto-rosin');
   const loaded = Game.deserialize(Game.serialize(s));

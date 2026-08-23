@@ -387,11 +387,12 @@
    * (flags stored per kind so partial legacy states keep working).
    * @param {object} s state
    * @param {string} id automation id from AUTOMATION (e.g. 'auto-joint')
-   * @returns {{ok:boolean, reason?:'funds'|'unknown'|'owned', name?:string}}
+   * @returns {{ok:boolean, reason?:'level'|'funds'|'unknown'|'owned', name?:string}}
    */
   function buyAutomation(s, id) {
     const a = AUTOMATION.find((x) => x.id === id);
     if (!a) return { ok: false, reason: 'unknown' };
+    if (levelFromXp(s.xp) < a.unlock) return { ok: false, reason: 'level' };
     if (!s.auto || typeof s.auto !== 'object') s.auto = { craft: {}, sell: {} };
     if (!s.auto[a.kind] || typeof s.auto[a.kind] !== 'object') s.auto[a.kind] = {};
     if (s.auto.craft[a.productId] && s.auto.sell[a.productId]) return { ok: false, reason: 'owned' };
