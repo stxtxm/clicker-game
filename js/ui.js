@@ -30,6 +30,7 @@
     mc: document.getElementById('mc'),
     bs: document.getElementById('bs'),
     sb: document.getElementById('sb'),
+    headerLogo: document.getElementById('header-bud-logo'),
     ug: document.getElementById('ug'),
     sv: document.getElementById('sv'),
     fw: document.getElementById('full-warn'),
@@ -77,8 +78,11 @@
   function renderBud() {
     const st = Game.getStrain(state.strain);
     if (el.sb && st) el.sb.textContent = st.icon + ' ' + st.name;
-    if (!el.bs) return;
     const svg = Bud.renderBudSvg(state.strain);
+    if (el.headerLogo) {
+      el.headerLogo.innerHTML = '<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">' + svg + '</svg>';
+    }
+    if (!el.bs) return;
     // bs may be <svg> (old) or <div> (new) — handle both
     if (el.bs.tagName.toLowerCase() === 'svg') {
       el.bs.innerHTML = svg;
