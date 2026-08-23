@@ -4,6 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Bud Clicker — Idle Grower</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#070a07">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Bud Clicker">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="icon" type="image/svg+xml" href="icon-512.svg">
   <style>
     :root {
       --bg: #070a07;
@@ -510,6 +517,12 @@
       <div class="panel-head sub"><h2>Jalons</h2><p>Bonus permanents sur ta production totale</p></div>
       <div class="milestones" id="ms"></div>
 
+      <div class="danger-card" id="pwa-card" style="margin-top:16px; display:none;">
+        <div class="dc-title">📱 Application PWA</div>
+        <div class="pc-desc" style="font-size:.78rem;color:var(--muted);line-height:1.45;margin-top:4px;margin-bottom:10px;">Installe Bud Clicker sur ton appareil pour y jouer en plein écran, hors-ligne et profiter d'un accès instantané.</div>
+        <button class="mc-btn" id="pwa-install-btn" style="background:var(--green-dim);border-color:var(--green);color:var(--text);font-weight:700;width:100%;padding:12px;">📲 Installer l'application</button>
+      </div>
+
       <div class="danger-card">
         <div class="dc-title">⚠️ Zone de danger</div>
         <div class="pc-desc" style="font-size:.78rem;color:var(--muted);line-height:1.45;margin-top:4px;margin-bottom:10px;">Efface <b>toute</b> la progression : argent, stock, upgrades, variétés, niveau, XP et jalons. Action irréversible.</div>
@@ -530,5 +543,43 @@
 <script src="js/game.js"></script>
 <script src="js/bud.js"></script>
 <script src="js/ui.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+
+  let deferredPrompt;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    const pwaCard = document.getElementById('pwa-card');
+    if (pwaCard) pwaCard.style.display = 'block';
+  });
+
+  const pwaBtn = document.getElementById('pwa-install-btn');
+  if (pwaBtn) {
+    pwaBtn.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          const pwaCard = document.getElementById('pwa-card');
+          if (pwaCard) pwaCard.style.display = 'none';
+        }
+        deferredPrompt = null;
+      } else {
+        alert("Pour installer l'application :\n- Sur iOS (Safari) : Appuie sur le bouton Partager (icône de partage en bas) puis 'Sur l'écran d'accueil'.\n- Sur Android (Chrome) : Ouvre le menu ⋮ et choisis 'Installer l'application' ou 'Ajouter à l'écran d'accueil'.");
+      }
+    });
+  }
+
+  window.addEventListener('appinstalled', () => {
+    const pwaCard = document.getElementById('pwa-card');
+    if (pwaCard) pwaCard.style.display = 'none';
+    deferredPrompt = null;
+  });
+</script>
 </body>
 </html>
