@@ -1,5 +1,7 @@
 # Bud Clicker
 
+> **Rejoindre le projet ?** Lis [`AGENTS.md`](AGENTS.md) — tout y est : stack, workflow git (branches → PR → CI → squash), conventions, boucle d'équilibrage.
+
 A mobile-friendly idle grower: click the bud, craft products, sell for €, automate the whole chain, and expand your operation.
 
 ## How to Play
