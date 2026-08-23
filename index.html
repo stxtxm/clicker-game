@@ -243,6 +243,32 @@
     .mc-qty { font-size: .68rem; color: var(--muted); font-weight: 700; background: rgba(255,255,255,0.06); padding: 2px 7px; border-radius: 999px; }
     .market-card.locked { opacity: .55; }
 
+    /* ===== Automation shop ===== */
+    .shop-auto { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; min-width: 0; max-width: 100%; }
+    @media (max-width: 640px) { .shop-auto { grid-template-columns: 1fr; } }
+    .auto-card {
+      background: linear-gradient(135deg, var(--panel), var(--panel2));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-width: 0;
+    }
+    .auto-card.locked { opacity: .5; }
+    .ac-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-weight: 800; font-size: .88rem; }
+    .ac-product { display: flex; align-items: center; gap: 6px; }
+    .auto-row { display: flex; align-items: center; gap: 8px; padding: 8px; background: rgba(255,255,255,0.03); border-radius: 10px; min-width: 0; }
+    .auto-row.owned { background: rgba(74,222,128,0.08); }
+    .ar-icon { font-size: 1rem; flex-shrink: 0; }
+    .ar-info { flex: 1; min-width: 0; }
+    .ar-name { font-size: .78rem; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ar-desc { font-size: .68rem; color: var(--muted); line-height: 1.3; }
+    .ar-buy { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+    .ar-cost { font-size: .72rem; font-weight: 800; color: var(--gold); }
+    .ar-active { margin-left: auto; font-size: .75rem; font-weight: 800; color: var(--green); white-space: nowrap; }
+
     /* ===== Upgrades view ===== */
     .upgrades { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 100%; }
     .upgrade {
@@ -449,6 +475,9 @@
       </div>
 
       <div class="market-grid" id="market-grid"></div>
+
+      <div class="panel-head sub" style="margin-top:18px"><h2>Automatisation</h2><p>Embauche des ouvriers et dealers — la chaîne tourne toute seule</p></div>
+      <div class="shop-auto" id="shop-auto"></div>
 
       <div class="panel-head sub" style="margin-top:18px"><h2>Stockage</h2><p>Augmente ta capacité</p></div>
       <div class="shop-storage" id="shop-storage"></div>

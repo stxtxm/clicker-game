@@ -1,18 +1,16 @@
 # Bud Clicker
 
-A mobile-friendly idle grower: click the bud, craft concentrates, sell for €, and expand your operation.
+A mobile-friendly idle grower: click the bud, craft products, sell for €, automate the whole chain, and expand your operation.
 
 ## How to Play
 
 1. **Click the bud** (or press **Space**) to harvest weed (grams).
-2. **Craft** weed into concentrates in the *Marché*:
-   - **Hash** — 5g weed → 1 hash (65 €/u)
-   - **Résine** — 20g weed → 1 résine (280 €/u)
-   > Weed must be crafted before selling — the harvest quick-sell was removed, you must go through the shop.
-3. **Sell** weed (12 €/g), hash and résine for cash. Prices scale with equipped strain (`priceMult`).
-4. **Spend cash on upgrades** — click power, auto-production and storage.
-5. **Switch strains** in *Variétés* — 8 genetics with yield/price multipliers, unlocked by level.
-6. **Progress** in *Progression* — level up and collect milestone bonuses. Use *Zone de danger* to hard-reset.
+2. **Craft** weed into 8 market products in *Marché* — from 🚬 Joint Roulé (2g → 28 €) to 🌟 Live Rosin (300g → 8 500 €). Higher tiers convert weed at a better €/g but unlock at higher levels.
+3. **Sell** raw weed (12 €/g) or crafted products. Prices scale with equipped strain (`priceMult`). Use the **x1/x10/x100/MAX** pills and **💸 Tout vendre** to move big stocks fast.
+4. **Automate** in *Marché → Automatisation*: hire an **Ouvrier** (auto-craft, up to 1u/s) and a **Dealer** (auto-sell whole stock every tick) per product. One-time purchases, like AdCap managers.
+5. **Spend cash on upgrades** — click power, auto-production and storage.
+6. **Switch strains** in *Variétés* — 8 genetics with yield/price multipliers, unlocked by level.
+7. **Progress** in *Progression* — level up and collect milestone bonuses. Use *Zone de danger* to hard-reset.
 
 ## Progression
 
@@ -40,6 +38,37 @@ All bonuses multiply.
 
 Cost = `BASE_COST * 2.1^(level - (harvest?1:0))`.
 
+## Market Products
+
+8 products in `PRODUCTS` (`js/game.js`). Crafting consumes weed from total stock; sale price = `price × strain.priceMult`. €/g improves with tier, so crafting big is always better than selling raw.
+
+| Product | Weed | Base Price | €/g | Unlock |
+|---------|------|-----------|-----|--------|
+| 🚬 Joint Roulé | 2g | 28 € | 14 | 1 |
+| 🛍️ Sachet Scellé | 6g | 90 € | 15 | 4 |
+| 📦 Hash Conditionné | 12g | 200 € | 16.7 | 8 |
+| 🍰 Space Cake | 25g | 450 € | 18 | 13 |
+| 🍯 Résine Supérieure | 40g | 800 € | 20 | 19 |
+| 💧 Huile Verte | 80g | 1 800 € | 22.5 | 26 |
+| 💎 Shatter Pur | 150g | 3 800 € | 25.3 | 34 |
+| 🌟 Live Rosin | 300g | 8 500 € | 28.3 | 45 |
+
+Market actions support quantity presets **x1 / x10 / x100 / MAX** (craft & sell) plus a global **💸 Tout vendre**.
+
+## Automation (Ouvriers & Dealers)
+
+Adventure-Capitalist-style managers in `AUTOMATION` (`js/game.js`): for every product there are two one-time hires, gated by the same level as the product:
+
+- 🛠️ **Ouvrier** (`craft-<id>`) — auto-crafts up to 1 unit/s while weed lasts. Cost ≈ `90× unit price`.
+- 💰 **Dealer** (`sell-<id>`) — auto-sells the whole stock of that product each tick. Cost ≈ `140× unit price`.
+
+`autoTick()` runs every second after weed production with deliberate ordering:
+
+1. Crafters work **most expensive product first** — when weed is scarce, the best €/g conversion wins.
+2. Dealers then empty their product's stock (freshly crafted units included), so a craft+sell pair is fully idle income.
+
+Automation grants no XP (consistent with manual craft/sell). Owned flags live in `state.auto = { craft: {<productId>: true}, sell: {…} }` and are sanitized on load. Full chain example at endgame: Ouvrier+Dealer Live Rosin ≈ 8 500 €/s before strain multipliers.
+
 ## Strains
 
 8 genetics, each with `yieldMult`/`priceMult` and its own bud palette. See `STRAINS` in `js/game.js`.
@@ -64,10 +93,10 @@ Then open `http://localhost:8000`.
 ## Running the Tests
 
 ```bash
-npm test        # node --test, 36 tests
+npm test        # node --test, 48 tests
 ```
 
-- `test/game.test.js` — economy (costs, sell, craft, storage), strains + level gates, progression (curve, XP, milestones, productionMult), save/load
+- `test/game.test.js` — economy (costs, sell, craft, storage), strains + level gates, progression (curve, XP, milestones, productionMult), market products (catalog, qty craft/sell), automation (hires, autoTick ordering & isolation, save roundtrip), save/load
 - `test/bud.test.js` — SVG validity, determinism, `url(#…)` regression, structural counts (72 calyxes, 116 bracts total via rows, fan leaves, sugar leaves)
 
 ## Project Structure
@@ -88,13 +117,13 @@ clicker-game/
 
 ### Modules
 
-- **`js/game.js`** — no DOM. Exports `UPGRADES`, `STRAINS`, `BASE_COST`, `DEFAULT_LEVELS`, `HASH_CONVERT_COST`, `RESIN_CONVERT_COST`, `XP_BASE`, `XP_GROWTH`, `MILESTONES`, `mulberry32`, `maxWeedStorage`, `defaultState`, `getStrain`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `checkMilestones`, `perClick`, `perSecond`, `upgradeCost`, `buyUpgrade`, `craftProduct`, `sellStock`, `equipStrain`, `serialize`, `deserialize`. State under localStorage `budClicker`.
+- **`js/game.js`** — no DOM. Exports `UPGRADES`, `STRAINS`, `PRODUCTS`, `AUTOMATION`, `BASE_COST`, `DEFAULT_LEVELS`, `XP_BASE`, `XP_GROWTH`, `MILESTONES`, `mulberry32`, `maxWeedStorage`, `defaultState`, `getStrain`, `getProduct`, `productUnitPrice`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `checkMilestones`, `perClick`, `perSecond`, `upgradeCost`, `buyUpgrade`, `hasAuto`, `buyAutomation`, `autoTick`, `craftProduct`, `sellStock`, `sellByStrain`, `equipStrain`, `serialize`, `deserialize`. State under localStorage `budClicker`.
 - **`js/bud.js`** — `renderBudSvg(strainId)` deterministic (seeds: calyxes 2024, pistils 99, trichomes 777).
-- **`js/ui.js`** — wiring, `autoProduce` 1s, autosave 10s, Space-to-harvest, tabs, storage cap, shop extras (stockage & variétés débloquées dans le Marché).
+- **`js/ui.js`** — wiring, market rendering (`renderMarket` qty pills, `renderAutomation` hires), `autoProduce` 1s (weed growth + `autoTick`), autosave 10s, Space-to-harvest, tabs, storage cap, shop extras (automatisation, stockage & variétés débloquées dans le Marché).
 
 ## Customization
 
 - **Strains** — edit `STRAINS` in `js/game.js` (palette, frost, unlock, cost, yield/price).
-- **Economy** — edit `UPGRADES`, `BASE_COST`, `HASH/RESIN_CONVERT_COST` in `js/game.js`.
+- **Economy** — edit `UPGRADES` and `PRODUCTS` in `js/game.js`; automation costs derive from product prices.
 - **Progression** — edit `XP_BASE`/`XP_GROWTH`, `MILESTONES` in `js/game.js`.
 - **Leaf layout** — fan positions in `renderBudSvg` (`js/bud.js`), keep inside 300×300 viewBox.

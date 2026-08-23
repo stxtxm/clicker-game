@@ -34,6 +34,7 @@
     sv: document.getElementById('sv'),
     shopStorage: document.getElementById('shop-storage'),
     shopStrains: document.getElementById('shop-strains'),
+    shopAuto: document.getElementById('shop-auto'),
     xplv: document.getElementById('xplv'),
     xpmult: document.getElementById('xpmult'),
     xpf: document.getElementById('xpf'),
@@ -192,6 +193,42 @@
     return qtyMode === 'max' ? Infinity : Math.min(qtyMode, have);
   }
 
+  /**
+   * Render the automation shop: one card per market product with its two
+   * one-time hires (Ouvrier = auto-craft, Dealer = auto-sell).
+   */
+  function renderAutomation() {
+    if (!el.shopAuto) return;
+    el.shopAuto.innerHTML = '';
+    const level = Game.levelFromXp(state.xp);
+    for (const p of Game.PRODUCTS) {
+      const locked = level < p.unlock;
+      const card = document.createElement('div');
+      card.className = 'auto-card' + (locked ? ' locked' : '');
+      const rows = Game.AUTOMATION.filter((a) => a.productId === p.id).map((a) => {
+        const owned = Game.hasAuto(state, a.kind, p.id);
+        if (owned) {
+          return '<div class="auto-row owned"><span class="ar-icon">' + a.icon + '</span>' +
+            '<span class="ar-name">' + a.name + '</span><span class="ar-active">✓ Actif</span></div>';
+        }
+        return '<div class="auto-row"><span class="ar-icon">' + a.icon + '</span>' +
+          '<div class="ar-info"><div class="ar-name">' + a.name + '</div>' +
+          '<div class="ar-desc">' + a.desc + '</div></div>' +
+          '<div class="ar-buy"><span class="ar-cost">' + fmt(a.cost) + ' €</span>' +
+          '<button class="bb" data-auto="' + a.id + '">Embaucher</button></div></div>';
+      }).join('');
+      card.innerHTML =
+        '<div class="ac-head"><span class="ac-product">' + p.icon + ' ' + p.name + '</span>' +
+        (locked ? '<span class="st-lock">🔒 Niveau ' + p.unlock + '</span>' : '') + '</div>' +
+        rows;
+      card.querySelectorAll('[data-auto]').forEach((b) => {
+        b.disabled = state.money < (Game.AUTOMATION.find((a) => a.id === b.dataset.auto) || { cost: Infinity }).cost;
+        b.addEventListener('click', () => buyAuto(b.dataset.auto));
+      });
+      el.shopAuto.appendChild(card);
+    }
+  }
+
   /** Render the market: one sellable product per card + weed brute. */
   function renderMarket() {
     if (!el.marketGrid) return;
@@ -314,7 +351,8 @@
 
     renderMarket();
 
-    // shop extras (stockage & variétés à acheter)
+    // shop extras (automatisation, stockage & variétés à acheter)
+    renderAutomation();
     renderShopStorage();
     renderShopStrains();
 
@@ -412,6 +450,19 @@
     save();
   }
 
+  /** Buy a one-time automation hire (Ouvrier/Dealer). */
+  function buyAuto(id) {
+    const res = Game.buyAutomation(state, id);
+    if (res.ok) {
+      toast(res.name + ' embauché ! 🛠️');
+      popNum(el.m);
+    } else if (res.reason === 'funds') {
+      toast("Pas assez d'argent");
+    }
+    refreshStats();
+    save();
+  }
+
   function equipStrain(id) {
     const res = Game.equipStrain(state, id);
     if (!res.ok) {
@@ -432,13 +483,15 @@
     save();
   }
 
-  /** One auto-production tick (every second). */
+  /** One auto-production tick (every second): weed growth, then automation. */
   function autoProduce() {
     const ar = Game.perSecond(state);
     if (ar > 0) {
       const added = Game.addWeed(state, ar);
       Game.earnXp(state, added);
     }
+    // automation hires (Ouvriers/Dealers) craft & sell owned products
+    Game.autoTick(state);
     refreshStats();
     save();
   }

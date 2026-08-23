@@ -104,6 +104,31 @@
     { id: 'rosin',   icon: '🌟', name: 'Live Rosin',         cost: 300, price: 8500, unlock: 45, desc: 'Le nec plus ultra des extraits' }
   ];
 
+  /**
+   * Automation catalog — Adventure-Capitalist-style one-time purchases ("managers").
+   *
+   * For every market product there are two hires, unlocked once and forever:
+   *   kind 'craft' — an Ouvrier converts weed into this product (up to 1 unit/s)
+   *   kind 'sell'  — a Dealer sells the whole stock of this product every tick
+   *
+   * Costs scale with the product value so automation stays a long-term goal:
+   *   craft ≈ 90× unit price, sell ≈ 140× unit price.
+   */
+  const AUTOMATION = PRODUCTS.flatMap((p) => [
+    {
+      id: 'craft-' + p.id, productId: p.id, kind: 'craft',
+      icon: '🛠️', name: 'Ouvrier ' + p.name,
+      desc: 'Fabrique automatiquement (1u/s tant qu\'il y a de la weed)',
+      cost: Math.round(p.price * 90), unlock: p.unlock
+    },
+    {
+      id: 'sell-' + p.id, productId: p.id, kind: 'sell',
+      icon: '💰', name: 'Dealer ' + p.name,
+      desc: 'Vend automatiquement tout le stock de ce produit',
+      cost: Math.round(p.price * 140), unlock: p.unlock
+    }
+  ]);
+
   /* ---- progression curve (Slower, deeper & more rewarding) ---------------- */
   const XP_BASE = 150;
   const XP_GROWTH = 1.28;
@@ -227,6 +252,7 @@
       stock,
       prices: { weed: 12 },
       levels: { ...DEFAULT_LEVELS },
+      auto: { craft: {}, sell: {} },
       xp: 0,
       milestones: [],
       totalEarned: 0
@@ -283,6 +309,57 @@
     s.levels[id]++;
     const u = UPGRADES.find((x) => x.id === id);
     return { ok: true, cost, name: u ? u.name : id };
+  }
+
+  /** @returns {boolean} true if the given automation hire is owned */
+  function hasAuto(s, kind, productId) {
+    return !!(s.auto && s.auto[kind] && s.auto[kind][productId]);
+  }
+
+  /**
+   * Buy a one-time automation hire (Ouvrier/Dealer). Mutates state on success only.
+   * @param {object} s state
+   * @param {string} id automation id from AUTOMATION (e.g. 'craft-joint')
+   * @returns {{ok:boolean, reason?:'funds'|'unknown'|'owned', name?:string}}
+   */
+  function buyAutomation(s, id) {
+    const a = AUTOMATION.find((x) => x.id === id);
+    if (!a) return { ok: false, reason: 'unknown' };
+    if (!s.auto || typeof s.auto !== 'object') s.auto = { craft: {}, sell: {} };
+    if (!s.auto[a.kind] || typeof s.auto[a.kind] !== 'object') s.auto[a.kind] = {};
+    if (s.auto[a.kind][a.productId]) return { ok: false, reason: 'owned' };
+    if (s.money < a.cost) return { ok: false, reason: 'funds' };
+    s.money -= a.cost;
+    s.auto[a.kind][a.productId] = true;
+    return { ok: true, name: a.name };
+  }
+
+  /**
+   * Automation tick — runs every second after weed production.
+   *
+   * Order matters and is deliberate:
+   *   1. Auto-craft owned hires, most expensive product first: when weed is scarce
+   *      the highest €/g conversion wins, rewarding late-game automation.
+   *   2. Auto-sell owned dealers empty the whole stock of their product (freshly
+   *      crafted units included), turning craft+sell pairs into idle income.
+   *
+   * No XP is granted: consistent with manual crafting/selling which only move €.
+   * @param {object} s state (mutated)
+   * @returns {{crafted:Object<string,number>, soldMoney:Object<string,number>}} per-product units crafted and cash earned this tick
+   */
+  function autoTick(s) {
+    const res = { crafted: {}, soldMoney: {} };
+    for (const p of [...PRODUCTS].reverse()) {
+      if (!hasAuto(s, 'craft', p.id)) continue;
+      const r = craftProduct(s, p.id, Infinity);
+      if (r.ok) res.crafted[p.id] = r.amount;
+    }
+    for (const p of PRODUCTS) {
+      if (!hasAuto(s, 'sell', p.id)) continue;
+      const gain = sellStock(s, p.id);
+      if (gain > 0) res.soldMoney[p.id] = gain;
+    }
+    return res;
   }
 
   /**
@@ -485,9 +562,21 @@
      // drop legacy fields
      delete d.points; delete d.genomes;
      delete d.stock.main; delete d.stock.premium; delete d.stock.moonrock;
-    d.milestones = Array.isArray(d.milestones)
-      ? d.milestones.filter((m) => MILESTONES.some((mi) => mi.id === m))
-      : [];
+     d.milestones = Array.isArray(d.milestones)
+       ? d.milestones.filter((m) => MILESTONES.some((mi) => mi.id === m))
+       : [];
+     // automation hires — keep known flags only, drop anything else
+     if (!d.auto || typeof d.auto !== 'object') d.auto = { craft: {}, sell: {} };
+     for (const kind of ['craft', 'sell']) {
+       const src = d.auto[kind];
+       const clean = {};
+       if (src && typeof src === 'object') {
+         for (const p of PRODUCTS) {
+           if (src[p.id] === true) clean[p.id] = true;
+         }
+       }
+       d.auto[kind] = clean;
+     }
     return d;
   }
 
@@ -495,6 +584,7 @@
     UPGRADES,
     STRAINS,
     PRODUCTS,
+    AUTOMATION,
     BASE_COST,
     DEFAULT_LEVELS,
     XP_BASE,
@@ -517,6 +607,9 @@
     perSecond,
     upgradeCost,
     buyUpgrade,
+    hasAuto,
+    buyAutomation,
+    autoTick,
     craftProduct,
     sellStock,
     sellByStrain,
