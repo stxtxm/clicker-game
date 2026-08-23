@@ -227,6 +227,21 @@
     .mc-btn:hover { background: rgba(74,222,128,0.1); }
     .mc-btn.sell { background: linear-gradient(135deg, var(--green-dim), var(--green)); color: #070a07; border: none; font-weight: 800; }
     .mc-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .qty-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .qty-pill {
+      background: var(--panel2);
+      border: 1px solid var(--border2);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 7px 14px;
+      font-size: .8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .qty-pill.active { background: var(--green); color: #070a07; border-color: var(--green); font-weight: 800; }
+    .mc-qty { font-size: .68rem; color: var(--muted); font-weight: 700; background: rgba(255,255,255,0.06); padding: 2px 7px; border-radius: 999px; }
+    .market-card.locked { opacity: .55; }
 
     /* ===== Upgrades view ===== */
     .upgrades { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 100%; }
@@ -425,37 +440,15 @@
     <section class="view view-sell" id="v-sell">
       <div class="panel-head"><h2>Marché & Produits</h2><p>Vends tes produits ou transforme ta weed en concentrés</p></div>
 
-      <div class="market-grid">
-        <!-- Weed -->
-        <div class="market-card">
-          <div class="mc-top"><div class="mc-title">🌿 Weed Brute</div><div class="mc-price" id="pw">12 €/g</div></div>
-          <div class="mc-stock" id="sth-w">0g disponibles</div>
-          <div class="mc-actions">
-            <button class="mc-btn sell" id="sw-market">Vendre</button>
-          </div>
-        </div>
-
-        <!-- Hash -->
-        <div class="market-card">
-          <div class="mc-top"><div class="mc-title">📦 Hash Conditionné</div><div class="mc-price" id="ph">65 €/u</div></div>
-          <div class="mc-stock" id="sth">0 dispo</div>
-          <div class="mc-actions">
-            <button class="mc-btn" id="cb-hash" disabled>Fabriquer (5g weed)</button>
-            <button class="mc-btn sell" id="sh" disabled>Vendre</button>
-          </div>
-        </div>
-
-        <!-- Resin -->
-        <div class="market-card">
-          <div class="mc-top"><div class="mc-title">🍯 Résine Supérieure</div><div class="mc-price" id="pr">280 €/u</div></div>
-          <div class="mc-stock" id="str">0 dispo</div>
-          <div class="mc-actions">
-            <button class="mc-btn" id="cb-resin" disabled>Fabriquer (20g weed)</button>
-            <button class="mc-btn sell" id="sr" disabled>Vendre</button>
-          </div>
-        </div>
-
+      <div class="qty-row" id="qty-row">
+        <button class="qty-pill active" data-q="1">x1</button>
+        <button class="qty-pill" data-q="10">x10</button>
+        <button class="qty-pill" data-q="100">x100</button>
+        <button class="qty-pill" data-q="max">MAX</button>
+        <button class="mc-btn sell" id="sell-all" style="margin-left:auto;flex:0 0 auto;padding:8px 14px;">💸 Tout vendre</button>
       </div>
+
+      <div class="market-grid" id="market-grid"></div>
 
       <div class="panel-head sub" style="margin-top:18px"><h2>Stockage</h2><p>Augmente ta capacité</p></div>
       <div class="shop-storage" id="shop-storage"></div>

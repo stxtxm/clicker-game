@@ -83,7 +83,7 @@ test('buyUpgrade: success deducts money and levels up', () => {
   assert.strictEqual(s.levels.harvest, 2);
 });
 
-test('sellStock: weed, hash, resin and all', () => {
+test('sellStock: weed, product, partial amount and all', () => {
   const s = Game.defaultState();
   s.stock.weed = 10;
   s.stock.hash = 1;
@@ -91,9 +91,47 @@ test('sellStock: weed, hash, resin and all', () => {
   assert.strictEqual(Game.sellStock(s, 'weed'), 120); // 10 * 12 €
   assert.strictEqual(s.stock.weed, 0);
   assert.strictEqual(s.stock.hash, 1);
-  assert.strictEqual(Game.sellStock(s, 'hash'), 65);  // 1 * 65 €
-  assert.strictEqual(Game.sellStock(s, 'resin'), 280);// 1 * 280 €
-  assert.strictEqual(Game.sellStock(s, 'all'), 0);       // empty
+  assert.strictEqual(Game.sellStock(s, 'hash'), 200);   // 1 * 200 € (catalog price)
+  assert.strictEqual(Game.sellStock(s, 'resin', 1), 800); // 1 * 800 €
+  assert.strictEqual(Game.sellStock(s, 'all'), 0);      // empty
+});
+
+test('sellStock: partial amounts and sell-all across products', () => {
+  const s = Game.defaultState();
+  s.stock.joint = 10;
+  s.stock.weed = 50;
+  assert.strictEqual(Game.sellStock(s, 'joint', 3), 84); // 3 * 28 €
+  assert.strictEqual(s.stock.joint, 7);
+  // green x1: joints left (7*28) + raw weed (50*12)
+  const gain = Game.sellStock(s, 'all');
+  assert.strictEqual(gain, 7 * 28 + 50 * 12);
+  assert.strictEqual(s.stock.joint, 0);
+  assert.strictEqual(s.stock.weed, 0);
+  assert.strictEqual(s.money, 84 + gain);
+});
+
+test('craftProduct: consumes weed and supports qty / max', () => {
+  const s = Game.defaultState();
+  s.stock.weed = 100;
+  s.stock.weedByStrain.green = 100;
+  let r = Game.craftProduct(s, 'joint', 10);
+  assert.deepStrictEqual(r, { ok: true, amount: 10 });
+  assert.strictEqual(s.stock.weed, 80); // 10 * 2g
+  assert.strictEqual(s.stock.joint, 10);
+  assert.strictEqual(s.stock.weedByStrain.green, 80); // per-strain map drained
+  r = Game.craftProduct(s, 'joint', Infinity);
+  assert.deepStrictEqual(r, { ok: true, amount: 40 });
+  assert.strictEqual(s.stock.weed, 0);
+  assert.strictEqual(s.stock.joint, 50);
+  r = Game.craftProduct(s, 'hash', 1);
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'weed');
+});
+
+test('product prices scale with equipped strain multiplier', () => {
+  const s = Game.defaultState();
+  s.strain = 'purple'; // x1.4
+  assert.strictEqual(Game.productUnitPrice(s, Game.getProduct('joint')), Math.round(28 * 1.4));
 });
 
 test('equipStrain: unknown id', () => {
@@ -151,7 +189,7 @@ test('serialize/deserialize roundtrip preserves everything', () => {
   const s = Game.defaultState();
   s.weed = 123;
   s.money = 456;
-  s.stock = { weed: 10, hash: 1, resin: 0, weedByStrain: { green: 4 }, hashByStrain: { pink: 1 }, resinByStrain: {}, strains: ['green', 'pink'] };
+  s.stock = { ...Game.defaultState().stock, weed: 10, hash: 1, resin: 0, weedByStrain: { green: 4 }, hashByStrain: { pink: 1 } };
   s.levels.turbo = 3;
   s.strain = 'pink';
   const loaded = Game.deserialize(Game.serialize(s));

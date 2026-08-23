@@ -23,17 +23,9 @@
     lv: document.getElementById('lv'),
     hl: document.getElementById('cl'),
     stw: document.getElementById('stw'),
-    sth: document.getElementById('sth'),
-    str: document.getElementById('str'),
-    sthW: document.getElementById('sth-w'),
-    pw: document.getElementById('pw'),
-    ph: document.getElementById('ph'),
-    pr: document.getElementById('pr'),
-    swMarket: document.getElementById('sw-market'),
-    sh: document.getElementById('sh'),
-    sr: document.getElementById('sr'),
-    cbHash: document.getElementById('cb-hash'),
-    cbResin: document.getElementById('cb-resin'),
+    marketGrid: document.getElementById('market-grid'),
+    sellAll: document.getElementById('sell-all'),
+    qtyRow: document.getElementById('qty-row'),
     bc: document.getElementById('bc'),
     mc: document.getElementById('mc'),
     bs: document.getElementById('bs'),
@@ -51,6 +43,9 @@
   };
 
   let state = Game.defaultState();
+
+  /** Quantity preset for market craft/sell actions: 1, 10, 100 or 'max'. */
+  let qtyMode = 1;
 
   // --- helpers ---------------------------------------------------------------
   /** Format a number for display: 1.2K / 3.45M / floor below 1000. */
@@ -189,6 +184,84 @@
     }
   }
 
+  /** Resolve the current qty preset to a concrete amount for `have` stock. */
+  function qtyAmount(have) {
+    return qtyMode === 'max' ? Infinity : Math.min(qtyMode, have);
+  }
+
+  /** Render the market: one sellable product per card + weed brute. */
+  function renderMarket() {
+    if (!el.marketGrid) return;
+    el.marketGrid.innerHTML = '';
+    const level = Game.levelFromXp(state.xp);
+
+    // Weed brute card — sell raw grams
+    {
+      const pMult = (Game.getStrain(state.strain) || { priceMult: 1 }).priceMult;
+      const unit = Math.round(state.prices.weed * pMult);
+      const have = state.stock.weed || 0;
+      const n = qtyMode === 'max' ? have : Math.min(qtyMode, have);
+      const card = document.createElement('div');
+      card.className = 'market-card';
+      card.innerHTML =
+        '<div class="mc-top"><div class="mc-title">🌿 Weed Brute</div><div class="mc-price">' + unit + ' €/g</div></div>' +
+        '<div class="mc-stock" id="sth-w">' + fmt(have) + 'g disponibles</div>' +
+        '<div class="mc-actions"><button class="mc-btn sell" data-p="weed">Vendre ' +
+          (qtyMode === 'max' ? 'tout (' + fmt(have) + 'g)' : 'x' + n + ' (' + fmt(n) + 'g)') + '</button></div>';
+      const btn = card.querySelector('button');
+      btn.disabled = n <= 0;
+      btn.addEventListener('click', () => onSell('weed'));
+      el.marketGrid.appendChild(card);
+    }
+
+    // Crafted products
+    for (const p of Game.PRODUCTS) {
+      const locked = level < p.unlock;
+      const unit = Game.productUnitPrice(state, p);
+      const have = state.stock[p.id] || 0;
+      const maxCraftable = Math.floor((state.stock.weed || 0) / p.cost);
+      const card = document.createElement('div');
+      card.className = 'market-card' + (locked ? ' locked' : '');
+      const qtyLabel = qtyMode === 'max'
+        ? (locked ? '' : '<span class="mc-qty">x' + fmt(maxCraftable) + '</span>')
+        : '';
+      card.innerHTML =
+        '<div class="mc-top"><div class="mc-title">' + p.icon + ' ' + p.name + qtyLabel + '</div><div class="mc-price">' + unit + ' €/u</div></div>' +
+        (locked
+          ? '<div class="mc-stock">🔒 Niveau ' + p.unlock + ' requis — ' + p.cost + 'g weed → 1u</div>'
+          : '<div class="mc-stock">' + fmt(have) + ' dispo — ' + p.cost + 'g → 1u (' + p.desc + ')</div>') +
+        '<div class="mc-actions">' +
+          (locked ? '' :
+            '<button class="mc-btn craft" data-p="' + p.id + '">Fabriquer ' +
+              (qtyMode === 'max' ? 'max (' + fmt(maxCraftable) + ')' : 'x' + Math.min(qtyMode, Math.max(1, maxCraftable))) +
+            '</button>' +
+            '<button class="mc-btn sell" data-p="' + p.id + '">Vendre ' +
+              (qtyMode === 'max' ? 'tout (' + fmt(have) + ')' : 'x' + Math.min(qtyMode, Math.max(1, have))) +
+            '</button>') +
+        '</div>';
+      const cBtn = card.querySelector('.craft');
+      const sBtn = card.querySelector('.sell');
+      if (cBtn) {
+        cBtn.disabled = maxCraftable <= 0;
+        cBtn.addEventListener('click', () => onCraft(p.id));
+      }
+      if (sBtn) {
+        sBtn.disabled = have <= 0;
+        sBtn.addEventListener('click', () => onSell(p.id));
+      }
+      el.marketGrid.appendChild(card);
+    }
+
+    // qty pills active state + sell-all button
+    if (el.qtyRow) {
+      el.qtyRow.querySelectorAll('.qty-pill').forEach((b) => {
+        b.classList.toggle('active', String(b.dataset.q) === String(qtyMode));
+      });
+    }
+    if (el.sellAll) el.sellAll.disabled =
+      !Game.PRODUCTS.some((p) => (state.stock[p.id] || 0) > 0) && (state.stock.weed || 0) <= 0;
+  }
+
   /** Render the progression panel: level/XP bar and milestones. */
   function renderProgress() {
     const prog = Game.xpProgress(state.xp);
@@ -225,8 +298,6 @@
   function refreshStats() {
     const pc = Game.perClick(state);
     const ar = Game.perSecond(state);
-    const st = Game.getStrain(state.strain);
-    const pMult = st ? st.priceMult : 1.0;
 
     if (el.m) el.m.textContent = fmt(state.money) + ' €';
     if (el.ar) el.ar.textContent = '+' + ar;
@@ -237,20 +308,8 @@
       el.stw.textContent = fmt(state.stock.weed) + ' / ' + fmt(cap) + 'g';
       el.stw.parentElement?.classList.toggle('full', state.stock.weed >= cap);
     }
-    if (el.sthW) el.sthW.textContent = fmt(state.stock.weed) + 'g disponibles';
-    if (el.sth) el.sth.textContent = fmt(state.stock.hash) + ' dispo';
-    if (el.str) el.str.textContent = fmt(state.stock.resin) + ' dispo';
 
-    if (el.pw) el.pw.textContent = Math.round(state.prices.weed * pMult) + ' €/g';
-    if (el.ph) el.ph.textContent = Math.round(state.prices.hash * pMult) + ' €/u';
-    if (el.pr) el.pr.textContent = Math.round(state.prices.resin * pMult) + ' €/u';
-
-    if (el.swMarket) el.swMarket.disabled = state.stock.weed <= 0;
-    if (el.sh) el.sh.disabled = (state.stock.hash || 0) <= 0;
-    if (el.sr) el.sr.disabled = (state.stock.resin || 0) <= 0;
-
-    if (el.cbHash) el.cbHash.disabled = state.stock.weed < Game.HASH_CONVERT_COST;
-    if (el.cbResin) el.cbResin.disabled = state.stock.weed < Game.RESIN_CONVERT_COST;
+    renderMarket();
 
     // shop extras (stockage & variétés à acheter)
     renderShopStorage();
@@ -314,20 +373,22 @@
     setTimeout(() => p.remove(), 720);
   }
 
-  function onCraft(type) {
-    const res = Game.craftProduct(state, type);
+  function onCraft(productId) {
+    const res = Game.craftProduct(state, productId, qtyMode === 'max' ? Infinity : qtyMode);
+    const prod = Game.getProduct(productId);
     if (res.ok) {
-      toast(type === 'hash' ? '📦 1 Hash conditionné !' : '🍯 1 Résine supérieure !');
+      toast(prod.icon + ' ' + res.amount + 'x ' + prod.name + ' fabriqué' + (res.amount > 1 ? 's' : '') + ' !');
       if (el.stw) popNum(el.stw);
     } else {
-      toast('Pas assez de weed (' + (type === 'hash' ? '5g' : '20g') + ' requis)');
+      toast('Pas assez de weed (' + (prod ? prod.cost + 'g' : '') + ' requis)');
     }
     refreshStats();
     save();
   }
 
   function onSell(type) {
-    const gain = Game.sellStock(state, type);
+    const amount = type === 'weed' && qtyMode !== 'max' ? Math.min(qtyMode, state.stock.weed || 0) : undefined;
+    const gain = Game.sellStock(state, type, amount);
     if (gain > 0) {
       toast('+' + fmt(gain) + ' €');
       popNum(el.m);
@@ -406,11 +467,16 @@
   // --- wiring -----------------------------------------------------------------
   if (el.bs) el.bs.addEventListener('click', onHarvest);
   else if (el.bc) el.bc.addEventListener('click', onHarvest);
-  if (el.swMarket) el.swMarket.addEventListener('click', () => onSell('weed'));
-  if (el.sh) el.sh.addEventListener('click', () => onSell('hash'));
-  if (el.sr) el.sr.addEventListener('click', () => onSell('resin'));
-  if (el.cbHash) el.cbHash.addEventListener('click', () => onCraft('hash'));
-  if (el.cbResin) el.cbResin.addEventListener('click', () => onCraft('resin'));
+  if (el.sellAll) el.sellAll.addEventListener('click', () => onSell('all'));
+  if (el.qtyRow) {
+    el.qtyRow.querySelectorAll('.qty-pill').forEach((b) => {
+      b.addEventListener('click', () => {
+        const q = b.dataset.q;
+        qtyMode = q === 'max' ? 'max' : Math.max(1, Math.floor(Number(q) || 1));
+        renderMarket();
+      });
+    });
+  }
 
   document.querySelectorAll('.tab-btn').forEach((b) =>
     b.addEventListener('click', () => switchTab(b.dataset.tab)));

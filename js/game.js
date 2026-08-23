@@ -88,9 +88,21 @@
   /** Default upgrade levels for a brand new game. */
   const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, crew: 0, turbo: 0, mega: 0, sbox: 0, coldroom: 0 };
 
-  /** Crafting costs: weed needed to craft concentrates. */
-  const HASH_CONVERT_COST = 5;       // 5g weed -> 1g Hash
-  const RESIN_CONVERT_COST = 20;     // 20g weed -> 1g Resin
+  /**
+   * Product catalog — everything sellable at the market.
+   * `cost` grams of weed are consumed to craft 1 unit, sold at `price` € (x strain priceMult).
+   * Higher tiers give a better €/g ratio but need more weed and a higher level.
+   */
+  const PRODUCTS = [
+    { id: 'joint',   icon: '🚬', name: 'Joint Roulé',        cost: 2,   price: 28,   unlock: 1,  desc: 'Le classique du marché' },
+    { id: 'sachet',  icon: '🛍️', name: 'Sachet Scellé',      cost: 6,   price: 90,   unlock: 4,  desc: 'Conditionné sous vide' },
+    { id: 'hash',    icon: '📦', name: 'Hash Conditionné',   cost: 12,  price: 200,  unlock: 8,  desc: 'Pressé à la main' },
+    { id: 'cake',    icon: '🍰', name: 'Space Cake',         cost: 25,  price: 450,  unlock: 13, desc: 'Recette maison gourmande' },
+    { id: 'resin',   icon: '🍯', name: 'Résine Supérieure',  cost: 40,  price: 800,  unlock: 19, desc: 'Extraction soignée' },
+    { id: 'huile',   icon: '💧', name: 'Huile Verte',        cost: 80,  price: 1800, unlock: 26, desc: 'Distillat concentré' },
+    { id: 'shatter', icon: '💎', name: 'Shatter Pur',        cost: 150, price: 3800, unlock: 34, desc: 'Translucide et puissant' },
+    { id: 'rosin',   icon: '🌟', name: 'Live Rosin',         cost: 300, price: 8500, unlock: 45, desc: 'Le nec plus ultra des extraits' }
+  ];
 
   /* ---- progression curve (Slower, deeper & more rewarding) ---------------- */
   const XP_BASE = 150;
@@ -203,12 +215,17 @@
    * @returns {object} a brand new, unmodified default state
    */
   function defaultState() {
+    const stock = { weed: 0, weedByStrain: {}, strains: ['green'] };
+    for (const p of PRODUCTS) {
+      stock[p.id] = 0;
+      stock[p.id + 'ByStrain'] = {};
+    }
     return {
       weed: 0,
       money: 0,
       strain: 'green',
-      stock: { weed: 0, hash: 0, resin: 0, weedByStrain: {}, hashByStrain: {}, resinByStrain: {}, strains: ['green'] },
-      prices: { weed: 12, hash: 65, resin: 280 },
+      stock,
+      prices: { weed: 12 },
       levels: { ...DEFAULT_LEVELS },
       xp: 0,
       milestones: [],
@@ -219,6 +236,17 @@
   /** @returns {object|undefined} strain definition, or undefined if unknown */
   function getStrain(id) {
     return STRAINS.find((x) => x.id === id);
+  }
+
+  /** @returns {object|undefined} product definition, or undefined if unknown */
+  function getProduct(id) {
+    return PRODUCTS.find((x) => x.id === id);
+  }
+
+  /** @returns {number} sale price of one unit of `prod` with current strain multiplier */
+  function productUnitPrice(s, prod) {
+    const st = getStrain(s.strain);
+    return Math.round(prod.price * (st ? st.priceMult : 1.0));
   }
 
   /**
@@ -258,56 +286,91 @@
   }
 
   /**
-   * Transform raw weed into Hash or Resin (generic, uses total stock).
-   * Also keeps per-strain maps in sync for the currently equipped strain.
+   * Transform raw weed into a market product (uses total stock).
+   * Keeps per-strain maps in sync for the currently equipped strain.
    * @param {object} s state
-   * @param {'hash'|'resin'} type product type
+   * @param {string} productId product id from PRODUCTS
+   * @param {number} qty how many units to craft (default 1, Infinity = as many as possible)
    * @returns {{ok:boolean, reason?:string, amount?:number}}
    */
-  function craftProduct(s, type) {
-    const cost = type === 'resin' ? RESIN_CONVERT_COST : HASH_CONVERT_COST;
-    if (s.stock.weed < cost) return { ok: false, reason: 'weed' };
-    s.stock.weed -= cost;
-    s.stock[type] = (s.stock[type] || 0) + 1;
-    // keep per-strain maps in sync for varietal interest
+  function craftProduct(s, productId, qty) {
+    const prod = getProduct(productId);
+    if (!prod) return { ok: false, reason: 'unknown' };
+    const maxAffordable = Math.floor((s.stock.weed || 0) / prod.cost);
+    const wanted = qty === Infinity ? maxAffordable : Math.max(1, Math.floor(Number(qty) || 1));
+    const made = Math.min(wanted, maxAffordable);
+    if (made <= 0) return { ok: false, reason: 'weed', needed: prod.cost };
+    s.stock.weed -= made * prod.cost;
+    s.stock[productId] = (s.stock[productId] || 0) + made;
+    // drain the weed just consumed from per-strain maps (equipped strain first)
     const sid = s.strain;
-    if (s.stock.weedByStrain && s.stock.weedByStrain[sid] !== undefined) {
-      s.stock.weedByStrain[sid] = Math.max(0, s.stock.weedByStrain[sid] - cost);
+    if (!s.stock.weedByStrain) s.stock.weedByStrain = {};
+    let left = made * prod.cost;
+    const order = [sid].concat(s.stock.strains.filter((x) => x !== sid));
+    for (const key of order) {
+      if (left <= 0) break;
+      const have = s.stock.weedByStrain[key] || 0;
+      if (have <= 0) continue;
+      const take = Math.min(have, left);
+      s.stock.weedByStrain[key] = have - take;
+      left -= take;
     }
-    const hashKey = type + 'ByStrain';
-    if (!s.stock[hashKey]) s.stock[hashKey] = {};
-    s.stock[hashKey][sid] = (s.stock[hashKey][sid] || 0) + 1;
-    return { ok: true, amount: 1 };
+    const mapKey = productId + 'ByStrain';
+    if (!s.stock[mapKey]) s.stock[mapKey] = {};
+    s.stock[mapKey][sid] = (s.stock[mapKey][sid] || 0) + made;
+    return { ok: true, amount: made };
+  }
+
+  /** Drain `n` units from a per-strain map (equipped strain first). */
+  function drainByStrain(s, mapKey, n) {
+    if (!n || !s.stock[mapKey]) return;
+    const sid = s.strain;
+    let left = n;
+    const order = [sid].concat(s.stock.strains.filter((x) => x !== sid));
+    for (const key of order) {
+      if (left <= 0) break;
+      const have = s.stock[mapKey][key] || 0;
+      if (have <= 0) continue;
+      const take = Math.min(have, left);
+      s.stock[mapKey][key] = have - take;
+      left -= take;
+    }
   }
 
   /**
    * Sell stock and return the cash gained (€).
    * Prices scale with strain priceMult.
    * @param {object} s state
-   * @param {'weed'|'hash'|'resin'|'all'} type which stock to sell
+   * @param {'weed'|string|'all'} type 'weed', a product id from PRODUCTS, or 'all'
+   * @param {number} [amount] units/grams to sell (default: all of that type)
    * @returns {number} cash gained
    */
-  function sellStock(s, type) {
+  function sellStock(s, type, amount) {
+    if (type === 'all') {
+      let total = sellStock(s, 'weed');
+      for (const p of PRODUCTS) total += sellStock(s, p.id);
+      return total;
+    }
     const st = getStrain(s.strain);
     const pMult = st ? st.priceMult : 1.0;
-    const prices = {
-      weed: Math.round(s.prices.weed * pMult),
-      hash: Math.round(s.prices.hash * pMult),
-      resin: Math.round(s.prices.resin * pMult)
-    };
-
     let gain = 0;
-    if (type === 'weed' || type === 'all') {
-      gain += s.stock.weed * prices.weed;
-      s.stock.weed = 0;
-    }
-    if (type === 'hash' || type === 'all') {
-      gain += (s.stock.hash || 0) * prices.hash;
-      s.stock.hash = 0;
-    }
-    if (type === 'resin' || type === 'all') {
-      gain += (s.stock.resin || 0) * prices.resin;
-      s.stock.resin = 0;
+    if (type === 'weed') {
+      const unit = Math.round(s.prices.weed * pMult);
+      const toSell = amount === undefined ? (s.stock.weed || 0)
+        : Math.min(s.stock.weed || 0, Math.max(1, Math.floor(amount)));
+      gain = toSell * unit;
+      s.stock.weed = (s.stock.weed || 0) - toSell;
+      drainByStrain(s, 'weedByStrain', toSell);
+    } else {
+      const prod = getProduct(type);
+      if (prod) {
+        const unit = productUnitPrice(s, prod);
+        const have = s.stock[type] || 0;
+        const toSell = amount === undefined ? have : Math.min(have, Math.max(1, Math.floor(amount)));
+        gain = toSell * unit;
+        s.stock[type] = have - toSell;
+        drainByStrain(s, type + 'ByStrain', toSell);
+      }
     }
     s.money += gain;
     s.totalEarned = (s.totalEarned || 0) + gain;
@@ -398,29 +461,30 @@
       return d;
     }
      d.levels = { ...DEFAULT_LEVELS, ...(d.levels || {}) };
-     if (!d.stock || typeof d.stock !== 'object') d.stock = { weed: 0, hash: 0, resin: 0, weedByStrain: {}, hashByStrain: {}, resinByStrain: {}, strains: ['green'] };
+     if (!d.stock || typeof d.stock !== 'object') d.stock = defaultState().stock;
      d.stock.weed = typeof d.stock.weed === 'number' && d.stock.weed >= 0 ? d.stock.weed : 0;
-     d.stock.hash = typeof d.stock.hash === 'number' && d.stock.hash >= 0 ? d.stock.hash : 0;
-     d.stock.resin = typeof d.stock.resin === 'number' && d.stock.resin >= 0 ? d.stock.resin : 0;
-     // per-strain stock (new in varietal update) — init if missing, migrate generic stock for old saves
+     // per-product stock + per-strain maps (init/migrate)
+     for (const p of PRODUCTS) {
+       d.stock[p.id] = typeof d.stock[p.id] === 'number' && d.stock[p.id] >= 0 ? d.stock[p.id] : 0;
+       const mk = p.id + 'ByStrain';
+       if (!d.stock[mk] || typeof d.stock[mk] !== 'object') {
+         d.stock[mk] = {};
+         if ((d.stock[p.id] || 0) > 0) d.stock[mk][d.strain] = (d.stock[mk][d.strain] || 0) + d.stock[p.id];
+       }
+     }
+     // per-strain weed stock — init if missing, migrate generic stock for old saves
      if (!d.stock.weedByStrain || typeof d.stock.weedByStrain !== 'object') d.stock.weedByStrain = {};
-     if (!d.stock.hashByStrain || typeof d.stock.hashByStrain !== 'object') d.stock.hashByStrain = {};
-     if (!d.stock.resinByStrain || typeof d.stock.resinByStrain !== 'object') d.stock.resinByStrain = {};
      if (d.stock.weed > 0 && Object.keys(d.stock.weedByStrain).length === 0) d.stock.weedByStrain[d.strain] = (d.stock.weedByStrain[d.strain] || 0) + d.stock.weed;
-     if ((d.stock.hash || 0) > 0 && Object.keys(d.stock.hashByStrain).length === 0) d.stock.hashByStrain[d.strain] = (d.stock.hashByStrain[d.strain] || 0) + (d.stock.hash || 0);
      if (!Array.isArray(d.stock.strains)) d.stock.strains = ['green'];
      if (!getStrain(d.strain)) d.strain = 'green';
      d.weed = typeof d.weed === 'number' && d.weed >= 0 ? d.weed : 0;
      d.xp = typeof d.xp === 'number' && d.xp >= 0 ? d.xp : 0;
      d.totalEarned = typeof d.totalEarned === 'number' && d.totalEarned >= 0 ? d.totalEarned : 0;
-     if (!d.prices || typeof d.prices !== 'object') d.prices = { weed: 12, hash: 65, resin: 280 };
-     else {
-       const p = d.prices;
-       d.prices = { weed: typeof p.weed === 'number' ? p.weed : 12, hash: typeof p.hash === 'number' ? p.hash : 65, resin: typeof p.resin === 'number' ? p.resin : 280 };
-     }
+     if (!d.prices || typeof d.prices !== 'object') d.prices = { weed: 12 };
+     else if (typeof d.prices.weed !== 'number') d.prices.weed = 12;
      // drop legacy fields
      delete d.points; delete d.genomes;
-     delete d.stock.main; delete d.stock.premium; delete d.stock.rosin; delete d.stock.moonrock;
+     delete d.stock.main; delete d.stock.premium; delete d.stock.moonrock;
     d.milestones = Array.isArray(d.milestones)
       ? d.milestones.filter((m) => MILESTONES.some((mi) => mi.id === m))
       : [];
@@ -430,10 +494,9 @@
   return {
     UPGRADES,
     STRAINS,
+    PRODUCTS,
     BASE_COST,
     DEFAULT_LEVELS,
-    HASH_CONVERT_COST,
-    RESIN_CONVERT_COST,
     XP_BASE,
     XP_GROWTH,
     MILESTONES,
@@ -442,6 +505,8 @@
     addWeed,
     defaultState,
     getStrain,
+    getProduct,
+    productUnitPrice,
     xpForLevel,
     levelFromXp,
     xpProgress,
