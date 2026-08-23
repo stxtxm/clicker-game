@@ -41,6 +41,7 @@
     sv: document.getElementById('sv'),
     shopStorage: document.getElementById('shop-storage'),
     shopStrains: document.getElementById('shop-strains'),
+    shopVarietal: document.getElementById('shop-varietal'),
     xplv: document.getElementById('xplv'),
     xpmult: document.getElementById('xpmult'),
     xpf: document.getElementById('xpf'),
@@ -189,6 +190,44 @@
     }
   }
 
+  function renderShopVarietal() {
+    if (!el.shopVarietal) return;
+    el.shopVarietal.innerHTML = '';
+    const hasWeed = state.stock.weed > 0;
+    const hasHash = (state.stock.hash || 0) > 0;
+    if (!hasWeed && !hasHash) {
+      el.shopVarietal.innerHTML = '<p style="font-size:.8rem;color:var(--muted)">Pas de stock à vendre — récolte d\'abord !</p>';
+      return;
+    }
+    for (const sid of state.stock.strains) {
+      const st = Game.getStrain(sid);
+      if (!st) continue;
+      const weedPrice = Math.round(state.prices.weed * st.priceMult);
+      const hashPrice = Math.round(state.prices.hash * st.priceMult);
+      const card = document.createElement('div');
+      card.className = 'varietal-card';
+      card.innerHTML =
+        '<div class="varietal-head"><span>' + st.icon + '</span><span>' + st.name + '</span><span style="margin-left:auto;font-size:.75rem;color:var(--muted)">x' + st.priceMult + '</span></div>' +
+        '<div class="varietal-actions">' +
+          '<button class="mc-btn sell" data-t="weed">Weed 1g — ' + weedPrice + '€</button>' +
+          '<button class="mc-btn sell" data-t="hash">Hash 1u — ' + hashPrice + '€</button>' +
+        '</div>';
+      const wBtn = card.querySelector('[data-t="weed"]');
+      const hBtn = card.querySelector('[data-t="hash"]');
+      wBtn.disabled = !hasWeed;
+      hBtn.disabled = !hasHash;
+      wBtn.addEventListener('click', () => {
+        const gain = Game.sellByStrain(state, sid, 'weed', 1);
+        if (gain > 0) { toast('+' + fmt(gain) + '€ (' + st.name + ')'); popNum(el.m); refreshStats(); save(); }
+      });
+      hBtn.addEventListener('click', () => {
+        const gain = Game.sellByStrain(state, sid, 'hash', 1);
+        if (gain > 0) { toast('+' + fmt(gain) + '€ (' + st.name + ' hash)'); popNum(el.m); refreshStats(); save(); }
+      });
+      el.shopVarietal.appendChild(card);
+    }
+  }
+
   /** Render the progression panel: level/XP bar and milestones. */
   function renderProgress() {
     const prog = Game.xpProgress(state.xp);
@@ -252,7 +291,8 @@
     if (el.cbHash) el.cbHash.disabled = state.stock.weed < Game.HASH_CONVERT_COST;
     if (el.cbResin) el.cbResin.disabled = state.stock.weed < Game.RESIN_CONVERT_COST;
 
-    // shop extras (stockage & variétés débloquées)
+    // shop extras (varietal sales, stockage & variétés à acheter)
+    renderShopVarietal();
     renderShopStorage();
     renderShopStrains();
 

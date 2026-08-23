@@ -300,6 +300,32 @@
   }
 
   /**
+   * Sell stock as a specific strain (applies that strain's priceMult).
+   * Uses the generic stock but prices at the strain's rate.
+   * @param {object} s state
+   * @param {'weed'|'hash'|'resin'} type
+   * @param {string} strainId
+   * @param {number} amount grams/units to sell (default 1, or Infinity for all)
+   * @returns {number} cash gained (0 if nothing to sell)
+   */
+  function sellByStrain(s, type, strainId, amount) {
+    const st = getStrain(strainId);
+    if (!st || !s.stock.strains.includes(strainId)) return 0;
+    const pMult = st.priceMult;
+    const unitPrice = Math.round(s.prices[type] * pMult);
+    const stock = type === 'weed' ? s.stock.weed : (type === 'hash' ? (s.stock.hash || 0) : (s.stock.resin || 0));
+    const toSell = amount === Infinity ? stock : Math.min(stock, amount || 1);
+    if (toSell <= 0) return 0;
+    if (type === 'weed') s.stock.weed -= toSell;
+    else if (type === 'hash') s.stock.hash -= toSell;
+    else s.stock.resin -= toSell;
+    const gain = toSell * unitPrice;
+    s.money += gain;
+    s.totalEarned = (s.totalEarned || 0) + gain;
+    return gain;
+  }
+
+  /**
    * Equip a strain; buys it first if not owned.
    */
   function equipStrain(s, id) {
@@ -387,6 +413,7 @@
     buyUpgrade,
     craftProduct,
     sellStock,
+    sellByStrain,
     equipStrain,
     serialize,
     deserialize
