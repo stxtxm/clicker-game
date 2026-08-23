@@ -15,7 +15,13 @@
  *     weed: number,                      // total harvested (grams)
  *     money:  number,                    // €
  *     strain: string,                    // equipped strain id
- *     stock:  { weed, hash, resin, strains: string[] },
+ *     stock:  {
+ *       weed, hash, resin,               // totals (for display/cap)
+ *       weedByStrain: { [id]: number },  // per-variety stock
+ *       hashByStrain: { [id]: number },
+ *       resinByStrain: { [id]: number },
+ *       strains: string[]
+ *     },
  *     prices: { weed, hash, resin },
  *     levels: { harvest, auto, expert, crew, turbo, mega, sbox, coldroom },
  *     xp: number,                        // lifetime XP
@@ -201,7 +207,7 @@
       weed: 0,
       money: 0,
       strain: 'green',
-      stock: { weed: 0, hash: 0, resin: 0, strains: ['green'] },
+      stock: { weed: 0, hash: 0, resin: 0, weedByStrain: {}, hashByStrain: {}, resinByStrain: {}, strains: ['green'] },
       prices: { weed: 12, hash: 65, resin: 280 },
       levels: { ...DEFAULT_LEVELS },
       xp: 0,
@@ -252,7 +258,8 @@
   }
 
   /**
-   * Transform raw weed into Hash or Resin.
+   * Transform raw weed into Hash or Resin (generic, uses total stock).
+   * Also keeps per-strain maps in sync for the currently equipped strain.
    * @param {object} s state
    * @param {'hash'|'resin'} type product type
    * @returns {{ok:boolean, reason?:string, amount?:number}}
@@ -262,6 +269,14 @@
     if (s.stock.weed < cost) return { ok: false, reason: 'weed' };
     s.stock.weed -= cost;
     s.stock[type] = (s.stock[type] || 0) + 1;
+    // keep per-strain maps in sync for varietal interest
+    const sid = s.strain;
+    if (s.stock.weedByStrain && s.stock.weedByStrain[sid] !== undefined) {
+      s.stock.weedByStrain[sid] = Math.max(0, s.stock.weedByStrain[sid] - cost);
+    }
+    const hashKey = type + 'ByStrain';
+    if (!s.stock[hashKey]) s.stock[hashKey] = {};
+    s.stock[hashKey][sid] = (s.stock[hashKey][sid] || 0) + 1;
     return { ok: true, amount: 1 };
   }
 
@@ -301,7 +316,7 @@
 
   /**
    * Sell stock as a specific strain (applies that strain's priceMult).
-   * Uses the generic stock but prices at the strain's rate.
+   * Uses per-strain stock; for old saves with empty per-strain maps, falls back to generic total once.
    * @param {object} s state
    * @param {'weed'|'hash'|'resin'} type
    * @param {string} strainId
@@ -313,16 +328,35 @@
     if (!st || !s.stock.strains.includes(strainId)) return 0;
     const pMult = st.priceMult;
     const unitPrice = Math.round(s.prices[type] * pMult);
-    const stock = type === 'weed' ? s.stock.weed : (type === 'hash' ? (s.stock.hash || 0) : (s.stock.resin || 0));
-    const toSell = amount === Infinity ? stock : Math.min(stock, amount || 1);
+    const mapKey = type + 'ByStrain';
+    const perStrain = s.stock[mapKey] || {};
+    const strainStock = perStrain[strainId] || 0;
+    const isOldSave = perStrain && Object.keys(perStrain).length === 0 && (s.stock[type] || 0) > 0;
+    const effectiveStock = (strainStock > 0 || !isOldSave) ? strainStock : (s.stock[type] || 0);
+    const toSell = amount === Infinity ? effectiveStock : Math.min(effectiveStock, amount || 1);
     if (toSell <= 0) return 0;
-    if (type === 'weed') s.stock.weed -= toSell;
-    else if (type === 'hash') s.stock.hash -= toSell;
-    else s.stock.resin -= toSell;
+    // deduct from per-strain and total
+    if (!s.stock[mapKey]) s.stock[mapKey] = {};
+    s.stock[mapKey][strainId] = Math.max(0, (perStrain[strainId] || 0) - toSell);
+    s.stock[type] = Math.max(0, (s.stock[type] || 0) - toSell);
     const gain = toSell * unitPrice;
     s.money += gain;
     s.totalEarned = (s.totalEarned || 0) + gain;
     return gain;
+  }
+
+  /** Add weed to stock (total + per-strain), respecting maxWeedStorage cap. Returns actual added. */
+  function addWeed(s, amount) {
+    const cap = maxWeedStorage(s);
+    const canAdd = Math.max(0, cap - (s.stock.weed || 0));
+    const toAdd = Math.min(amount, canAdd);
+    if (toAdd <= 0) return 0;
+    s.weed = (s.weed || 0) + toAdd;
+    s.stock.weed = (s.stock.weed || 0) + toAdd;
+    const sid = s.strain;
+    if (!s.stock.weedByStrain) s.stock.weedByStrain = {};
+    s.stock.weedByStrain[sid] = (s.stock.weedByStrain[sid] || 0) + toAdd;
+    return toAdd;
   }
 
   /**
@@ -364,10 +398,16 @@
       return d;
     }
      d.levels = { ...DEFAULT_LEVELS, ...(d.levels || {}) };
-     if (!d.stock || typeof d.stock !== 'object') d.stock = { weed: 0, hash: 0, resin: 0, strains: ['green'] };
+     if (!d.stock || typeof d.stock !== 'object') d.stock = { weed: 0, hash: 0, resin: 0, weedByStrain: {}, hashByStrain: {}, resinByStrain: {}, strains: ['green'] };
      d.stock.weed = typeof d.stock.weed === 'number' && d.stock.weed >= 0 ? d.stock.weed : 0;
      d.stock.hash = typeof d.stock.hash === 'number' && d.stock.hash >= 0 ? d.stock.hash : 0;
      d.stock.resin = typeof d.stock.resin === 'number' && d.stock.resin >= 0 ? d.stock.resin : 0;
+     // per-strain stock (new in varietal update) — init if missing, migrate generic stock for old saves
+     if (!d.stock.weedByStrain || typeof d.stock.weedByStrain !== 'object') d.stock.weedByStrain = {};
+     if (!d.stock.hashByStrain || typeof d.stock.hashByStrain !== 'object') d.stock.hashByStrain = {};
+     if (!d.stock.resinByStrain || typeof d.stock.resinByStrain !== 'object') d.stock.resinByStrain = {};
+     if (d.stock.weed > 0 && Object.keys(d.stock.weedByStrain).length === 0) d.stock.weedByStrain[d.strain] = (d.stock.weedByStrain[d.strain] || 0) + d.stock.weed;
+     if ((d.stock.hash || 0) > 0 && Object.keys(d.stock.hashByStrain).length === 0) d.stock.hashByStrain[d.strain] = (d.stock.hashByStrain[d.strain] || 0) + (d.stock.hash || 0);
      if (!Array.isArray(d.stock.strains)) d.stock.strains = ['green'];
      if (!getStrain(d.strain)) d.strain = 'green';
      d.weed = typeof d.weed === 'number' && d.weed >= 0 ? d.weed : 0;
@@ -378,7 +418,7 @@
        const p = d.prices;
        d.prices = { weed: typeof p.weed === 'number' ? p.weed : 12, hash: typeof p.hash === 'number' ? p.hash : 65, resin: typeof p.resin === 'number' ? p.resin : 280 };
      }
-     // drop legacy fields from old saves
+     // drop legacy fields
      delete d.points; delete d.genomes;
      delete d.stock.main; delete d.stock.premium; delete d.stock.rosin; delete d.stock.moonrock;
     d.milestones = Array.isArray(d.milestones)
@@ -399,6 +439,7 @@
     MILESTONES,
     mulberry32,
     maxWeedStorage,
+    addWeed,
     defaultState,
     getStrain,
     xpForLevel,

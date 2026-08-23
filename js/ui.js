@@ -193,36 +193,44 @@
   function renderShopVarietal() {
     if (!el.shopVarietal) return;
     el.shopVarietal.innerHTML = '';
-    const hasWeed = state.stock.weed > 0;
-    const hasHash = (state.stock.hash || 0) > 0;
-    if (!hasWeed && !hasHash) {
+    const owned = state.stock.strains;
+    let hasAny = false;
+    for (const sid of owned) {
+      if ((state.stock.weedByStrain && state.stock.weedByStrain[sid] > 0) || (state.stock.hashByStrain && state.stock.hashByStrain[sid] > 0) || state.stock.weed > 0) { hasAny = true; break; }
+    }
+    if (!hasAny && state.stock.weed <= 0 && (state.stock.hash || 0) <= 0) {
       el.shopVarietal.innerHTML = '<p style="font-size:.8rem;color:var(--muted)">Pas de stock à vendre — récolte d\'abord !</p>';
       return;
     }
-    for (const sid of state.stock.strains) {
+    for (const sid of owned) {
       const st = Game.getStrain(sid);
       if (!st) continue;
+      const weedStock = (state.stock.weedByStrain && state.stock.weedByStrain[sid]) || 0;
+      const hashStock = (state.stock.hashByStrain && state.stock.hashByStrain[sid]) || 0;
+      // show card even if stock is 0, but disable buttons — gives interest to see what each strain holds
       const weedPrice = Math.round(state.prices.weed * st.priceMult);
       const hashPrice = Math.round(state.prices.hash * st.priceMult);
       const card = document.createElement('div');
       card.className = 'varietal-card';
       card.innerHTML =
-        '<div class="varietal-head"><span>' + st.icon + '</span><span>' + st.name + '</span><span style="margin-left:auto;font-size:.75rem;color:var(--muted)">x' + st.priceMult + '</span></div>' +
+        '<div class="varietal-head"><span>' + st.icon + '</span><span>' + st.name + '</span><span style="margin-left:auto;font-size:.7rem;color:var(--muted)">' + weedStock + 'g / ' + hashStock + 'h</span><span style="font-size:.75rem;color:var(--gold)">x' + st.priceMult + '</span></div>' +
         '<div class="varietal-actions">' +
-          '<button class="mc-btn sell" data-t="weed">Weed 1g — ' + weedPrice + '€</button>' +
-          '<button class="mc-btn sell" data-t="hash">Hash 1u — ' + hashPrice + '€</button>' +
+          '<button class="mc-btn sell" data-t="weed">Weed 1g — ' + weedPrice + '€ (' + weedStock + 'g)</button>' +
+          '<button class="mc-btn sell" data-t="hash">Hash 1u — ' + hashPrice + '€ (' + hashStock + 'h)</button>' +
         '</div>';
       const wBtn = card.querySelector('[data-t="weed"]');
       const hBtn = card.querySelector('[data-t="hash"]');
-      wBtn.disabled = !hasWeed;
-      hBtn.disabled = !hasHash;
+      wBtn.disabled = weedStock <= 0;
+      hBtn.disabled = hashStock <= 0;
       wBtn.addEventListener('click', () => {
         const gain = Game.sellByStrain(state, sid, 'weed', 1);
         if (gain > 0) { toast('+' + fmt(gain) + '€ (' + st.name + ')'); popNum(el.m); refreshStats(); save(); }
+        else toast('Pas de weed ' + st.name);
       });
       hBtn.addEventListener('click', () => {
         const gain = Game.sellByStrain(state, sid, 'hash', 1);
         if (gain > 0) { toast('+' + fmt(gain) + '€ (' + st.name + ' hash)'); popNum(el.m); refreshStats(); save(); }
+        else toast('Pas de hash ' + st.name);
       });
       el.shopVarietal.appendChild(card);
     }
@@ -322,15 +330,9 @@
     ev.preventDefault();
     ev.stopPropagation();
     const ac = Game.perClick(state);
-    state.weed += ac;
-    state.stock.weed += ac;
-    // enforce storage cap
-    const cap = Game.maxWeedStorage(state);
-    if (state.stock.weed > cap) {
-      state.stock.weed = cap;
-      if (ac > 0) toast('Stock plein ! Vends ou agrandis 📦');
-    }
-    const xp = Game.earnXp(state, ac);
+    const added = Game.addWeed(state, ac);
+    if (added < ac) toast('Stock plein ! Vends ou agrandis 📦');
+    const xp = Game.earnXp(state, added);
     // retrigger animation even on rapid taps
     el.bc.classList.remove('pulse-active');
     void el.bc.offsetWidth;
@@ -418,11 +420,8 @@
   function autoProduce() {
     const ar = Game.perSecond(state);
     if (ar > 0) {
-      state.weed += ar;
-      state.stock.weed += ar;
-      const cap = Game.maxWeedStorage(state);
-      if (state.stock.weed > cap) state.stock.weed = cap;
-      Game.earnXp(state, ar);
+      const added = Game.addWeed(state, ar);
+      Game.earnXp(state, added);
     }
     refreshStats();
     save();
