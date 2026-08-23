@@ -149,11 +149,18 @@ Then open `http://localhost:8000`.
 ## Running the Tests
 
 ```bash
-npm test        # node --test, 50 tests
+npm test        # node --test — 70 unit + playthrough + e2e (e2e skips without a browser)
 ```
 
-- `test/game.test.js` — economy (costs, sell, craft, storage), strains + level gates, progression (curve, XP, milestones, productionMult), market products (catalog, qty craft/sell), automation (hires, autoTick ordering & isolation, save roundtrip), save/load
+- `test/game.test.js` — economy (costs, sell, craft, storage), strains + level gates, progression (curve, XP, milestones, productionMult), market products (catalog, qty craft/sell, pulse bounds & trends), automation (hires, level gate, autoTick ordering & isolation, save roundtrip), edge cases & save corruption hardening
+- `test/playthrough.test.js` — simulated optimal player (see « Boucle de progression ») asserting the pacing curve
+- `test/e2e.test.js` — drives the REAL game in headless chromium (13 scenarios: harvest click/space, tabs, market render & trends, sell, qty pills, craft+sell, upgrade buy, automation level lock, storage-full banner & navigation, save persistence, hard reset). Skips gracefully if no browser; CI provides one.
 - `test/bud.test.js` — SVG validity, determinism, `url(#…)` regression, structural counts (72 calyxes, 116 bracts total via rows, fan leaves, sugar leaves)
+
+## CI & Branch Policy
+
+- Every PR targeting `master` runs the full suite (unit + playthrough + e2e) via GitHub Actions: `.github/workflows/ci.yml`. Merge with **Squash and merge**.
+- `master` is protected: no direct pushes, PR required, checks must pass. (Settings → Branches → Branch protection / Rulesets.)
 
 ## Project Structure
 

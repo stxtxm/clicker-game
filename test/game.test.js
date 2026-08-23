@@ -480,3 +480,154 @@ test('deserialize: sanitizes malformed auto shapes and old saves', () => {
   }));
   assert.deepStrictEqual(weird.auto, { craft: { joint: true }, sell: {} });
 });
+
+// --- edge cases & hardening ---------------------------------------------------
+
+test('buyUpgrade: unknown id rejected without corrupting money', () => {
+  const s = Game.defaultState();
+  s.money = 1000;
+  const r = Game.buyUpgrade(s, 'nope');
+  assert.strictEqual(r.ok, false);
+  assert.strictEqual(r.reason, 'unknown');
+  assert.strictEqual(s.money, 1000);
+});
+
+test('upgradeCost: unknown id is not a number (never charged)', () => {
+  const s = Game.defaultState();
+  assert.ok(Number.isNaN(Game.upgradeCost(s, 'nope')));
+  assert.strictEqual(Game.buyUpgrade(s, 'nope').ok, false);
+});
+
+test('sellStock: clamps amount above stock, ignores zero/negative', () => {
+  const s = Game.defaultState();
+  s.stock.joint = 4;
+  const u = px(14, 'joint');
+  assert.strictEqual(Game.sellStock(s, 'joint', 99, 0), 4 * u);   // clamped to stock
+  assert.strictEqual(s.stock.joint, 0);
+  s.stock.joint = 5;
+  assert.strictEqual(Game.sellStock(s, 'joint', 0, 0), 1 * u);    // 0 -> min 1
+  assert.strictEqual(Game.sellStock(s, 'joint', -5, 0), 1 * u);   // negative -> min 1
+  assert.strictEqual(s.stock.joint, 3);
+});
+
+test('craftProduct: fractional/NaN qty floors to safe values', () => {
+  const s = Game.defaultState();
+  s.stock.weed = 30;
+  s.stock.weedByStrain.green = 30;
+  assert.strictEqual(Game.craftProduct(s, 'joint', 2.9).amount, 2);
+  assert.strictEqual(s.stock.joint, 2);
+  assert.strictEqual(Game.craftProduct(s, 'joint', NaN).amount, 1); // NaN -> 1
+  assert.strictEqual(Game.craftProduct(s, 'joint', '3').amount, 3); // numeric strings ok
+  assert.strictEqual(Game.craftProduct(s, 'unknown-prod', 1).ok, false);
+});
+
+test('addWeed: respects cap exactly, returns 0 when full', () => {
+  const s = Game.defaultState();
+  assert.strictEqual(Game.addWeed(s, 999999), 1000); // base cap
+  assert.strictEqual(s.stock.weed, 1000);
+  assert.strictEqual(Game.addWeed(s, 5), 0);         // full -> nothing
+  assert.strictEqual(s.stock.weedByStrain.green, 1000);
+});
+
+test('maxWeedStorage: missing/negative levels fall back to base', () => {
+  assert.strictEqual(Game.maxWeedStorage({}), 1000);
+  // corrupted saves with negative levels must never brick the cap
+  assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: -3, coldroom: undefined } }), 1000);
+  assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: 2, coldroom: 1 } }), 1000 + 1200 + 3000);
+});
+
+test('priceOf: unknown product is 0, weed uses prices.weed base', () => {
+  const s = Game.defaultState();
+  assert.strictEqual(Game.priceOf(s, 'unknown', 0), 0);
+  const weedPx = Game.priceOf(s, 'weed', 0);
+  assert.ok(weedPx >= Math.floor(6 * 0.7) && weedPx <= Math.ceil(6 * 1.3));
+});
+
+test('market pulse: all markets stay in bounds and are deterministic', () => {
+  for (const id of ['weed', ...Game.PRODUCTS.map((p) => p.id)]) {
+    for (const t of [0, 12345, 60000, 47211]) {
+      const p = Game.pulse(id, t);
+      assert.ok(p > 0.7 - 1e-9 && p < 1.3 + 1e-9, id + '@' + t + ' = ' + p);
+      assert.strictEqual(p, Game.pulse(id, t));
+    }
+  }
+});
+
+test('market trend: matches pulse slope (up between samples)', () => {
+  const id = 'hash';
+  for (let t = 0; t < 120000; t += 5000) {
+    const rising = Game.pulse(id, t + 100) > Game.pulse(id, t);
+    if (Game.trend(id, t) === 1) assert.ok(rising, 'trend up but pulse fell @' + t);
+    if (Game.trend(id, t) === -1) assert.ok(!rising, 'trend down but pulse rose @' + t);
+  }
+});
+
+test('equipStrain: re-equipping owned strain is free', () => {
+  const s = Game.defaultState();
+  s.money = 100;
+  assert.strictEqual(Game.equipStrain(s, 'green').ok, true);
+  assert.strictEqual(s.money, 100); // already owned
+  assert.strictEqual(Game.equipStrain(s, 'green').justUnlocked, false);
+});
+
+test('equipStrain: level gate blocks rich low-level players', () => {
+  const s = Game.defaultState();
+  s.money = 1e9;
+  assert.strictEqual(Game.equipStrain(s, 'widow').reason, 'level'); // unlock 45
+  assert.strictEqual(s.money, 1e9);
+});
+
+test('earnXp: multi-level jump reports every crossed milestone once', () => {
+  const s = Game.defaultState();
+  const r = Game.earnXp(s, 50000); // crosses m1 (200), m2 (2.5K), m3 (30K)
+  assert.deepStrictEqual(r.milestones.map((m) => m.id), ['m1', 'm2', 'm3']);
+  assert.deepStrictEqual(s.milestones, ['m1', 'm2', 'm3']);
+  assert.ok(r.level >= 7); // XP_GROWTH 1.32: 50K xp = level 7
+});
+
+test('productionMult: milestones stack with level and strain', () => {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(10);
+  s.milestones = ['m1', 'm2'];
+  s.strain = 'purple';
+  // (1 + 0.08*10) * 1.5 * 1.15
+  const expected = 1.8 * 1.5 * 1.15;
+  assert.ok(Math.abs(Game.productionMult(s) - expected) < 1e-9);
+});
+
+test('deserialize: negative and string-typed stock values are sanitized', () => {
+  const loaded = Game.deserialize(JSON.stringify({
+    stock: { weed: -50, joint: '12', hash: 3, strains: ['green'] },
+    money: -5
+  }));
+  assert.strictEqual(loaded.stock.weed, 0);
+  assert.strictEqual(loaded.stock.joint, 0); // string is not a number -> 0
+  assert.strictEqual(loaded.stock.hash, 3);
+  assert.strictEqual(loaded.money, -5);      // money kept as-is (UI displays floor)
+});
+
+test('serialize roundtrip keeps chains, per-strain maps and market state', () => {
+  const s = Game.defaultState();
+  s.money = 5e6;
+  s.xp = Game.xpForLevel(30);
+  s.stock.weed = 123;
+  s.stock.weedByStrain = { green: 100, purple: 23 };
+  s.stock.strains = ['green', 'purple'];
+  s.strain = 'purple';
+  Game.buyAutomation(s, 'auto-joint');
+  const loaded = Game.deserialize(Game.serialize(s));
+  assert.deepStrictEqual(loaded, s);
+});
+
+test('autoTick: multiple chains drain weed expensive-first, dealers sell each output', () => {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(20);
+  s.money = 1e9;
+  for (const id of ['auto-cake', 'auto-joint']) assert.strictEqual(Game.buyAutomation(s, id).ok, true);
+  s.stock.weed = 30; // cake eats 25g, joint gets the last 5g — but 1u/s cap each
+  const t = Game.autoTick(s, 0);
+  assert.deepStrictEqual(t.crafted, { cake: 1, joint: 1 });
+  // dealers sell their chain output (no manual stock to dip into -> quota clamped)
+  assert.strictEqual(t.soldMoney.cake, px(290, 'cake'));
+  assert.strictEqual(t.soldMoney.joint, px(14, 'joint'));
+});

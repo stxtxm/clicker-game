@@ -1,0 +1,32 @@
+name: CI
+
+# Pipeline déclenché sur toute PR vers master (validation avant squash & merge)
+# et sur master directement (validation post-merge).
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+jobs:
+  test:
+    name: Unit + E2E (headless chrome)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ubuntu-latest ships Google Chrome preinstalled at /usr/bin/google-chrome —
+      # the e2e suite detects it automatically (CHROMIUM_PATH override available).
+      - name: Run full test suite (unit + playthrough + e2e)
+        run: npm test
+
+      - name: Syntax gate (all game scripts must parse)
+        run: |
+          node --check js/game.js
+          node --check js/ui.js
+          node --check js/bud.js
+          node --check sw.js

@@ -237,10 +237,11 @@
   function maxWeedStorage(s) {
     let cap = 1000;
     if (s && s.levels) {
-      cap += (s.levels.sbox || 0) * 600;
-      cap += (s.levels.coldroom || 0) * 3000;
+      // clamp corrupted/negative save levels — a negative cap bricks the game
+      cap += Math.max(0, s.levels.sbox || 0) * 600;
+      cap += Math.max(0, s.levels.coldroom || 0) * 3000;
     }
-    return cap;
+    return Math.max(1000, cap);
   }
 
   /**
@@ -372,12 +373,13 @@
    * Try to buy an upgrade. Mutates state on success only.
    */
   function buyUpgrade(s, id) {
+    const u = UPGRADES.find((x) => x.id === id);
+    if (!u) return { ok: false, reason: 'unknown' };
     const cost = upgradeCost(s, id);
     if (s.money < cost) return { ok: false, reason: 'funds' };
     s.money -= cost;
     s.levels[id]++;
-    const u = UPGRADES.find((x) => x.id === id);
-    return { ok: true, cost, name: u ? u.name : id };
+    return { ok: true, cost, name: u.name };
   }
 
   /** @returns {boolean} true if the given automation hire is owned */

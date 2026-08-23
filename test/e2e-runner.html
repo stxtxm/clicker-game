@@ -1,0 +1,150 @@
+<!doctype html>
+<!-- E2E runner: loads the real game in a same-origin iframe and drives it like
+     a player. Writes one "E2E <name>: PASS|FAIL <detail>" line per scenario
+     into this document's body; test/e2e.test.js parses chromium --dump-dom. -->
+<html>
+<head><meta charset="UTF-8"><title>E2E</title></head>
+<body>
+<iframe id="game" src="../index.html" style="width:420px;height:820px"></iframe>
+<pre id="results"></pre>
+<script>
+const results = [];
+function report(name, ok, detail) {
+  results.push('E2E ' + name + ': ' + (ok ? 'PASS' : 'FAIL') + (detail ? ' — ' + detail : ''));
+}
+function q(sel) { return gameDoc().querySelector(sel); }
+function gameDoc() { return document.getElementById('game').contentDocument; }
+function gameWin() { return document.getElementById('game').contentWindow; }
+function money() { return parseInt((q('#m').textContent || '').replace(/[^\d]/g, ''), 10) || 0; }
+function weedStock() {
+  const m = (q('#stw').textContent || '').match(/([\d.]+)K?/);
+  if (!m) return 0;
+  return m[0].includes('K') ? parseFloat(m[1]) * 1000 : parseFloat(m[1]);
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function scenario() {
+  const w = gameWin();
+  await sleep(800); // boot + first toast
+
+  try {
+    // 1. boot state
+    const bud = q('#bs svg');
+    report('boot', !!bud && q('#m').textContent.includes('€') &&
+      q('#sb').textContent.includes('Green Dream'), 'svg=' + !!bud);
+
+    // 2. clicking harvests weed + xp
+    const before = weedStock();
+    q('#bs').click(); q('#bs').click(); q('#bs').click();
+    await sleep(120);
+    report('harvest-click', weedStock() >= before + 2, 'stock ' + before + '->' + weedStock());
+
+    // 3. space key harvests too
+    const b2 = weedStock();
+    gameDoc().dispatchEvent(new KeyboardEvent('keydown', { code: 'Space', bubbles: true }));
+    await sleep(120);
+    report('harvest-space', weedStock() >= b2 + 1, 'stock ' + b2 + '->' + weedStock());
+
+    // 4. buy first upgrade (150 € needs clicks: seed via many clicks is slow — use craft/sell loop instead)
+    // sell raw weed to afford Ciseaux Pro
+    w.BudGame; // sanity: game exposed
+    // switch to sell tab via deep-link behaviour: click tab button
+    q('.tab-btn[data-tab="sell"]').click();
+    await sleep(100);
+    report('tab-switch', q('#v-sell').classList.contains('active'), '');
+
+    // 5. market renders 9 cards with trend arrows + qty pills
+    const cards = gameDoc().querySelectorAll('#market-grid .market-card').length;
+    const trends = gameDoc().querySelectorAll('#market-grid .trend').length;
+    report('market-render', cards === 9 && trends >= 9, 'cards=' + cards + ' trends=' + trends);
+
+    // 6. sell weed raw -> money grows
+    const moneyBefore = money();
+    q('[data-p="weed"]').click();
+    await sleep(120);
+    report('sell-weed', money() > moneyBefore, moneyBefore + '->' + money());
+
+    // 7. qty pills change labels
+    gameDoc().querySelector('[data-q="max"]').click();
+    await sleep(100);
+    const maxLabel = q('[data-p="weed"]').textContent;
+    gameDoc().querySelector('[data-q="1"]').click();
+    report('qty-pills', /tout|max/i.test(maxLabel), maxLabel.trim());
+
+    // 8. craft a joint (2g) then sell it
+    // ensure enough weed first
+    for (let i = 0; i < 5; i++) q('#bs').click();
+    q('.tab-btn[data-tab="sell"]').click();
+    await sleep(80);
+    const jointCard = [...gameDoc().querySelectorAll('.market-card')].find((c) => c.textContent.includes('Joint'));
+    const craftBtn = jointCard.querySelector('.craft');
+    const haveWeed = weedStock();
+    if (!craftBtn.disabled) {
+      craftBtn.click();
+      await sleep(100);
+      const sellBtn = jointCard.querySelector('.sell');
+      const sold = money();
+      sellBtn.click();
+      await sleep(100);
+      report('craft-sell', money() >= sold, 'joint crafted & sold');
+    } else {
+      report('craft-sell', false, 'craft disabled with ' + haveWeed + 'g');
+    }
+
+    // 9. upgrade purchase via Upgrades tab (seed a rich save, reload iframe so
+    // the game boots from it, then buy like a player)
+    w.localStorage.setItem('budClicker', JSON.stringify({ weed: 0, money: 100000, strain: 'green', stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 }));
+    document.getElementById('game').src = '../index.html';
+    await sleep(900);
+    q('.tab-btn[data-tab="upgrades"]').click();
+    await sleep(120);
+    const harvestBtn = q('#ub-harvest');
+    report('upgrade-buy', !harvestBtn.disabled && q('#ul-harvest').textContent.includes('Lvl 1'),
+      'label=' + q('#ul-harvest').textContent);
+    harvestBtn.click();
+    await sleep(120);
+    report('upgrade-level', q('#ul-harvest').textContent.includes('Lvl 2'), q('#ul-harvest').textContent);
+
+    // 10. automation locked below level: auto-rosin (lvl 50) must be disabled
+    const rosinBtn = q('#ub-auto-rosin');
+    const rosinBadge = q('#ul-auto-rosin');
+    report('auto-locked', rosinBtn.disabled && rosinBadge.textContent.includes('🔒'), rosinBadge.textContent);
+
+    // 11. storage-full feedback: seed a near-cap save and reload iframe
+    const capSave = { weed: 1000, money: 10, strain: 'green', stock: { weed: 1000, weedByStrain: { green: 1000 }, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 };
+    w.localStorage.setItem('budClicker', JSON.stringify(capSave));
+    document.getElementById('game').src = '../index.html';
+    await sleep(900);
+    const fullShown = !q('#full-warn').hidden;
+    const budPulsing = q('#bc').classList.contains('storage-full');
+    report('storage-full', fullShown && budPulsing, 'banner=' + fullShown + ' pulse=' + budPulsing);
+    // banner jumps to Marché
+    q('#full-warn').click();
+    await sleep(100);
+    report('banner-nav', q('#v-sell').classList.contains('active'), '');
+
+    // 12. save persistence: reload keeps money
+    const moneyPersist = money();
+    document.getElementById('game').src = '../index.html';
+    await sleep(900);
+    report('persistence', money() === moneyPersist, moneyPersist + ' vs ' + money());
+
+    // 13. hard reset via danger zone (double click)
+    q('.tab-btn[data-tab="progress"]').click();
+    await sleep(80);
+    q('#rb').click();
+    q('#rb').click();
+    await sleep(150);
+    report('hard-reset', money() === 0 && q('#sb').textContent.includes('Green Dream'), 'money=' + money());
+  } catch (e) {
+    report('scenario-crash', false, String(e));
+  }
+
+  document.getElementById('results').textContent = results.join('\n');
+  document.title = 'E2E DONE ' + results.filter((r) => r.includes('FAIL')).length + ' failures';
+}
+
+window.addEventListener('load', () => scenario());
+</script>
+</body>
+</html>
