@@ -232,17 +232,11 @@
     state.stock.weed += ac;
     const xp = Game.earnXp(state, ac);
     // retrigger animation even on rapid taps
-    el.bs.classList.remove('pulse-active');
-    void el.bs.offsetWidth;
-    el.bs.classList.add('pulse-active');
-    setTimeout(() => el.bs.classList.remove('pulse-active'), 300);
-    let x = 50, y = 45;
-    if (ev && ev.clientX && ev.clientY) {
-      const r = el.bc.getBoundingClientRect();
-      x = ((ev.clientX - r.left) / r.width) * 100;
-      y = ((ev.clientY - r.top) / r.height) * 100;
-    }
-    spawnParticle('+' + ac + 'g', x, y);
+    el.bc.classList.remove('pulse-active');
+    void el.bc.offsetWidth;
+    el.bc.classList.add('pulse-active');
+    setTimeout(() => el.bc.classList.remove('pulse-active'), 400);
+    spawnParticle('+' + ac + 'g');
     refreshStats();
     popNum(el.p);
     save();
@@ -256,14 +250,14 @@
     }
   }
 
-  function spawnParticle(text, x, y) {
+  function spawnParticle(text) {
     const p = document.createElement('div');
-    p.className = 'particle';
+    p.className = 'click-fx';
     p.textContent = text;
-    p.style.left = (x || 50) + '%';
-    p.style.top = (y || 45) + '%';
+    // léger jitter horizontal pour les taps rapides, vertical fixe
+    p.style.left = (50 + (Math.random() - 0.5) * 16) + '%';
     el.bc.appendChild(p);
-    setTimeout(() => p.remove(), 520);
+    setTimeout(() => p.remove(), 720);
   }
 
   function onCraft(type) {
