@@ -54,31 +54,33 @@ test('perSecond: auto + crew, scaled by level and strain multiplier', () => {
   assert.strictEqual(Game.perSecond(s), 33);     // 31 * 1.08 = 33.48 -> 33
 });
 
-test('upgradeCost scales with COST_GROWTH', () => {
+test('upgradeCost scales with COST_GROWTH (storage has its own steeper growth)', () => {
   const s = Game.defaultState();
-  assert.strictEqual(Game.upgradeCost(s, 'harvest'), 100); // harvest starts at level 1
-  assert.strictEqual(Game.upgradeCost(s, 'harvest', ), Math.floor(100 * Math.pow(Game.COST_GROWTH, 0)));
+  assert.strictEqual(Game.upgradeCost(s, 'harvest'), 150); // harvest starts at level 1
   s.levels.harvest = 2;
-  assert.strictEqual(Game.upgradeCost(s, 'harvest'), Math.floor(100 * Math.pow(Game.COST_GROWTH, 1)));
-  assert.strictEqual(Game.upgradeCost(s, 'auto'), 500);   // auto starts at level 0
+  assert.strictEqual(Game.upgradeCost(s, 'harvest'), Math.floor(150 * Math.pow(Game.COST_GROWTH, 1)));
+  assert.strictEqual(Game.upgradeCost(s, 'auto'), 750);   // auto starts at level 0
+  assert.strictEqual(Game.upgradeCost(s, 'sbox'), 8000);
+  s.levels.sbox = 1;
+  assert.strictEqual(Game.upgradeCost(s, 'sbox'), Math.floor(8000 * 4.2)); // storage growth 4.2
 });
 
 test('buyUpgrade: insufficient funds does not mutate', () => {
   const s = Game.defaultState();
-  s.money = 99;
+  s.money = 149;
   const res = Game.buyUpgrade(s, 'harvest');
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'funds');
-  assert.strictEqual(s.money, 99);
+  assert.strictEqual(s.money, 149);
   assert.strictEqual(s.levels.harvest, 1);
 });
 
 test('buyUpgrade: success deducts money and levels up', () => {
   const s = Game.defaultState();
-  s.money = 275;
-  const res = Game.buyUpgrade(s, 'harvest'); // lvl1 -> base cost 100 (exponent 0)
+  s.money = 325;
+  const res = Game.buyUpgrade(s, 'harvest'); // lvl1 -> base cost 150 (exponent 0)
   assert.strictEqual(res.ok, true);
-  assert.strictEqual(res.cost, 100);
+  assert.strictEqual(res.cost, 150);
   assert.strictEqual(res.name, 'Ciseaux Pro');
   assert.strictEqual(s.money, 175);
   assert.strictEqual(s.levels.harvest, 2);
@@ -102,11 +104,11 @@ test('sellStock: weed, product, partial amount and all (pulse-aware)', () => {
   s.stock.weed = 10;
   s.stock.hash = 1;
   s.stock.resin = 1;
-  assert.strictEqual(Game.sellStock(s, 'weed', undefined, 0), 10 * px(8, 'weed'));
+  assert.strictEqual(Game.sellStock(s, 'weed', undefined, 0), 10 * px(6, 'weed'));
   assert.strictEqual(s.stock.weed, 0);
   assert.strictEqual(s.stock.hash, 1);
-  assert.strictEqual(Game.sellStock(s, 'hash', undefined, 0), px(150, 'hash'));
-  assert.strictEqual(Game.sellStock(s, 'resin', 1, 0), px(720, 'resin'));
+  assert.strictEqual(Game.sellStock(s, 'hash', undefined, 0), px(115, 'hash'));
+  assert.strictEqual(Game.sellStock(s, 'resin', 1, 0), px(550, 'resin'));
   assert.strictEqual(Game.sellStock(s, 'all', undefined, 0), 0); // empty
 });
 
@@ -114,12 +116,12 @@ test('sellStock: partial amounts and sell-all across products', () => {
   const s = Game.defaultState();
   s.stock.joint = 10;
   s.stock.weed = 50;
-  const unitJ = px(18, 'joint');
+  const unitJ = px(14, 'joint');
   const gain3 = Game.sellStock(s, 'joint', 3, 0);
   assert.strictEqual(gain3, 3 * unitJ);
   assert.strictEqual(s.stock.joint, 7);
   const gain = Game.sellStock(s, 'all', undefined, 0);
-  assert.strictEqual(gain, 7 * unitJ + 50 * px(8, 'weed'));
+  assert.strictEqual(gain, 7 * unitJ + 50 * px(6, 'weed'));
   assert.strictEqual(s.stock.joint, 0);
   assert.strictEqual(s.stock.weed, 0);
   assert.strictEqual(s.money, gain3 + gain);
@@ -147,7 +149,7 @@ test('product prices scale with equipped strain multiplier and pulse', () => {
   const s = Game.defaultState();
   s.strain = 'purple'; // x1.4
   assert.strictEqual(Game.productUnitPrice(s, Game.getProduct('joint'), 0),
-    Math.round(18 * 1.4 * Game.pulse('joint', 0)));
+    Math.round(14 * 1.4 * Game.pulse('joint', 0)));
 });
 
 test('perClick: Doigts Agiles adds a share of auto production', () => {
@@ -168,13 +170,13 @@ test('equipStrain: unknown id', () => {
 
 test('equipStrain: buying unlocks and equips (level gate satisfied)', () => {
   const s = Game.defaultState();
-  s.money = 3000;
+  s.money = 5000;
   s.xp = 3500;                                   // level 4 >= unlock 4
   const res = Game.equipStrain(s, 'purple');
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.justUnlocked, true);
   assert.strictEqual(res.name, 'Purple Haze');
-  assert.strictEqual(s.money, 500);
+  assert.strictEqual(s.money, 1000);
   assert.deepStrictEqual(s.stock.strains, ['green', 'purple']);
   assert.strictEqual(s.strain, 'purple');
 });
@@ -271,19 +273,19 @@ test('data catalog is coherent', () => {
 
 test('level curve: hybrid quadratic-exponential XP thresholds', () => {
   assert.strictEqual(Game.xpForLevel(1), 0);
-  assert.strictEqual(Game.xpForLevel(2), 192);   // 150 * 1² * 1.28¹ rounded
-  assert.strictEqual(Game.xpForLevel(3), 983);
+  assert.strictEqual(Game.xpForLevel(2), 198);   // 150 * 1² * 1.32¹ rounded
+  assert.strictEqual(Game.xpForLevel(3), 1045);
   assert.strictEqual(Game.levelFromXp(0), 1);
-  assert.strictEqual(Game.levelFromXp(191), 1);
-  assert.strictEqual(Game.levelFromXp(192), 2);
-  assert.strictEqual(Game.levelFromXp(982), 2);
-  assert.strictEqual(Game.levelFromXp(983), 3);
+  assert.strictEqual(Game.levelFromXp(197), 1);
+  assert.strictEqual(Game.levelFromXp(198), 2);
+  assert.strictEqual(Game.levelFromXp(1044), 2);
+  assert.strictEqual(Game.levelFromXp(1045), 3);
 });
 
 test('xpProgress reports level, progress and XP needed', () => {
   const p = Game.xpProgress(200);
   assert.strictEqual(p.level, 2);
-  assert.strictEqual(p.current, 8);
+  assert.strictEqual(p.current, 2);
 });
 
 test('earnXp levels up and reports milestones', () => {
@@ -318,7 +320,7 @@ test('perClick/perSecond scale with level', () => {
   s.levels.harvest = 5;
   const base = 5 * 1.08;
   assert.strictEqual(Game.perClick(s), Math.round(base));
-  s.xp = 3000;                                                // level 4 -> x1.32
+  s.xp = 3105;                                                // level 4 -> x1.32
   assert.strictEqual(Game.perClick(s), Math.round(5 * 1.32));
 });
 
@@ -350,7 +352,7 @@ test('automation catalog: one hire per product, coherent costs', () => {
     assert.ok(p, 'unknown product ' + a.productId);
     assert.strictEqual(a.kind, 'both');
     assert.ok(a.cost > 0 && Number.isInteger(a.cost));
-    assert.strictEqual(a.cost, Math.round(p.price * 400));
+    assert.strictEqual(a.cost, Math.round(p.price * 500));
     assert.strictEqual(a.unlock, p.unlock + 5); // chains arrive after the product
   }
 });
@@ -358,8 +360,8 @@ test('automation catalog: one hire per product, coherent costs', () => {
 test('buyAutomation: funds check, deducts money and unlocks craft+sell', () => {
   const s = Game.defaultState();
   s.xp = Game.xpForLevel(6); // auto-joint unlock level
-  const COST = Game.AUTOMATION.find((a) => a.id === 'auto-joint').cost; // 18 * 400 = 7200
-  assert.strictEqual(COST, 7200);
+  const COST = Game.AUTOMATION.find((a) => a.id === 'auto-joint').cost; // 14 * 500 = 7000
+  assert.strictEqual(COST, 7000);
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').reason, 'funds');
   s.money = COST - 1;
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').reason, 'funds');
@@ -411,15 +413,15 @@ test('autoTick: chain crafts 1u/s and sells ONLY its own output', () => {
   const s = Game.defaultState();
   s.xp = Game.xpForLevel(6);
   s.money = 100000;
-  Game.buyAutomation(s, 'auto-joint');    // cost 7200; 2g -> 1 joint
+  Game.buyAutomation(s, 'auto-joint');    // cost 7000; 2g -> 1 joint
   s.stock.joint = 5;                      // hand-made stock
   s.stock.weed = 21;
   const t = Game.autoTick(s, 0);
   assert.strictEqual(t.crafted.joint, 1);               // capped at 1u/s
-  assert.strictEqual(t.soldMoney.joint, px(18, 'joint')); // sells the crafted unit only
+  assert.strictEqual(t.soldMoney.joint, px(14, 'joint')); // sells the crafted unit only
   assert.strictEqual(s.stock.joint, 5);                 // manual stock untouched!
   assert.strictEqual(s.stock.weed, 19);
-  assert.strictEqual(s.money, 100000 - 7200 + px(18, 'joint')); // hire paid, trickle earned
+  assert.strictEqual(s.money, 100000 - 7000 + px(14, 'joint')); // hire paid, trickle earned
 });
 
 test('autoTick: dealer without crafter output sells nothing', () => {

@@ -39,15 +39,17 @@
   /** Upgrades catalog: id, display name, icon, description, base cost.
    *  Costs are tuned so early purchases take ~1-2 min of play to pay back. */
   const UPGRADES = [
-    { id: 'harvest', name: 'Ciseaux Pro',    icon: '✂️',   desc: '+1g de weed par clic',      cost: 100 },
-    { id: 'auto',    name: 'Système Auto',   icon: '🤖',   desc: '+1g de weed par seconde',   cost: 500 },
-    { id: 'thumb',   name: 'Doigts Agiles',  icon: '🫰',   desc: '+8% de ta prod./s s\'ajoute à chaque clic', cost: 800 },
-    { id: 'expert',  name: 'Taille Expert',  icon: '🧑‍🌾', desc: '+5g de weed par clic',      cost: 2500 },
-    { id: 'crew',    name: 'Équipe de Serre',icon: '👥',   desc: '+15g de weed par seconde',  cost: 12000 },
-    { id: 'turbo',   name: 'Éclairage Turbo',icon: '⚡',   desc: 'x2 production de weed',     cost: 60000 },
-    { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: 'x2 production globale',     cost: 400000 },
-    { id: 'sbox',    name: 'Boîte Étanche',  icon: '📦',   desc: '+500g capacité weed max',   cost: 600 },
-    { id: 'coldroom',name: 'Chambre Froide', icon: '❄️',   desc: '+2500g capacité weed max',  cost: 15000 }
+    { id: 'harvest', name: 'Ciseaux Pro',    icon: '✂️',   desc: '+1g de weed par clic',      cost: 150 },
+    { id: 'auto',    name: 'Système Auto',   icon: '🤖',   desc: '+1g de weed par seconde',   cost: 750 },
+    { id: 'thumb',   name: 'Doigts Agiles',  icon: '🫰',   desc: '+8% de ta prod./s s\'ajoute à chaque clic', cost: 1200 },
+    { id: 'expert',  name: 'Taille Expert',  icon: '🧑‍🌾', desc: '+5g de weed par clic',      cost: 4000 },
+    { id: 'crew',    name: 'Équipe de Serre',icon: '👥',   desc: '+15g de weed par seconde',  cost: 25000 },
+    { id: 'turbo',   name: 'Éclairage Turbo',icon: '⚡',   desc: 'x2 production de weed',     cost: 90000 },
+    { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: 'x2 production globale',     cost: 750000 },
+    // Storage upgrades grow much faster (growth: 3.2) than production ones:
+    // income ≈ cap × €/g, so storage is THE money sink pacing the endgame.
+    { id: 'sbox',    name: 'Boîte Étanche',  icon: '📦',   desc: '+600g capacité weed max',   cost: 8000, growth: 4.2 },
+    { id: 'coldroom',name: 'Chambre Froide', icon: '❄️',   desc: '+3000g capacité weed max',  cost: 500000, growth: 4.2 }
   ];
 
   /**
@@ -61,25 +63,25 @@
     { id: 'green',  name: 'Green Dream', icon: '🌿', cost: 0,     unlock: 1,  yieldMult: 1.0, priceMult: 1.0, desc: 'La classique, résineuse et généreuse',
       d: ['#3f6d2c', '#1b3b13'], m: ['#5f8f3c', '#2c521f'], l: ['#a8d172', '#4c7a2e'], f: ['#d3eaa2', '#7fae48'],
       vein: '#173012', stroke: '#102a0c', pistil: '#ff8c00', pistil2: '#ff9d1f', frost: 1 },
-    { id: 'purple', name: 'Purple Haze', icon: '🟣', cost: 2500, unlock: 4,  yieldMult: 1.5, priceMult: 1.4, desc: 'Notes violettes et sucrées, haut rendement',
+    { id: 'purple', name: 'Purple Haze', icon: '🟣', cost: 4000, unlock: 4,  yieldMult: 1.5, priceMult: 1.4, desc: 'Notes violettes et sucrées, haut rendement',
       d: ['#4a2f6e', '#241243'], m: ['#6a3fa0', '#341a58'], l: ['#a06fd0', '#5c2f8a'], f: ['#cfa8ee', '#8a55c0'],
       vein: '#1c0f38', stroke: '#150a2c', pistil: '#ffab2e', pistil2: '#ffc46e', frost: 1.25 },
-    { id: 'blue',   name: 'Blue Frost',  icon: '💠', cost: 15000, unlock: 8,  yieldMult: 2.2, priceMult: 2.0, desc: 'Givrée bleutée, très cristalline et puissante',
+    { id: 'blue',   name: 'Blue Frost',  icon: '💠', cost: 40000, unlock: 8,  yieldMult: 2.2, priceMult: 2.0, desc: 'Givrée bleutée, très cristalline et puissante',
       d: ['#1f4a5a', '#0d2630'], m: ['#2e6f8f', '#163b4d'], l: ['#5fa8cf', '#2f6d8f'], f: ['#a8d8ee', '#5f9fcf'],
       vein: '#0c2230', stroke: '#081a24', pistil: '#ffffff', pistil2: '#d8f0ff', frost: 1.7 },
-    { id: 'pink',   name: 'Pink Kush',   icon: '🌸', cost: 60000, unlock: 13, yieldMult: 3.5, priceMult: 3.0, desc: 'Pistils rosés denses, valeur exceptionnelle',
+    { id: 'pink',   name: 'Pink Kush',   icon: '🌸', cost: 250000, unlock: 13, yieldMult: 3.5, priceMult: 3.0, desc: 'Pistils rosés denses, valeur exceptionnelle',
       d: ['#6e2f4a', '#3a1730'], m: ['#8f3f6a', '#4a1f3a'], l: ['#d06fa8', '#8a3f66'], f: ['#eea8cf', '#b06f98'],
       vein: '#351028', stroke: '#280c1e', pistil: '#ff6f9d', pistil2: '#ffb3cc', frost: 1.4 },
-    { id: 'lemon',  name: 'Lemon Haze',  icon: '🍋', cost: 220000, unlock: 19, yieldMult: 5.2, priceMult: 4.5, desc: 'Arômes acidulés toniques, production fulgurante',
+    { id: 'lemon',  name: 'Lemon Haze',  icon: '🍋', cost: 1200000, unlock: 19, yieldMult: 5.2, priceMult: 4.5, desc: 'Arômes acidulés toniques, production fulgurante',
       d: ['#6d6d2c', '#3b3b13'], m: ['#8f8f3c', '#52521f'], l: ['#d1d172', '#7a7a2e'], f: ['#eaeaa2', '#aeae48'],
       vein: '#303012', stroke: '#2a2a0c', pistil: '#ffea00', pistil2: '#ffff55', frost: 1.8 },
-    { id: 'northern',name: 'Northern Lights', icon: '🌌', cost: 850000, unlock: 26, yieldMult: 8.0, priceMult: 7.0, desc: 'Indica légendaire et givrée de trichomes',
+    { id: 'northern',name: 'Northern Lights', icon: '🌌', cost: 7000000, unlock: 26, yieldMult: 8.0, priceMult: 7.0, desc: 'Indica légendaire et givrée de trichomes',
       d: ['#2c3f6d', '#131b3b'], m: ['#3c5f8f', '#1f2c52'], l: ['#72a8d1', '#2e4c7a'], f: ['#a2d3ea', '#487fae'],
       vein: '#121730', stroke: '#0c102a', pistil: '#00ffff', pistil2: '#88ffff', frost: 2.1 },
-    { id: 'gorilla', name: 'Gorilla Glue', icon: '🦍', cost: 3500000, unlock: 34, yieldMult: 13.0, priceMult: 11.0, desc: 'Résine ultra-collante, puissance maximale',
+    { id: 'gorilla', name: 'Gorilla Glue', icon: '🦍', cost: 40000000, unlock: 34, yieldMult: 13.0, priceMult: 11.0, desc: 'Résine ultra-collante, puissance maximale',
       d: ['#5a4a2f', '#30260d'], m: ['#8f723e', '#4d3b16'], l: ['#cfa86e', '#7a5f2e'], f: ['#eecda8', '#ae8848'],
       vein: '#30220c', stroke: '#241a08', pistil: '#ffaa00', pistil2: '#ffcc44', frost: 2.5 },
-    { id: 'widow',  name: 'White Widow', icon: '🕷️', cost: 15000000, unlock: 45, yieldMult: 22.0, priceMult: 18.0, desc: 'Blanche de trichomes, le sommet absolu',
+    { id: 'widow',  name: 'White Widow', icon: '🕷️', cost: 200000000, unlock: 45, yieldMult: 22.0, priceMult: 18.0, desc: 'Blanche de trichomes, le sommet absolu',
       d: ['#4a4a4a', '#202020'], m: ['#707070', '#383838'], l: ['#a8a8a8', '#5a5a5a'], f: ['#e0e0e0', '#888888'],
       vein: '#1f1f1f', stroke: '#121212', pistil: '#ffffff', pistil2: '#ffffff', frost: 3.0 }
   ];
@@ -88,7 +90,7 @@
   const BASE_COST = Object.fromEntries(UPGRADES.map((u) => [u.id, u.cost]));
 
   /** Multiplicative growth of upgrade cost per level (Cookie-Clicker-like). */
-  const COST_GROWTH = 1.75;
+  const COST_GROWTH = 1.85;
 
   /** Default upgrade levels for a brand new game. */
   const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, thumb: 0, crew: 0, turbo: 0, mega: 0, sbox: 0, coldroom: 0 };
@@ -99,14 +101,14 @@
    * Higher tiers give a better €/g ratio but need more weed and a higher level.
    */
   const PRODUCTS = [
-    { id: 'joint',   icon: '🚬', name: 'Joint Roulé',        cost: 2,   price: 18,   unlock: 1,  desc: 'Le classique du marché' },
-    { id: 'sachet',  icon: '🛍️', name: 'Sachet Scellé',      cost: 6,   price: 60,   unlock: 4,  desc: 'Conditionné sous vide' },
-    { id: 'hash',    icon: '📦', name: 'Hash Conditionné',   cost: 12,  price: 150,  unlock: 8,  desc: 'Pressé à la main' },
-    { id: 'cake',    icon: '🍰', name: 'Space Cake',         cost: 25,  price: 380,  unlock: 13, desc: 'Recette maison gourmande' },
-    { id: 'resin',   icon: '🍯', name: 'Résine Supérieure',  cost: 40,  price: 720,  unlock: 19, desc: 'Extraction soignée' },
-    { id: 'huile',   icon: '💧', name: 'Huile Verte',        cost: 80,  price: 1600, unlock: 26, desc: 'Distillat concentré' },
-    { id: 'shatter', icon: '💎', name: 'Shatter Pur',        cost: 150, price: 3400, unlock: 34, desc: 'Translucide et puissant' },
-    { id: 'rosin',   icon: '🌟', name: 'Live Rosin',         cost: 300, price: 7650, unlock: 45, desc: 'Le nec plus ultra des extraits' }
+    { id: 'joint',   icon: '🚬', name: 'Joint Roulé',        cost: 2,   price: 14,   unlock: 1,  desc: 'Le classique du marché' },
+    { id: 'sachet',  icon: '🛍️', name: 'Sachet Scellé',      cost: 6,   price: 46,   unlock: 4,  desc: 'Conditionné sous vide' },
+    { id: 'hash',    icon: '📦', name: 'Hash Conditionné',   cost: 12,  price: 115,  unlock: 8,  desc: 'Pressé à la main' },
+    { id: 'cake',    icon: '🍰', name: 'Space Cake',         cost: 25,  price: 290,  unlock: 13, desc: 'Recette maison gourmande' },
+    { id: 'resin',   icon: '🍯', name: 'Résine Supérieure',  cost: 40,  price: 550,  unlock: 19, desc: 'Extraction soignée' },
+    { id: 'huile',   icon: '💧', name: 'Huile Verte',        cost: 80,  price: 1200, unlock: 26, desc: 'Distillat concentré' },
+    { id: 'shatter', icon: '💎', name: 'Shatter Pur',        cost: 150, price: 2600, unlock: 34, desc: 'Translucide et puissant' },
+    { id: 'rosin',   icon: '🌟', name: 'Live Rosin',         cost: 300, price: 5800, unlock: 45, desc: 'Le nec plus ultra des extraits' }
   ];
 
   /**
@@ -131,13 +133,13 @@
     icon: '⚙️',
     name: 'Chaîne ' + p.name,
     desc: 'Fabrique et vend 1u/s maximum — ton stock manuel reste intact',
-    cost: Math.round(p.price * 400),
+    cost: Math.round(p.price * 500),
     unlock: p.unlock + 5
   }));
 
   /* ---- progression curve (Slower, deeper & more rewarding) ---------------- */
   const XP_BASE = 150;
-  const XP_GROWTH = 1.28;
+  const XP_GROWTH = 1.32;
 
   /** Milestones: permanent production bonuses granted at lifetime-XP thresholds. */
   const MILESTONES = [
@@ -235,8 +237,8 @@
   function maxWeedStorage(s) {
     let cap = 1000;
     if (s && s.levels) {
-      cap += (s.levels.sbox || 0) * 500;
-      cap += (s.levels.coldroom || 0) * 2500;
+      cap += (s.levels.sbox || 0) * 600;
+      cap += (s.levels.coldroom || 0) * 3000;
     }
     return cap;
   }
@@ -256,7 +258,7 @@
       money: 0,
       strain: 'green',
       stock,
-      prices: { weed: 8 },
+      prices: { weed: 6 },
       levels: { ...DEFAULT_LEVELS },
       auto: { craft: {}, sell: {} },
       xp: 0,
@@ -361,7 +363,9 @@
    * Growth is gentler than the old x2.1 doubling — no more dead-end walls.
    */
   function upgradeCost(s, id) {
-    return Math.floor(BASE_COST[id] * Math.pow(COST_GROWTH, s.levels[id] - (id === 'harvest' ? 1 : 0)));
+    const u = UPGRADES.find((x) => x.id === id);
+    const growth = (u && u.growth) || COST_GROWTH;
+    return Math.floor(BASE_COST[id] * Math.pow(growth, s.levels[id] - (id === 'harvest' ? 1 : 0)));
   }
 
   /**
@@ -629,8 +633,8 @@
      d.weed = typeof d.weed === 'number' && d.weed >= 0 ? d.weed : 0;
      d.xp = typeof d.xp === 'number' && d.xp >= 0 ? d.xp : 0;
      d.totalEarned = typeof d.totalEarned === 'number' && d.totalEarned >= 0 ? d.totalEarned : 0;
-     if (!d.prices || typeof d.prices !== 'object') d.prices = { weed: 8 };
-     else if (typeof d.prices.weed !== 'number') d.prices.weed = 8;
+     if (!d.prices || typeof d.prices !== 'object') d.prices = { weed: 6 };
+     else if (typeof d.prices.weed !== 'number') d.prices.weed = 6;
      // drop legacy fields
      delete d.points; delete d.genomes;
      delete d.stock.main; delete d.stock.premium; delete d.stock.moonrock;

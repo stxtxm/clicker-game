@@ -6,7 +6,7 @@ A mobile-friendly idle grower: click the bud, craft products, sell for €, auto
 
 1. **Click the bud** (or press **Space**) to harvest weed (grams). Clicking never becomes obsolete: *Doigts Agiles* upgrades add a share of your per-second production to every click.
 2. **Watch the market** — every commodity pulses ±30% on a ~2 min cycle (↗ rising / ↘ falling). Time your bulk sales for peaks: that is where the real money is.
-3. **Craft** weed into 8 market products in *Marché* — from 🚬 Joint Roulé (2g → 18 €) to 🌟 Live Rosin (300g → 7 650 €). Higher tiers convert weed at a better €/g but unlock at higher levels.
+3. **Craft** weed into 8 market products in *Marché* — from 🚬 Joint Roulé (2g → 14 €) to 🌟 Live Rosin (300g → 5 800 €). Higher tiers convert weed at a better €/g but unlock at higher levels.
 4. **Sell** raw weed or crafted products with the **x1/x10/x100/MAX** pills and **💸 Tout vendre**.
 5. **Automate (sparingly)** in *Upgrades*: each **Chaîne** auto-crafts and sells its product at a hard cap of 1u/s at the *current* market price — your manual stock is never sold for you.
 6. **Spend cash on upgrades** — click power, auto-production, storage.
@@ -21,32 +21,54 @@ A mobile-friendly idle grower: click the bud, craft products, sell for €, auto
 - **Mid**: unlock craft tiers for better €/g; ride market swings; buy a first Chaîne only when its passive beats what you earn by hand.
 - **Late**: chains trickle while you play the market for spikes; strains multiply everything.
 
+## Boucle de progression (simulée)
+
+`test/playthrough.test.js` plays the REAL game logic like a player — 2.5 clicks/s,
+crafts the best unlocked product, sells at favorable market pulses, goes AFK 3 min
+every 8 min, dumps on return, buys upgrades cheapest-first, storage after capped
+sessions, strains and chains when unlocked + affordable — and asserts pacing:
+
+| Milestone (optimal play) | Target |
+|---|---|
+| First upgrade | ≤ 1 min |
+| Level 10 | 6–20 min |
+| First Chaîne | 3–15 min |
+| Level 20 | 20–60 min |
+| 1M lifetime | 6–20 min |
+| 10M lifetime | ≥ 9 min |
+| 2h ceiling | < 10 B€ lifetime |
+
+An optimal sim ≈ 2-4× faster than a real player. The levers, in order of impact:
+**storage cost growth (×4.2)** — income ≈ cap × €/g, so storage gates everything;
+**strain costs** (exponential income jumps); **XP_GROWTH 1.32** (level gates);
+**product €/g ladder** (crafting depth). Tune those, re-run the sim, compare.
+
 ## Progression
 
 Every harvested gram is 1 **XP**, earned forever. XP drives a hybrid curve (level N needs `150*(N-1)²*1.28^(N-1)` XP): fast early, then steep.
 
 - **Levels**: each level adds **+8%** to all production. Strains unlock at 1, 4, 8, 13, 19, 26, 34, 45.
-- **Strains**: `yieldMult` multiplies weed per click/second.
+- **Strains**: `yieldMult` multiplies weed per click/second, `priceMult` the sale prices — together they are the big progression jumps, gated by steep costs (Purple 4 K€ → Widow 200 M€).
 - **Milestones**: permanent bonuses at 200 → +5%, 2.5K → +10%, 30K → +15%, 350K → +25%, 4M → +40%, 50M → +75%.
-- **Storage**: `maxWeedStorage()` = 1000 + 500×BoîteÉtanche + 2500×ChambreFroide. Harvest is capped, toast `Stock plein !` when full.
+- **Storage**: `maxWeedStorage()` = 1000 + 600×BoîteÉtanche + 3000×ChambreFroide. Harvest is capped, toast `Stock plein !` when full. Income ≈ cap × €/g, so **storage is the main money sink**: its cost grows ×4.2 per level (see Upgrades).
 
 All bonuses multiply.
 
 ## Upgrades
 
-| Upgrade | Effect | Base Cost |
-|---------|--------|-----------|
-| Ciseaux Pro | +1g per click | 100 € |
-| Système Auto | +1g per second | 500 € |
-| Doigts Agiles | clicks gain +8% of your prod./s (per level) | 800 € |
-| Taille Expert | +5g per click | 2 500 € |
-| Équipe de Serre | +15g per second | 12 000 € |
-| Éclairage Turbo | x2 weed production | 60 000 € |
-| Laboratoire+ | x2 all production | 400 000 € |
-| Boîte Étanche | +500g max weed | 600 € |
-| Chambre Froide | +2500g max weed | 15 000 € |
+| Upgrade | Effect | Base Cost | Growth |
+|---------|--------|-----------|--------|
+| Ciseaux Pro | +1g per click | 150 € | 1.85 |
+| Système Auto | +1g per second | 750 € | 1.85 |
+| Doigts Agiles | clicks gain +8% of your prod./s (per level) | 1 200 € | 1.85 |
+| Taille Expert | +5g per click | 4 000 € | 1.85 |
+| Équipe de Serre | +15g per second | 25 000 € | 1.85 |
+| Éclairage Turbo | x2 weed production | 90 000 € | 1.85 |
+| Laboratoire+ | x2 all production | 750 000 € | 1.85 |
+| Boîte Étanche | +600g max weed | 8 000 € | **4.2** |
+| Chambre Froide | +3000g max weed | 500 000 € | **4.2** |
 
-Cost = `BASE_COST * COST_GROWTH^(level - (harvest?1:0))`, `COST_GROWTH = 1.75` — gentler than a doubling, no dead-end walls.
+Cost = `BASE_COST * growth^(level - (harvest?1:0))`. Hardware grows ×1.85/level; storage grows ×4.2/level because income scales with cap — each storage level must take meaningfully longer to pay back.
 
 ## Market Pulse
 
@@ -58,14 +80,14 @@ All prices (weed included) oscillate between **-30% and +30%** of their base on 
 
 | Product | Weed | Base Price | €/g | Unlock |
 |---------|------|-----------|-----|--------|
-| 🚬 Joint Roulé | 2g | 18 € | 9 | 1 |
-| 🛍️ Sachet Scellé | 6g | 60 € | 10 | 4 |
-| 📦 Hash Conditionné | 12g | 150 € | 12.5 | 8 |
-| 🍰 Space Cake | 25g | 380 € | 15.2 | 13 |
-| 🍯 Résine Supérieure | 40g | 720 € | 18 | 19 |
-| 💧 Huile Verte | 80g | 1 600 € | 20 | 26 |
-| 💎 Shatter Pur | 150g | 3 400 € | 22.7 | 34 |
-| 🌟 Live Rosin | 300g | 7 650 € | 25.5 | 45 |
+| 🚬 Joint Roulé | 2g | 14 € | 7 | 1 |
+| 🛍️ Sachet Scellé | 6g | 46 € | 7.7 | 4 |
+| 📦 Hash Conditionné | 12g | 115 € | 9.6 | 8 |
+| 🍰 Space Cake | 25g | 290 € | 11.6 | 13 |
+| 🍯 Résine Supérieure | 40g | 550 € | 13.8 | 19 |
+| 💧 Huile Verte | 80g | 1 200 € | 15 | 26 |
+| 💎 Shatter Pur | 150g | 2 600 € | 17.3 | 34 |
+| 🌟 Live Rosin | 300g | 5 800 € | 19.3 | 45 |
 
 Market actions support quantity presets **x1 / x10 / x100 / MAX** (craft & sell) plus a global **💸 Tout vendre**.
 
@@ -81,18 +103,18 @@ Hard limits keeping the game interactive — automation never plays for you:
 1. Throughput is capped at 1u/s per product → passive income = `price × strainMult × pulse` per second max.
 2. Dealers never touch manual stock: hand-made bulk sales (craft x100/MAX + sell at a peak) stay the big-money interactive move.
 3. Sustaining a tier needs huge weed income (joint 2g/s → rosin 300g/s), so late chains idle until your production catches up.
-4. Costs ≈ `400× unit price`, unlocked 5 levels after the product itself:
+4. Costs ≈ `500× unit price`, unlocked 5 levels after the product itself:
 
 | Chaîne | Cost | Unlock | Passive max |
 |--------|------|--------|-------------|
-| Joint Roulé | 7 200 € | 6 | 18 €/s (2g/s) |
-| Sachet Scellé | 24 000 € | 9 | 60 €/s (6g/s) |
-| Hash Conditionné | 60 000 € | 13 | 150 €/s (12g/s) |
-| Space Cake | 152 000 € | 18 | 380 €/s (25g/s) |
-| Résine Supérieure | 288 000 € | 24 | 720 €/s (40g/s) |
-| Huile Verte | 640 000 € | 31 | 1 600 €/s (80g/s) |
-| Shatter Pur | 1 360 000 € | 39 | 3 400 €/s (150g/s) |
-| Live Rosin | 3 060 000 € | 50 | 7 650 €/s (300g/s) |
+| Joint Roulé | 7 000 € | 6 | 14 €/s (2g/s) |
+| Sachet Scellé | 23 000 € | 9 | 46 €/s (6g/s) |
+| Hash Conditionné | 57 500 € | 13 | 115 €/s (12g/s) |
+| Space Cake | 145 000 € | 18 | 290 €/s (25g/s) |
+| Résine Supérieure | 275 000 € | 24 | 550 €/s (40g/s) |
+| Huile Verte | 600 000 € | 31 | 1 200 €/s (80g/s) |
+| Shatter Pur | 1 300 000 € | 39 | 2 600 €/s (150g/s) |
+| Live Rosin | 2 900 000 € | 50 | 5 800 €/s (300g/s) |
 
 ROI is uniform (~400 s at full speed); the gating factor is weed supply. Owned cards show `✓ Actif`; higher tiers show their level gate.
 
