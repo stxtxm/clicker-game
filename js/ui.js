@@ -29,6 +29,7 @@
     bc: document.getElementById('bc'),
     mc: document.getElementById('mc'),
     bs: document.getElementById('bs'),
+    sb: document.getElementById('sb'),
     ug: document.getElementById('ug'),
     sv: document.getElementById('sv'),
     shopStorage: document.getElementById('shop-storage'),
@@ -75,6 +76,8 @@
 
   // --- rendering -------------------------------------------------------------
   function renderBud() {
+    const st = Game.getStrain(state.strain);
+    if (el.sb && st) el.sb.textContent = st.icon + ' ' + st.name;
     if (!el.bs) return;
     const svg = Bud.renderBudSvg(state.strain);
     // bs may be <svg> (old) or <div> (new) — handle both
