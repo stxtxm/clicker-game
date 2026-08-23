@@ -193,34 +193,6 @@
       12%  { opacity: 1; transform: translate(-50%, 0) scale(1.08); }
       100% { opacity: 0; transform: translate(-50%, -52px) scale(1); }
     }
-    .quick-sell {
-      width: 100%;
-      background: linear-gradient(135deg, var(--panel), var(--panel2));
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 14px;
-      margin-top: 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .qs-row { display: flex; justify-content: space-between; align-items: center; font-size: .85rem; }
-    .qs-row span:last-child { font-weight: 800; color: var(--gold); }
-    .qs-btn {
-      background: linear-gradient(135deg, var(--green-dim), var(--green));
-      color: #070a07;
-      border: none;
-      border-radius: 12px;
-      padding: 12px;
-      font-size: .92rem;
-      font-weight: 800;
-      cursor: pointer;
-      width: 100%;
-      transition: filter .15s, transform .08s;
-    }
-    .qs-btn:active { transform: scale(0.98); filter: brightness(1.1); }
-    .qs-btn:disabled { background: var(--panel); color: #555; cursor: not-allowed; border: 1px solid var(--border); }
-
     /* ===== Market view ===== */
     .panel-head { margin-bottom: 14px; }
     .panel-head h2 { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 2px; }
@@ -440,11 +412,6 @@
       </div>
 
       <div class="strain-badge" id="sb">🌿 Green Dream</div>
-
-      <div class="quick-sell">
-        <div class="qs-row"><span>Récolte brute en poche</span><span id="p">0g</span></div>
-        <button class="qs-btn" id="sw" disabled>Vendre la récolte brute (12 €/g)</button>
-      </div>
     </section>
 
     <!-- Sell / Market -->

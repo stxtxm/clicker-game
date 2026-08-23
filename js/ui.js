@@ -333,15 +333,6 @@
       if (state.stock.weed > cap) state.stock.weed = cap;
       Game.earnXp(state, ar);
     }
-    if (state.stock.weed > 20 && Math.random() < Game.PRODUCT_DROP_CHANCE) {
-      if (Math.random() < 0.3) {
-        state.stock.weed -= 20;
-        state.stock.resin = (state.stock.resin || 0) + 1;
-      } else {
-        state.stock.weed -= 5;
-        state.stock.hash = (state.stock.hash || 0) + 1;
-      }
-    }
     refreshStats();
     save();
   }

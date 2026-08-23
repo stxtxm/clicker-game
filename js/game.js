@@ -17,14 +17,13 @@
  *     strain: string,                    // currently equipped strain id
  *     stock:  {
  *       weed: number,                    // raw buds stock to sell
- *       hash: number,                    // hash stock (conditionné)
- *       resin: number,                   // resin stock (supérieur / conditionné)
+ *       hash: number,                    // hash stock
+ *       resin: number,                   // resin stock
  *       strains: string[]
  *     },
  *     prices: { weed: number, hash: number, resin: number }, // sell prices per unit
- *     levels: { harvest, auto, expert, crew, turbo, mega },
+ *     levels: { harvest, auto, expert, crew, turbo, mega, sbox, coldroom },
  *     xp: number,                         // lifetime XP (= total weed ever harvested)
- *     genomes: number,                    // prestige currency, +25% production each
  *     milestones: string[],               // awarded milestone ids
  *     totalEarned: number                 // lifetime cash earned
  *   }
@@ -88,12 +87,9 @@
   /** Default upgrade levels for a brand new game. */
   const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, crew: 0, turbo: 0, mega: 0, sbox: 0, coldroom: 0 };
 
-  /** Product drop chance and crafting costs. */
-  const PRODUCT_DROP_CHANCE = 0.08;
+  /** Crafting costs: weed needed to craft concentrates. */
   const HASH_CONVERT_COST = 5;       // 5g weed -> 1g Hash
   const RESIN_CONVERT_COST = 20;     // 20g weed -> 1g Resin
-  const ROSIN_CONVERT_COST = 50;     // 50g weed -> 1g Rosin
-  const MOONROCK_CONVERT_COST = 150; // 150g weed -> 1g Moonrock
 
   /* ---- progression curve (Slower, deeper & more rewarding) ---------------- */
   const XP_BASE = 150;
@@ -210,8 +206,8 @@
       weed: 0,
       money: 0,
       strain: 'green',
-      stock: { weed: 0, hash: 0, resin: 0, rosin: 0, moonrock: 0, strains: ['green'] },
-      prices: { weed: 12, hash: 65, resin: 280, rosin: 900, moonrock: 3500 },
+      stock: { weed: 0, hash: 0, resin: 0, strains: ['green'] },
+      prices: { weed: 12, hash: 65, resin: 280 },
       levels: { ...DEFAULT_LEVELS },
       xp: 0,
       milestones: [],
@@ -261,17 +257,13 @@
   }
 
   /**
-   * Transform raw weed into Hash, Resin, Rosin or Moonrock conditionné.
+   * Transform raw weed into Hash or Resin.
    * @param {object} s state
-   * @param {'hash'|'resin'|'rosin'|'moonrock'} type product type
+   * @param {'hash'|'resin'} type product type
    * @returns {{ok:boolean, reason?:string, amount?:number}}
    */
   function craftProduct(s, type) {
-    let cost = HASH_CONVERT_COST;
-    if (type === 'resin') cost = RESIN_CONVERT_COST;
-    else if (type === 'rosin') cost = ROSIN_CONVERT_COST;
-    else if (type === 'moonrock') cost = MOONROCK_CONVERT_COST;
-
+    const cost = type === 'resin' ? RESIN_CONVERT_COST : HASH_CONVERT_COST;
     if (s.stock.weed < cost) return { ok: false, reason: 'weed' };
     s.stock.weed -= cost;
     s.stock[type] = (s.stock[type] || 0) + 1;
@@ -282,7 +274,7 @@
    * Sell stock and return the cash gained (€).
    * Prices scale with strain priceMult.
    * @param {object} s state
-   * @param {'weed'|'hash'|'resin'|'rosin'|'moonrock'|'all'} type which stock to sell
+   * @param {'weed'|'hash'|'resin'|'all'} type which stock to sell
    * @returns {number} cash gained
    */
   function sellStock(s, type) {
@@ -291,9 +283,7 @@
     const prices = {
       weed: Math.round(s.prices.weed * pMult),
       hash: Math.round(s.prices.hash * pMult),
-      resin: Math.round(s.prices.resin * pMult),
-      rosin: Math.round(s.prices.rosin * pMult),
-      moonrock: Math.round(s.prices.moonrock * pMult)
+      resin: Math.round(s.prices.resin * pMult)
     };
 
     let gain = 0;
@@ -308,14 +298,6 @@
     if (type === 'resin' || type === 'all') {
       gain += (s.stock.resin || 0) * prices.resin;
       s.stock.resin = 0;
-    }
-    if (type === 'rosin' || type === 'all') {
-      gain += (s.stock.rosin || 0) * prices.rosin;
-      s.stock.rosin = 0;
-    }
-    if (type === 'moonrock' || type === 'all') {
-      gain += (s.stock.moonrock || 0) * prices.moonrock;
-      s.stock.moonrock = 0;
     }
     s.money += gain;
     s.totalEarned = (s.totalEarned || 0) + gain;
@@ -360,16 +342,27 @@
     } catch {
       return d;
     }
-    d.levels = { ...DEFAULT_LEVELS, ...(d.levels || {}) };
-    if (!d.stock || typeof d.stock !== 'object') d.stock = { weed: 0, hash: 0, resin: 0, strains: ['green'] };
-    if (typeof d.stock.weed !== 'number') d.stock.weed = d.stock.main || d.points || 0;
-    if (typeof d.stock.hash !== 'number') d.stock.hash = d.stock.premium || 0;
-    if (typeof d.stock.resin !== 'number') d.stock.resin = 0;
-    if (!Array.isArray(d.stock.strains)) d.stock.strains = ['green'];
-    if (!getStrain(d.strain)) d.strain = 'green';
-    d.weed = typeof d.weed === 'number' && d.weed >= 0 ? d.weed : (d.points || 0);
-    d.xp = typeof d.xp === 'number' && d.xp >= 0 ? d.xp : 0;
-    d.totalEarned = typeof d.totalEarned === 'number' && d.totalEarned >= 0 ? d.totalEarned : 0;
+     d.levels = { ...DEFAULT_LEVELS, ...(d.levels || {}) };
+     if (!d.stock || typeof d.stock !== 'object') d.stock = { weed: 0, hash: 0, resin: 0, strains: ['green'] };
+     if (typeof d.stock.weed !== 'number') d.stock.weed = d.stock.main || d.points || 0;
+     if (typeof d.stock.hash !== 'number') d.stock.hash = d.stock.premium || 0;
+     if (typeof d.stock.resin !== 'number') d.stock.resin = 0;
+     // legacy rosin/moonrock — dropped in simplified economy
+     if ('rosin' in d.stock) delete d.stock.rosin;
+     if ('moonrock' in d.stock) delete d.stock.moonrock;
+     if (!Array.isArray(d.stock.strains)) d.stock.strains = ['green'];
+     if (!getStrain(d.strain)) d.strain = 'green';
+     d.weed = typeof d.weed === 'number' && d.weed >= 0 ? d.weed : (d.points || 0);
+     d.xp = typeof d.xp === 'number' && d.xp >= 0 ? d.xp : 0;
+     // legacy saves may contain genomes — silently ignored now
+     if ('genomes' in d) delete d.genomes;
+     d.totalEarned = typeof d.totalEarned === 'number' && d.totalEarned >= 0 ? d.totalEarned : 0;
+     // sanitize prices to 3 products only
+     if (!d.prices || typeof d.prices !== 'object') d.prices = { weed: 12, hash: 65, resin: 280 };
+     else {
+       const p = d.prices;
+       d.prices = { weed: typeof p.weed === 'number' ? p.weed : 12, hash: typeof p.hash === 'number' ? p.hash : 65, resin: typeof p.resin === 'number' ? p.resin : 280 };
+     }
     d.milestones = Array.isArray(d.milestones)
       ? d.milestones.filter((m) => MILESTONES.some((mi) => mi.id === m))
       : [];
@@ -381,11 +374,8 @@
     STRAINS,
     BASE_COST,
     DEFAULT_LEVELS,
-    PRODUCT_DROP_CHANCE,
     HASH_CONVERT_COST,
     RESIN_CONVERT_COST,
-    ROSIN_CONVERT_COST,
-    MOONROCK_CONVERT_COST,
     XP_BASE,
     XP_GROWTH,
     MILESTONES,
