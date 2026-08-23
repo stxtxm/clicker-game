@@ -60,9 +60,9 @@ test('upgradeCost scales with COST_GROWTH (storage has its own steeper growth)',
   s.levels.harvest = 2;
   assert.strictEqual(Game.upgradeCost(s, 'harvest'), Math.floor(150 * Math.pow(Game.COST_GROWTH, 1)));
   assert.strictEqual(Game.upgradeCost(s, 'auto'), 750);   // auto starts at level 0
-  assert.strictEqual(Game.upgradeCost(s, 'sbox'), 6000);
+  assert.strictEqual(Game.upgradeCost(s, 'sbox'), 4500);
   s.levels.sbox = 1;
-  assert.strictEqual(Game.upgradeCost(s, 'sbox'), Math.floor(6000 * 3.4)); // storage growth 3.4
+  assert.strictEqual(Game.upgradeCost(s, 'sbox'), Math.floor(4500 * 3.0)); // storage growth 3.0
 });
 
 test('buyUpgrade: insufficient funds does not mutate', () => {
@@ -533,7 +533,7 @@ test('maxWeedStorage: missing/negative levels fall back to base', () => {
   assert.strictEqual(Game.maxWeedStorage({}), 1000);
   // corrupted saves with negative levels must never brick the cap
   assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: -3, coldroom: undefined } }), 1000);
-  assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: 2, coldroom: 1 } }), 1000 + 1200 + 3000);
+  assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: 2, coldroom: 1 } }), 1000 + 1400 + 3500);
 });
 
 test('priceOf: unknown product is 0, weed uses prices.weed base', () => {

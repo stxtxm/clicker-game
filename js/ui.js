@@ -174,68 +174,96 @@
     return '<span class="trend">→</span>';
   }
 
-  /** Render the market: one sellable product per card + weed brute.
-   *  Prices pulse ±30% on a ~2 min cycle — arrows show the current direction. */
+  /* Market rendering — structure built ONCE (stable tap targets), values
+     updated in place every tick. Rebuilding innerHTML every second thrashed
+     layout on mobile and recreated buttons under the player's finger. */
+  let marketBuilt = false;
+  let marketLockKey = '';
+
+  function buildMarketStructure() {
+    el.marketGrid.innerHTML = '';
+    // Weed brute card
+    const weed = document.createElement('div');
+    weed.className = 'market-card';
+    weed.innerHTML =
+      '<div class="mc-top"><div class="mc-title">🌿 Weed Brute</div><div class="mc-price" id="mp-weed"></div></div>' +
+      '<div class="mc-stock" id="ms-weed"></div>' +
+      '<div class="mc-actions"><button class="mc-btn sell" data-p="weed" id="mb-weed"></button></div>';
+    weed.querySelector('button').addEventListener('click', () => onSell('weed'));
+    el.marketGrid.appendChild(weed);
+    // Product cards
+    for (const p of Game.PRODUCTS) {
+      const card = document.createElement('div');
+      card.className = 'market-card';
+      card.id = 'mk-' + p.id;
+      card.innerHTML =
+        '<div class="mc-top"><div class="mc-title">' + p.icon + ' ' + p.name + '<span class="mc-qty" id="mq-' + p.id + '"></span></div><div class="mc-price" id="mp-' + p.id + '"></div></div>' +
+        '<div class="mc-stock" id="ms-' + p.id + '"></div>' +
+        '<div class="mc-actions">' +
+          '<button class="mc-btn craft" data-p="' + p.id + '" id="mbc-' + p.id + '"></button>' +
+          '<button class="mc-btn sell" data-p="' + p.id + '" id="mbs-' + p.id + '"></button>' +
+        '</div>';
+      card.querySelector('.craft').addEventListener('click', () => onCraft(p.id));
+      card.querySelector('.sell').addEventListener('click', () => onSell(p.id));
+      el.marketGrid.appendChild(card);
+    }
+  }
+
+  /** Render the market: prices pulse ±30% on a ~2 min cycle — arrows show direction. */
   function renderMarket() {
     if (!el.marketGrid) return;
-    el.marketGrid.innerHTML = '';
     const level = Game.levelFromXp(state.xp);
     const now = Date.now();
+    // rebuild the DOM only when a product lock state changes (level up)
+    const lockKey = Game.PRODUCTS.map((p) => (level >= p.unlock ? 1 : 0)).join('');
+    if (!marketBuilt || lockKey !== marketLockKey) {
+      buildMarketStructure();
+      marketBuilt = true;
+      marketLockKey = lockKey;
+    }
 
-    // Weed brute card — sell raw grams
+    // Weed brute values
     {
       const unit = Game.priceOf(state, 'weed', now);
       const have = state.stock.weed || 0;
       const n = qtyMode === 'max' ? have : Math.min(qtyMode, have);
-      const card = document.createElement('div');
-      card.className = 'market-card';
-      card.innerHTML =
-        '<div class="mc-top"><div class="mc-title">🌿 Weed Brute</div><div class="mc-price">' + trendArrow('weed', now) + ' ' + unit + ' €/g</div></div>' +
-        '<div class="mc-stock" id="sth-w">' + fmt(have) + 'g disponibles</div>' +
-        '<div class="mc-actions"><button class="mc-btn sell" data-p="weed">Vendre ' +
-          (qtyMode === 'max' ? 'tout (' + fmt(have) + 'g)' : 'x' + n + ' (' + fmt(n) + 'g)') + '</button></div>';
-      const btn = card.querySelector('button');
+      document.getElementById('mp-weed').innerHTML = trendArrow('weed', now) + ' ' + unit + ' €/g';
+      document.getElementById('ms-weed').textContent = fmt(have) + 'g disponibles';
+      const btn = document.getElementById('mb-weed');
+      btn.textContent = 'Vendre ' + (qtyMode === 'max' ? 'tout (' + fmt(have) + 'g)' : 'x' + n + ' (' + fmt(n) + 'g)');
       btn.disabled = n <= 0;
-      btn.addEventListener('click', () => onSell('weed'));
-      el.marketGrid.appendChild(card);
     }
 
-    // Crafted products
+    // Product values
     for (const p of Game.PRODUCTS) {
       const locked = level < p.unlock;
+      const card = document.getElementById('mk-' + p.id);
+      card.classList.toggle('locked', locked);
+      const priceEl = document.getElementById('mp-' + p.id);
+      const stockEl = document.getElementById('ms-' + p.id);
+      const qtyEl = document.getElementById('mq-' + p.id);
+      const cBtn = document.getElementById('mbc-' + p.id);
+      const sBtn = document.getElementById('mbs-' + p.id);
+      if (locked) {
+        priceEl.innerHTML = trendArrow(p.id, now) + ' ' + Game.priceOf(state, p.id, now) + ' €/u';
+        stockEl.textContent = '🔒 Niveau ' + p.unlock + ' requis — ' + p.cost + 'g weed → 1u';
+        qtyEl.textContent = '';
+        cBtn.style.display = 'none';
+        sBtn.style.display = 'none';
+        continue;
+      }
+      cBtn.style.display = '';
+      sBtn.style.display = '';
       const unit = Game.priceOf(state, p.id, now);
       const have = state.stock[p.id] || 0;
       const maxCraftable = Math.floor((state.stock.weed || 0) / p.cost);
-      const card = document.createElement('div');
-      card.className = 'market-card' + (locked ? ' locked' : '');
-      const qtyLabel = qtyMode === 'max'
-        ? (locked ? '' : '<span class="mc-qty">x' + fmt(maxCraftable) + '</span>')
-        : '';
-      card.innerHTML =
-        '<div class="mc-top"><div class="mc-title">' + p.icon + ' ' + p.name + qtyLabel + '</div><div class="mc-price">' + trendArrow(p.id, now) + ' ' + unit + ' €/u</div></div>' +
-        (locked
-          ? '<div class="mc-stock">🔒 Niveau ' + p.unlock + ' requis — ' + p.cost + 'g weed → 1u</div>'
-          : '<div class="mc-stock">' + fmt(have) + ' dispo — ' + p.cost + 'g → 1u (' + p.desc + ')</div>') +
-        '<div class="mc-actions">' +
-          (locked ? '' :
-            '<button class="mc-btn craft" data-p="' + p.id + '">Fabriquer ' +
-              (qtyMode === 'max' ? 'max (' + fmt(maxCraftable) + ')' : 'x' + Math.min(qtyMode, Math.max(1, maxCraftable))) +
-            '</button>' +
-            '<button class="mc-btn sell" data-p="' + p.id + '">Vendre ' +
-              (qtyMode === 'max' ? 'tout (' + fmt(have) + ')' : 'x' + Math.min(qtyMode, Math.max(1, have))) +
-            '</button>') +
-        '</div>';
-      const cBtn = card.querySelector('.craft');
-      const sBtn = card.querySelector('.sell');
-      if (cBtn) {
-        cBtn.disabled = maxCraftable <= 0;
-        cBtn.addEventListener('click', () => onCraft(p.id));
-      }
-      if (sBtn) {
-        sBtn.disabled = have <= 0;
-        sBtn.addEventListener('click', () => onSell(p.id));
-      }
-      el.marketGrid.appendChild(card);
+      priceEl.innerHTML = trendArrow(p.id, now) + ' ' + unit + ' €/u';
+      stockEl.textContent = fmt(have) + ' dispo — ' + p.cost + 'g → 1u (' + p.desc + ')';
+      qtyEl.textContent = qtyMode === 'max' ? 'x' + fmt(maxCraftable) : '';
+      cBtn.textContent = 'Fabriquer ' + (qtyMode === 'max' ? 'max (' + fmt(maxCraftable) + ')' : 'x' + Math.min(qtyMode, Math.max(1, maxCraftable)));
+      cBtn.disabled = maxCraftable <= 0;
+      sBtn.textContent = 'Vendre ' + (qtyMode === 'max' ? 'tout (' + fmt(have) + ')' : 'x' + Math.min(qtyMode, Math.max(1, have)));
+      sBtn.disabled = have <= 0;
     }
 
     // qty pills active state + sell-all button
