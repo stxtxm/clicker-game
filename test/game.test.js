@@ -242,69 +242,34 @@ test('checkMilestones awards only once', () => {
   assert.deepStrictEqual(Game.checkMilestones(s), []);
 });
 
-test('productionMult composes level, strains, genomes and milestones', () => {
+test('productionMult composes level, strains and milestones', () => {
   const s = Game.defaultState();
   assert.strictEqual(Game.productionMult(s), 1.08);           // level 1 -> +8%
   s.xp = 1200;                                                // level 3 -> +24%
   assert.ok(Math.abs(Game.productionMult(s) - 1.24) < 1e-9);
-  s.genomes = 1;                                              // +25%
-  assert.ok(Math.abs(Game.productionMult(s) - 1.55) < 1e-9);
 });
 
-test('perClick/perSecond scale with level and prestige', () => {
+test('perClick/perSecond scale with level', () => {
   const s = Game.defaultState();
   s.levels.harvest = 5;
   const base = 5 * 1.08;
   assert.strictEqual(Game.perClick(s), Math.round(base));
   s.xp = 3000;                                                // level 4 -> x1.32
-  s.genomes = 1;                                              // x1.25
-  assert.strictEqual(Game.perClick(s), Math.round(5 * 1.32 * 1.25));
-});
-
-test('prestige: gated by XP, banks genomes, resets purchases', () => {
-  const s = Game.defaultState();
-  assert.strictEqual(Game.canPrestige(s), false);
-  s.xp = 49000;
-  assert.strictEqual(Game.prestigeGain(s), 0);
-  assert.strictEqual(Game.canPrestige(s), false);
-  const before = Game.prestige(s);
-  assert.strictEqual(before.ok, false);
-
-  s.xp = 50000;                                               // first prestige
-  assert.strictEqual(Game.prestigeGain(s), 1);
-  s.money = 50000;
-  s.weed = 1234;
-  s.stock = { weed: 50, hash: 2, resin: 1, strains: ['green', 'blue'] };
-  s.levels.harvest = 6;
-  const res = Game.prestige(s);
-  assert.strictEqual(res.ok, true);
-  assert.strictEqual(res.gain, 1);
-  assert.strictEqual(s.genomes, 1);
-  assert.strictEqual(s.money, 0);
-  assert.strictEqual(s.weed, 0);
-  assert.strictEqual(s.stock.weed, 0);
-  assert.strictEqual(s.stock.hash, 0);
-  assert.strictEqual(s.stock.resin, 0);
-  assert.deepStrictEqual(s.stock.strains, ['green', 'blue']); // strains kept
-  assert.strictEqual(s.xp, 50000);                            // XP kept
-  assert.strictEqual(s.levels.harvest, 1);
-  assert.strictEqual(s.strain, 'green');
+  assert.strictEqual(Game.perClick(s), Math.round(5 * 1.32));
 });
 
 test('deserialize: old saves get default progression fields', () => {
   const loaded = Game.deserialize('{"weed":42,"money":5}');
   assert.strictEqual(loaded.xp, 0);
-  assert.strictEqual(loaded.genomes, 0);
   assert.strictEqual(loaded.totalEarned, 0);
   assert.deepStrictEqual(loaded.milestones, []);
 });
 
 test('deserialize: sanitizes bad progression fields', () => {
   const loaded = Game.deserialize(JSON.stringify({
-    xp: -3, genomes: 'x', milestones: ['m1', 'nope'], totalEarned: 12.5
+    xp: -3, milestones: ['m1', 'nope'], totalEarned: 12.5
   }));
   assert.strictEqual(loaded.xp, 0);
-  assert.strictEqual(loaded.genomes, 0);
   assert.strictEqual(loaded.totalEarned, 12.5);
   assert.deepStrictEqual(loaded.milestones, ['m1']);
 });

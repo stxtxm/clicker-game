@@ -98,7 +98,6 @@
   /* ---- progression curve (Slower, deeper & more rewarding) ---------------- */
   const XP_BASE = 150;
   const XP_GROWTH = 1.28;
-  const PRESTIGE_BASE = 50000;
 
   /** Milestones: permanent production bonuses granted at lifetime-XP thresholds. */
   const MILESTONES = [
@@ -145,7 +144,7 @@
   }
 
   /**
-   * Total production multiplier from level, strain yieldMult, prestige genomes
+   * Total production multiplier from level, strain yieldMult
    * and awarded milestones.
    * @param {object} s state
    */
@@ -153,7 +152,6 @@
     let m = 1 + 0.08 * levelFromXp(s.xp);
     const st = getStrain(s.strain);
     if (st) m *= st.yieldMult;
-    m *= 1 + 0.25 * (s.genomes || 0);
     const bonus = MILESTONES.reduce((a, mi) =>
       a + ((s.milestones || []).includes(mi.id) ? mi.bonus : 0), 0);
     m *= 1 + bonus / 100;
@@ -178,33 +176,6 @@
       }
     }
     return awarded;
-  }
-
-  /** Prestige genomes a reset would grant right now (sub-linear growth). */
-  function prestigeGain(s) {
-    return Math.floor(Math.sqrt((s.xp || 0) / PRESTIGE_BASE));
-  }
-
-  /** Whether a prestige reset is available. */
-  function canPrestige(s) {
-    return prestigeGain(s) >= 1;
-  }
-
-  /**
-   * Prestige reset ("Nouvelle génération"): wipe currency, stock and upgrades,
-   * keep strains, level/XP, milestones and records, and bank a permanent
-   * production multiplier. Returns the number of genomes gained.
-   */
-  function prestige(s) {
-    const gain = prestigeGain(s);
-    if (gain < 1) return { ok: false, reason: 'threshold' };
-    s.genomes = (s.genomes || 0) + gain;
-    s.weed = 0;
-    s.money = 0;
-    s.stock = { weed: 0, hash: 0, resin: 0, strains: s.stock.strains };
-    s.levels = { ...DEFAULT_LEVELS };
-    s.strain = 'green';
-    return { ok: true, gain };
   }
 
   /**
@@ -243,7 +214,6 @@
       prices: { weed: 12, hash: 65, resin: 280, rosin: 900, moonrock: 3500 },
       levels: { ...DEFAULT_LEVELS },
       xp: 0,
-      genomes: 0,
       milestones: [],
       totalEarned: 0
     };
@@ -399,7 +369,6 @@
     if (!getStrain(d.strain)) d.strain = 'green';
     d.weed = typeof d.weed === 'number' && d.weed >= 0 ? d.weed : (d.points || 0);
     d.xp = typeof d.xp === 'number' && d.xp >= 0 ? d.xp : 0;
-    d.genomes = typeof d.genomes === 'number' && d.genomes >= 0 ? d.genomes : 0;
     d.totalEarned = typeof d.totalEarned === 'number' && d.totalEarned >= 0 ? d.totalEarned : 0;
     d.milestones = Array.isArray(d.milestones)
       ? d.milestones.filter((m) => MILESTONES.some((mi) => mi.id === m))
@@ -417,7 +386,6 @@
     RESIN_CONVERT_COST,
     XP_BASE,
     XP_GROWTH,
-    PRESTIGE_BASE,
     MILESTONES,
     mulberry32,
     defaultState,
@@ -428,9 +396,6 @@
     productionMult,
     earnXp,
     checkMilestones,
-    prestigeGain,
-    canPrestige,
-    prestige,
     perClick,
     perSecond,
     upgradeCost,

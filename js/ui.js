@@ -46,13 +46,8 @@
     xpf: document.getElementById('xpf'),
     xpcur: document.getElementById('xpcur'),
     xpnext: document.getElementById('xpnext'),
-    pg: document.getElementById('pg'),
-    pb: document.getElementById('pb'),
-    pdist: document.getElementById('pdist'),
     ms: document.getElementById('ms'),
-    rb: document.getElementById('rb'),
-    ccStatus: document.getElementById('ccstatus'),
-    ccGist: document.getElementById('ccgist')
+    rb: document.getElementById('rb')
   };
 
   let state = Game.defaultState();
@@ -142,7 +137,7 @@
     }
   }
 
-  /** Render the progression panel: level/XP bar, prestige, milestones. */
+  /** Render the progression panel: level/XP bar and milestones. */
   function renderProgress() {
     const prog = Game.xpProgress(state.xp);
     const mult = Game.productionMult(state);
@@ -153,14 +148,6 @@
     el.xpf.style.width = pct + '%';
     el.xpcur.textContent = fmt(prog.current);
     el.xpnext.textContent = ' / ' + fmt(prog.needed) + ' XP';
-
-    const gain = Game.prestigeGain(state);
-    const can = Game.canPrestige(state);
-    el.pg.textContent = '+' + gain;
-    el.pb.disabled = !can;
-    el.pdist.textContent = can
-      ? 'Prêt ! ' + fmt(state.xp) + ' XP'
-      : fmt(state.xp) + ' / ' + fmt(Game.PRESTIGE_BASE) + ' XP';
 
     el.ms.innerHTML = '';
     for (const mi of Game.MILESTONES) {
@@ -340,67 +327,11 @@
   }
 
   // --- cloud persistence ------------------------------------------------------
-  const CLOUD_PUSH_INTERVAL = 60000;
-  let cloudTimer = null;
-
-  function renderCloud() {
-    const nid = Cloud.getId();
-    el.ccGist.textContent = nid ? 'ID: ' + nid : '— aucune sauvegarde —';
-    el.ccStatus.textContent = '';
-    el.ccStatus.className = 'cc-status';
-  }
-
-  function cloudStatus(text, ok) {
-    el.ccStatus.textContent = text;
-    el.ccStatus.className = 'cc-status' + (ok === true ? ' ok' : ok === false ? ' err' : '');
-  }
-
-  async function cloudPush() {
-    if (!Cloud.hasBlob()) {
-      const res = await Cloud.create(state);
-      if (res.ok) {
-        renderCloud();
-        cloudStatus('Sauvegardé ✓', true);
-      } else cloudStatus('Erreur réseau', false);
-    } else {
-      const res = await Cloud.update(state);
-      if (res.ok) cloudStatus('Sauvegardé ✓', true);
-      else cloudStatus(res.reason === 'gone' ? 'Sauvegarde expirée — nouvelle création…' : 'Erreur', false);
-    }
-  }
-
-  async function cloudPull() {
-    if (!Cloud.hasBlob()) return;
-    try {
-      const res = await Cloud.pull();
-      if (!res.ok || !res.state) return;
-      state = Game.deserialize(JSON.stringify(res.state));
-      renderBud();
-      renderUpgrades();
-      renderStrains();
-      refreshStats();
-      save();
-      const ts = res.savedAt ? new Date(res.savedAt).toLocaleString('fr-FR') : '';
-      cloudStatus('Chargé' + (ts ? ' (save du ' + ts + ')' : ''), true);
-    } catch (e) { /* silent on boot */ }
-  }
-
-  function startCloudAuto() {
-    if (Cloud.hasBlob()) cloudPull();
-    cloudTimer = setInterval(() => cloudPush(), CLOUD_PUSH_INTERVAL);
-  }
   // --- persistence -----------------------------------------------------------
-  let cloudPushPending = null;
   function save() {
     try {
       localStorage.setItem(SAVE_KEY, Game.serialize(state));
     } catch (e) { /* quota / private mode: ignore */ }
-    if (!cloudPushPending) {
-      cloudPushPending = setTimeout(() => {
-        cloudPushPending = null;
-        cloudPush();
-      }, 2000);
-    }
   }
 
   function load() {
@@ -431,21 +362,6 @@
 
   document.querySelectorAll('.tab-btn').forEach((b) =>
     b.addEventListener('click', () => switchTab(b.dataset.tab)));
-
-  el.pb.addEventListener('click', () => {
-    const res = Game.prestige(state);
-    if (!res.ok) {
-      toast('Pas encore assez de XP pour recycler');
-      return;
-    }
-    toast('Nouvelle génération : +' + res.gain + ' génome' + (res.gain > 1 ? 's' : '') + ' 🧬');
-    renderBud();
-    renderUpgrades();
-    renderStrains();
-    renderProgress();
-    refreshStats();
-    save();
-  });
 
   let rbTimer = null;
   function disarmReset() {
@@ -486,8 +402,6 @@
   load();
   renderStrains();
   renderBud();
-  renderCloud();
-  startCloudAuto();
   setInterval(autoProduce, 1000);
   setInterval(save, 10000);
   refreshStats();
