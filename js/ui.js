@@ -48,6 +48,13 @@
   /** Quantity preset for market craft/sell actions: 1, 10, 100 or 'max'. */
   let qtyMode = 1;
 
+  /**
+   * Stock-full banner arming: hidden at launch even with a full save — it only
+   * appears after the player's first bud click (i.e. when clicking starts to
+   * matter), then stays driven by the near-cap threshold.
+   */
+  let fullBannerArmed = false;
+
   // --- helpers ---------------------------------------------------------------
   /** Format a number for display: 1.2K / 3.45M / floor below 1000. */
   function fmt(n) {
@@ -293,7 +300,7 @@
     }
     // storage-full feedback: pulsing bud + clickable warning banner
     if (el.bc) el.bc.classList.toggle('storage-full', isFull);
-    if (el.fw) el.fw.hidden = !isFull;
+    if (el.fw) el.fw.hidden = !fullBannerArmed || !isFull;
 
     renderMarket();
 
@@ -343,6 +350,7 @@
   function onHarvest(ev) {
     ev.preventDefault();
     ev.stopPropagation();
+    fullBannerArmed = true; // from now on the banner may show (first interaction)
     const ac = Game.perClick(state);
     const added = Game.addWeed(state, ac);
     const full = added < ac;

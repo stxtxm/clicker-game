@@ -60,9 +60,9 @@ test('upgradeCost scales with COST_GROWTH (storage has its own steeper growth)',
   s.levels.harvest = 2;
   assert.strictEqual(Game.upgradeCost(s, 'harvest'), Math.floor(150 * Math.pow(Game.COST_GROWTH, 1)));
   assert.strictEqual(Game.upgradeCost(s, 'auto'), 750);   // auto starts at level 0
-  assert.strictEqual(Game.upgradeCost(s, 'sbox'), 8000);
+  assert.strictEqual(Game.upgradeCost(s, 'sbox'), 6000);
   s.levels.sbox = 1;
-  assert.strictEqual(Game.upgradeCost(s, 'sbox'), Math.floor(8000 * 4.2)); // storage growth 4.2
+  assert.strictEqual(Game.upgradeCost(s, 'sbox'), Math.floor(6000 * 3.4)); // storage growth 3.4
 });
 
 test('buyUpgrade: insufficient funds does not mutate', () => {
