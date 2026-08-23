@@ -115,9 +115,15 @@ async function scenario() {
     w.localStorage.setItem('budClicker', JSON.stringify(capSave));
     document.getElementById('game').src = '../index.html';
     await sleep(900);
-    const fullShown = !q('#full-warn').hidden;
+    // banner must NOT show at launch (armed by first bud click only)…
+    const hiddenAtLaunch = q('#full-warn').hidden;
     const budPulsing = q('#bc').classList.contains('storage-full');
-    report('storage-full', fullShown && budPulsing, 'banner=' + fullShown + ' pulse=' + budPulsing);
+    // …then appear on the first click while the stock is capped
+    q('#bs').click();
+    await sleep(150);
+    const fullShown = !q('#full-warn').hidden;
+    report('storage-full', hiddenAtLaunch && fullShown && budPulsing,
+      'hidden@launch=' + hiddenAtLaunch + ' banner@click=' + fullShown + ' pulse=' + budPulsing);
     // banner jumps to Marché
     q('#full-warn').click();
     await sleep(100);

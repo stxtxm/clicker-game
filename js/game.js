@@ -48,8 +48,8 @@
     { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: 'x2 production globale',     cost: 750000 },
     // Storage upgrades grow much faster (growth: 3.2) than production ones:
     // income ≈ cap × €/g, so storage is THE money sink pacing the endgame.
-    { id: 'sbox',    name: 'Boîte Étanche',  icon: '📦',   desc: '+600g capacité weed max',   cost: 8000, growth: 4.2 },
-    { id: 'coldroom',name: 'Chambre Froide', icon: '❄️',   desc: '+3000g capacité weed max',  cost: 500000, growth: 4.2 }
+    { id: 'sbox',    name: 'Boîte Étanche',  icon: '📦',   desc: '+600g capacité weed max',   cost: 6000, growth: 3.4 },
+    { id: 'coldroom',name: 'Chambre Froide', icon: '❄️',   desc: '+3000g capacité weed max',  cost: 300000, growth: 3.4 }
   ];
 
   /**
