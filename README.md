@@ -7,7 +7,7 @@ A mobile-friendly idle grower: click the bud, craft products, sell for €, auto
 1. **Click the bud** (or press **Space**) to harvest weed (grams).
 2. **Craft** weed into 8 market products in *Marché* — from 🚬 Joint Roulé (2g → 28 €) to 🌟 Live Rosin (300g → 8 500 €). Higher tiers convert weed at a better €/g but unlock at higher levels.
 3. **Sell** raw weed (12 €/g) or crafted products. Prices scale with equipped strain (`priceMult`). Use the **x1/x10/x100/MAX** pills and **💸 Tout vendre** to move big stocks fast.
-4. **Automate** in *Marché → Automatisation*: hire an **Ouvrier** (auto-craft, up to 1u/s) and a **Dealer** (auto-sell whole stock every tick) per product. One-time purchases, like AdCap managers.
+4. **Automate (sparingly)** in *Upgrades*: each **Chaîne** auto-crafts and sells its product at a hard cap of 1u/s — your manual stock is never sold for you. Big money stays in hand-made bulk sales.
 5. **Spend cash on upgrades** — *Upgrades* tab holds hardware (click power, auto-production, storage) **and** all automation hires.
 6. **Switch strains** in *Variétés* — 8 genetics with yield/price multipliers, unlocked by level.
 7. **Progress** in *Progression* — level up and collect milestone bonuses. Use *Zone de danger* to hard-reset.
@@ -59,12 +59,30 @@ Market actions support quantity presets **x1 / x10 / x100 / MAX** (craft & sell)
 
 ## Automation (Chaînes)
 
-Adventure-Capitalist-style managers in `AUTOMATION` (`js/game.js`), listed in the **Upgrades** tab with the same card format as hardware: for every product there is **one** one-time hire (`auto-<productId>`, gated by the product's level) that unlocks the full chain at once:
+Adventure-Capitalist-style managers in `AUTOMATION` (`js/game.js`), listed in the **Upgrades** tab with the same card format as hardware: for every product there is **one** one-time hire (`auto-<productId>`) that unlocks the full chain at once:
 
-- ⚙️ **Ouvrier** — auto-crafts up to 1 unit/s while weed lasts.
-- 💰 **Dealer** — auto-sells the whole stock of that product each tick.
+- ⚙️ **Ouvrier** — auto-crafts **at most 1 unit/s** while weed lasts.
+- 💰 **Dealer** — sells **exactly what the chain just crafted**, every tick.
 
-Cost ≈ `200× unit price` (cheaper than buying craft+sell separately). Owned cards show `✓ Actif`; higher tiers show their level gate.
+Hard limits keeping the game interactive — automation never plays for you:
+
+1. Throughput is capped at 1u/s per product → passive income = `price × strainMult` per second max.
+2. Dealers never touch manual stock: hand-made bulk sales (craft x100/MAX + sell) stay the big-money interactive move.
+3. Sustaining a tier needs huge weed income (joint 2g/s → rosin 300g/s), so late chains idle until your production catches up.
+4. Costs ≈ `400× unit price`, unlocked 5 levels after the product itself:
+
+| Chaîne | Cost | Unlock | Passive max |
+|--------|------|--------|-------------|
+| Joint Roulé | 11 200 € | 6 | 28 €/s (2g/s) |
+| Sachet Scellé | 36 000 € | 9 | 90 €/s (6g/s) |
+| Hash Conditionné | 80 000 € | 13 | 200 €/s (12g/s) |
+| Space Cake | 180 000 € | 18 | 450 €/s (25g/s) |
+| Résine Supérieure | 320 000 € | 24 | 800 €/s (40g/s) |
+| Huile Verte | 720 000 € | 31 | 1 800 €/s (80g/s) |
+| Shatter Pur | 1 520 000 € | 39 | 3 800 €/s (150g/s) |
+| Live Rosin | 3 400 000 € | 50 | 8 500 €/s (300g/s) |
+
+ROI is uniform (~400 s at full speed); the gating factor is weed supply. Owned cards show `✓ Actif`; higher tiers show their level gate.
 
 `autoTick()` runs every second after weed production with deliberate ordering:
 

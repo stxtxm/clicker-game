@@ -109,10 +109,15 @@
    *
    * One hire per market product unlocks its full chain at once:
    * an Ouvrier auto-crafts weed into the product (up to 1 unit/s)
-   * AND a Dealer sells its whole stock every tick.
+   * AND a Dealer sells ONLY the units produced by that chain.
    *
-   * Costs scale with the product value so automation stays a long-term goal:
-   * cost ≈ 200× unit price (cheaper than buying craft+sell separately).
+   * Deliberate limits keeping the game interactive:
+   *   - throughput is hard-capped at 1 unit/s per product,
+   *   - manual stock is NEVER touched by dealers (big hand-made sales stay yours),
+   *   - sustaining an expensive chain needs huge weed income (rosin = 300g/s).
+   *
+   * Costs scale with product value (~200× the old craft+sell pair was merged
+   * here): cost ≈ 400× unit price, unlocked 5 levels after the product itself.
    */
   const AUTOMATION = PRODUCTS.map((p) => ({
     id: 'auto-' + p.id,
@@ -120,9 +125,9 @@
     kind: 'both',
     icon: '⚙️',
     name: 'Chaîne ' + p.name,
-    desc: 'Fabrique (1u/s tant qu\'il y a de la weed) et vend automatiquement',
-    cost: Math.round(p.price * 200),
-    unlock: p.unlock
+    desc: 'Fabrique et vend 1u/s maximum — ton stock manuel reste intact',
+    cost: Math.round(p.price * 400),
+    unlock: p.unlock + 5
   }));
 
   /* ---- progression curve (Slower, deeper & more rewarding) ---------------- */
@@ -337,10 +342,12 @@
    * Automation tick — runs every second after weed production.
    *
    * Order matters and is deliberate:
-   *   1. Auto-craft owned hires, most expensive product first: when weed is scarce
-   *      the highest €/g conversion wins, rewarding late-game automation.
-   *   2. Auto-sell owned dealers empty the whole stock of their product (freshly
-   *      crafted units included), turning craft+sell pairs into idle income.
+   *   1. Auto-craft owned chains, most expensive product first: when weed is
+   *      scarce the highest €/g conversion wins. Throughput is hard-capped at
+   *      1 unit/s per product.
+   *   2. Dealers sell EXACTLY the units their chain just crafted — never the
+   *      player's manual stock. A chain is therefore a capped idle trickle
+   *      (1u/s × product price), while hand-made bulk sales stay interactive.
    *
    * No XP is granted: consistent with manual crafting/selling which only move €.
    * @param {object} s state (mutated)
@@ -350,12 +357,13 @@
     const res = { crafted: {}, soldMoney: {} };
     for (const p of [...PRODUCTS].reverse()) {
       if (!hasAuto(s, 'craft', p.id)) continue;
-      const r = craftProduct(s, p.id, Infinity);
+      const r = craftProduct(s, p.id, 1);
       if (r.ok) res.crafted[p.id] = r.amount;
     }
     for (const p of PRODUCTS) {
-      if (!hasAuto(s, 'sell', p.id)) continue;
-      const gain = sellStock(s, p.id);
+      const made = res.crafted[p.id] || 0;
+      if (!hasAuto(s, 'sell', p.id) || made <= 0) continue;
+      const gain = sellStock(s, p.id, made);
       if (gain > 0) res.soldMoney[p.id] = gain;
     }
     return res;
