@@ -57,12 +57,14 @@ Cost = `BASE_COST * 2.1^(level - (harvest?1:0))`.
 
 Market actions support quantity presets **x1 / x10 / x100 / MAX** (craft & sell) plus a global **💸 Tout vendre**.
 
-## Automation (Ouvriers & Dealers)
+## Automation (Chaînes)
 
-Adventure-Capitalist-style managers in `AUTOMATION` (`js/game.js`), purchased from the **Upgrades** tab: for every product there are two one-time hires, gated by the same level as the product:
+Adventure-Capitalist-style managers in `AUTOMATION` (`js/game.js`), listed in the **Upgrades** tab with the same card format as hardware: for every product there is **one** one-time hire (`auto-<productId>`, gated by the product's level) that unlocks the full chain at once:
 
-- 🛠️ **Ouvrier** (`craft-<id>`) — auto-crafts up to 1 unit/s while weed lasts. Cost ≈ `90× unit price`.
-- 💰 **Dealer** (`sell-<id>`) — auto-sells the whole stock of that product each tick. Cost ≈ `140× unit price`.
+- ⚙️ **Ouvrier** — auto-crafts up to 1 unit/s while weed lasts.
+- 💰 **Dealer** — auto-sells the whole stock of that product each tick.
+
+Cost ≈ `200× unit price` (cheaper than buying craft+sell separately). Owned cards show `✓ Actif`; higher tiers show their level gate.
 
 `autoTick()` runs every second after weed production with deliberate ordering:
 
@@ -127,7 +129,7 @@ clicker-game/
 
 - **Récolte** — bud, stats, strain badge, stock-full banner.
 - **Marché** — quantity pills, 💸 Tout vendre, the 9 product cards. Nothing else.
-- **Upgrades** — hardware upgrades grid + Automatisation (16 hires).
+- **Upgrades** — hardware + automation (8 product chains), same card format.
 - **Variétés** — buy/equip strains.
 - **Progression** — XP, milestones, hard-reset.
 

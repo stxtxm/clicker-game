@@ -32,7 +32,6 @@
     sb: document.getElementById('sb'),
     ug: document.getElementById('ug'),
     sv: document.getElementById('sv'),
-    shopAuto: document.getElementById('shop-auto'),
     fw: document.getElementById('full-warn'),
     xplv: document.getElementById('xplv'),
     xpmult: document.getElementById('xpmult'),
@@ -104,6 +103,22 @@
       card.querySelector('.bb').addEventListener('click', () => buyUpgrade(u.id));
       el.ug.appendChild(card);
     }
+    // Automation hires — same .upgrade card format, one-time purchase
+    for (const a of Game.AUTOMATION) {
+      const p = Game.getProduct(a.productId);
+      const card = document.createElement('div');
+      card.className = 'upgrade';
+      card.id = 'ui-' + a.id;
+      card.innerHTML =
+        '<span class="up-icon">' + (p ? p.icon : a.icon) + '</span>' +
+        '<div class="up-info"><div class="up-name">' + a.name +
+          ' <span class="up-level" id="ul-' + a.id + '">Unique</span></div>' +
+          '<div class="up-desc">' + a.desc + '</div></div>' +
+        '<div class="up-buy"><span class="up-cost" id="uc-' + a.id + '">' + fmt(a.cost) + ' €</span>' +
+          '<button class="bb" id="ub-' + a.id + '">Acheter</button></div>';
+      card.querySelector('.bb').addEventListener('click', () => buyAuto(a.id));
+      el.ug.appendChild(card);
+    }
   }
 
   function renderStrains() {
@@ -137,43 +152,6 @@
         });
       }
       el.sv.appendChild(card);
-    }
-  }
-
-  /**
-   * Render the automation shop: one card per market product with its two
-   * one-time hires (Ouvrier = auto-craft, Dealer = auto-sell).
-   * Lives in the Upgrades view.
-   */
-  function renderAutomation() {
-    if (!el.shopAuto) return;
-    el.shopAuto.innerHTML = '';
-    const level = Game.levelFromXp(state.xp);
-    for (const p of Game.PRODUCTS) {
-      const locked = level < p.unlock;
-      const card = document.createElement('div');
-      card.className = 'auto-card' + (locked ? ' locked' : '');
-      const rows = Game.AUTOMATION.filter((a) => a.productId === p.id).map((a) => {
-        const owned = Game.hasAuto(state, a.kind, p.id);
-        if (owned) {
-          return '<div class="auto-row owned"><span class="ar-icon">' + a.icon + '</span>' +
-            '<span class="ar-name">' + a.name + '</span><span class="ar-active">✓ Actif</span></div>';
-        }
-        return '<div class="auto-row"><span class="ar-icon">' + a.icon + '</span>' +
-          '<div class="ar-info"><div class="ar-name">' + a.name + '</div>' +
-          '<div class="ar-desc">' + a.desc + '</div></div>' +
-          '<div class="ar-buy"><span class="ar-cost">' + fmt(a.cost) + ' €</span>' +
-          '<button class="bb" data-auto="' + a.id + '">Embaucher</button></div></div>';
-      }).join('');
-      card.innerHTML =
-        '<div class="ac-head"><span class="ac-product">' + p.icon + ' ' + p.name + '</span>' +
-        (locked ? '<span class="st-lock">🔒 Niveau ' + p.unlock + '</span>' : '') + '</div>' +
-        rows;
-      card.querySelectorAll('[data-auto]').forEach((b) => {
-        b.disabled = state.money < (Game.AUTOMATION.find((a) => a.id === b.dataset.auto) || { cost: Infinity }).cost;
-        b.addEventListener('click', () => buyAuto(b.dataset.auto));
-      });
-      el.shopAuto.appendChild(card);
     }
   }
 
@@ -303,9 +281,6 @@
 
     renderMarket();
 
-    // upgrades view extras (automation hires)
-    renderAutomation();
-
     for (const u of Game.UPGRADES) {
       const lv = document.getElementById('ul-' + u.id);
       if (lv) lv.textContent = 'Lvl ' + state.levels[u.id];
@@ -316,6 +291,23 @@
       const affordable = state.money >= Game.upgradeCost(state, u.id);
       if (btn) btn.disabled = !affordable;
       if (card) card.classList.toggle('affordable', affordable);
+    }
+    // automation hires: one-time purchase; legacy saves may hold a single
+    // craft/sell flag — show ✓ Actif as soon as one is set, allow completing
+    for (const a of Game.AUTOMATION) {
+      const hasCraft = Game.hasAuto(state, 'craft', a.productId);
+      const hasSell = Game.hasAuto(state, 'sell', a.productId);
+      const anyOwned = hasCraft || hasSell;
+      const lv = document.getElementById('ul-' + a.id);
+      if (lv) {
+        lv.textContent = anyOwned ? '✓ Actif' : (Game.levelFromXp(state.xp) < a.unlock ? '🔒 Niv. ' + a.unlock : 'Unique');
+        lv.classList.toggle('owned', anyOwned);
+      }
+      const btn = document.getElementById('ub-' + a.id);
+      if (btn) btn.disabled = (hasCraft && hasSell) || state.money < a.cost;
+      const card = document.getElementById('ui-' + a.id);
+      if (card) card.classList.toggle('affordable', !(hasCraft && hasSell) && state.money >= a.cost);
+      if (card) card.classList.toggle('owned', anyOwned);
     }
     document.querySelectorAll('[id^="sb-"]').forEach((b) => {
       const id = b.id.slice(3);

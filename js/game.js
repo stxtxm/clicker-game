@@ -107,27 +107,23 @@
   /**
    * Automation catalog — Adventure-Capitalist-style one-time purchases ("managers").
    *
-   * For every market product there are two hires, unlocked once and forever:
-   *   kind 'craft' — an Ouvrier converts weed into this product (up to 1 unit/s)
-   *   kind 'sell'  — a Dealer sells the whole stock of this product every tick
+   * One hire per market product unlocks its full chain at once:
+   * an Ouvrier auto-crafts weed into the product (up to 1 unit/s)
+   * AND a Dealer sells its whole stock every tick.
    *
    * Costs scale with the product value so automation stays a long-term goal:
-   *   craft ≈ 90× unit price, sell ≈ 140× unit price.
+   * cost ≈ 200× unit price (cheaper than buying craft+sell separately).
    */
-  const AUTOMATION = PRODUCTS.flatMap((p) => [
-    {
-      id: 'craft-' + p.id, productId: p.id, kind: 'craft',
-      icon: '🛠️', name: 'Ouvrier ' + p.name,
-      desc: 'Fabrique automatiquement (1u/s tant qu\'il y a de la weed)',
-      cost: Math.round(p.price * 90), unlock: p.unlock
-    },
-    {
-      id: 'sell-' + p.id, productId: p.id, kind: 'sell',
-      icon: '💰', name: 'Dealer ' + p.name,
-      desc: 'Vend automatiquement tout le stock de ce produit',
-      cost: Math.round(p.price * 140), unlock: p.unlock
-    }
-  ]);
+  const AUTOMATION = PRODUCTS.map((p) => ({
+    id: 'auto-' + p.id,
+    productId: p.id,
+    kind: 'both',
+    icon: '⚙️',
+    name: 'Chaîne ' + p.name,
+    desc: 'Fabrique (1u/s tant qu\'il y a de la weed) et vend automatiquement',
+    cost: Math.round(p.price * 200),
+    unlock: p.unlock
+  }));
 
   /* ---- progression curve (Slower, deeper & more rewarding) ---------------- */
   const XP_BASE = 150;
@@ -317,9 +313,11 @@
   }
 
   /**
-   * Buy a one-time automation hire (Ouvrier/Dealer). Mutates state on success only.
+   * Buy a one-time automation hire. Mutates state on success only.
+   * A single purchase enables BOTH auto-craft and auto-sell for the product
+   * (flags stored per kind so partial legacy states keep working).
    * @param {object} s state
-   * @param {string} id automation id from AUTOMATION (e.g. 'craft-joint')
+   * @param {string} id automation id from AUTOMATION (e.g. 'auto-joint')
    * @returns {{ok:boolean, reason?:'funds'|'unknown'|'owned', name?:string}}
    */
   function buyAutomation(s, id) {
@@ -327,10 +325,11 @@
     if (!a) return { ok: false, reason: 'unknown' };
     if (!s.auto || typeof s.auto !== 'object') s.auto = { craft: {}, sell: {} };
     if (!s.auto[a.kind] || typeof s.auto[a.kind] !== 'object') s.auto[a.kind] = {};
-    if (s.auto[a.kind][a.productId]) return { ok: false, reason: 'owned' };
+    if (s.auto.craft[a.productId] && s.auto.sell[a.productId]) return { ok: false, reason: 'owned' };
     if (s.money < a.cost) return { ok: false, reason: 'funds' };
     s.money -= a.cost;
-    s.auto[a.kind][a.productId] = true;
+    s.auto.craft[a.productId] = true;
+    s.auto.sell[a.productId] = true;
     return { ok: true, name: a.name };
   }
 
