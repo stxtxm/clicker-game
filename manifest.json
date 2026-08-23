@@ -2,7 +2,7 @@
   "name": "Bud Clicker",
   "short_name": "Bud Clicker",
   "description": "Idle grower game with stunning procedural cannabis bud graphics",
-  "start_url": "./index.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#070a07",
