@@ -14,16 +14,14 @@
 
   const Game = window.BudGame;
   const Bud = window.BudRender;
-  const Cloud = window.BudCloud;
   const SAVE_KEY = 'budClicker';
 
   // --- DOM references --------------------------------------------------------
   const el = {
-    p: document.getElementById('p'),
     m: document.getElementById('m'),
-    ar: document.getElementById('ar') || document.getElementById('sec'),
+    ar: document.getElementById('sec'),
     lv: document.getElementById('lv'),
-    hl: document.getElementById('hl') || document.getElementById('cl'),
+    hl: document.getElementById('cl'),
     stw: document.getElementById('stw'),
     sth: document.getElementById('sth'),
     str: document.getElementById('str'),
@@ -230,7 +228,6 @@
     const st = Game.getStrain(state.strain);
     const pMult = st ? st.priceMult : 1.0;
 
-    if (el.p) el.p.textContent = fmt(state.weed) + 'g';
     if (el.m) el.m.textContent = fmt(state.money) + ' €';
     if (el.ar) el.ar.textContent = '+' + ar;
     if (el.hl) el.hl.textContent = pc;
@@ -301,7 +298,7 @@
     setTimeout(() => el.bc.classList.remove('pulse-active'), 400);
     spawnParticle('+' + ac + 'g');
     refreshStats();
-    popNum(el.p);
+    if (el.stw) popNum(el.stw);
     save();
     if (xp.leveledUp) {
       toast('Niveau ' + xp.level + ' !');
@@ -327,7 +324,7 @@
     const res = Game.craftProduct(state, type);
     if (res.ok) {
       toast(type === 'hash' ? '📦 1 Hash conditionné !' : '🍯 1 Résine supérieure !');
-      popNum(el.p);
+      if (el.stw) popNum(el.stw);
     } else {
       toast('Pas assez de weed (' + (type === 'hash' ? '5g' : '20g') + ' requis)');
     }
@@ -391,7 +388,6 @@
     save();
   }
 
-  // --- cloud persistence ------------------------------------------------------
   // --- persistence -----------------------------------------------------------
   function save() {
     try {

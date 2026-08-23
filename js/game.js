@@ -12,20 +12,15 @@
  *
  * State shape (see `defaultState`):
  *   state = {
- *     weed: number,                      // harvested weed buds (grams)
- *     money:  number,                    // money in € used to buy upgrades/strains
- *     strain: string,                    // currently equipped strain id
- *     stock:  {
- *       weed: number,                    // raw buds stock to sell
- *       hash: number,                    // hash stock
- *       resin: number,                   // resin stock
- *       strains: string[]
- *     },
- *     prices: { weed: number, hash: number, resin: number }, // sell prices per unit
+ *     weed: number,                      // total harvested (grams)
+ *     money:  number,                    // €
+ *     strain: string,                    // equipped strain id
+ *     stock:  { weed, hash, resin, strains: string[] },
+ *     prices: { weed, hash, resin },
  *     levels: { harvest, auto, expert, crew, turbo, mega, sbox, coldroom },
- *     xp: number,                         // lifetime XP (= total weed ever harvested)
- *     milestones: string[],               // awarded milestone ids
- *     totalEarned: number                 // lifetime cash earned
+ *     xp: number,                        // lifetime XP
+ *     milestones: string[],
+ *     totalEarned: number
  *   }
  */
 (function (root, factory) {
@@ -344,25 +339,22 @@
     }
      d.levels = { ...DEFAULT_LEVELS, ...(d.levels || {}) };
      if (!d.stock || typeof d.stock !== 'object') d.stock = { weed: 0, hash: 0, resin: 0, strains: ['green'] };
-     if (typeof d.stock.weed !== 'number') d.stock.weed = d.stock.main || d.points || 0;
-     if (typeof d.stock.hash !== 'number') d.stock.hash = d.stock.premium || 0;
-     if (typeof d.stock.resin !== 'number') d.stock.resin = 0;
-     // legacy rosin/moonrock — dropped in simplified economy
-     if ('rosin' in d.stock) delete d.stock.rosin;
-     if ('moonrock' in d.stock) delete d.stock.moonrock;
+     d.stock.weed = typeof d.stock.weed === 'number' && d.stock.weed >= 0 ? d.stock.weed : 0;
+     d.stock.hash = typeof d.stock.hash === 'number' && d.stock.hash >= 0 ? d.stock.hash : 0;
+     d.stock.resin = typeof d.stock.resin === 'number' && d.stock.resin >= 0 ? d.stock.resin : 0;
      if (!Array.isArray(d.stock.strains)) d.stock.strains = ['green'];
      if (!getStrain(d.strain)) d.strain = 'green';
-     d.weed = typeof d.weed === 'number' && d.weed >= 0 ? d.weed : (d.points || 0);
+     d.weed = typeof d.weed === 'number' && d.weed >= 0 ? d.weed : 0;
      d.xp = typeof d.xp === 'number' && d.xp >= 0 ? d.xp : 0;
-     // legacy saves may contain genomes — silently ignored now
-     if ('genomes' in d) delete d.genomes;
      d.totalEarned = typeof d.totalEarned === 'number' && d.totalEarned >= 0 ? d.totalEarned : 0;
-     // sanitize prices to 3 products only
      if (!d.prices || typeof d.prices !== 'object') d.prices = { weed: 12, hash: 65, resin: 280 };
      else {
        const p = d.prices;
        d.prices = { weed: typeof p.weed === 'number' ? p.weed : 12, hash: typeof p.hash === 'number' ? p.hash : 65, resin: typeof p.resin === 'number' ? p.resin : 280 };
      }
+     // drop legacy fields from old saves
+     delete d.points; delete d.genomes;
+     delete d.stock.main; delete d.stock.premium; delete d.stock.rosin; delete d.stock.moonrock;
     d.milestones = Array.isArray(d.milestones)
       ? d.milestones.filter((m) => MILESTONES.some((mi) => mi.id === m))
       : [];
