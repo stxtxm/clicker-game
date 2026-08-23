@@ -71,6 +71,25 @@ Vérifications avant tout commit : `npm test` passe **et** `node --check` sur ch
 - Ne commit jamais de secrets/tokens (le repo est public).
 - Un commit qui casse `npm test` ne doit pas exister — lance les tests AVANT.
 
+## Patterns UI / performance (OBLIGATOIRE pour toute liste rendue)
+
+- **Structure / valeurs** : toute liste rendue dans une vue (marché, jalons,
+  upgrades) est construite **une seule fois** (`buildX()` avec ids stables et
+  handlers attachés une fois), puis mise à jour **in place** à chaque tick
+  (`updateX()` ne touche que textContent/style.width/classList/disabled).
+  Interdiction de faire `innerHTML = ''` dans une boucle d'update — c'était
+  la cause de taps perdus et de thrash layout sur mobile. Rebuild complet
+  uniquement quand l'ensemble change (ex déverrouillage d'un produit).
+- **Animations redémarrables** (pop au clic, bannières) : Web Animations API
+  (`el.animate(...)`), jamais `classList.remove + void offsetWidth + add`
+  (reflow forcé). Propriétés animées : transform/opacity uniquement
+  (compositor). `prefers-reduced-motion` respecté pour les animations
+  décoratives continues.
+- **Toasts** : max 2 simultanés, dédoublonnés (le même message relance le
+  timer au lieu de réempiler) — voir `toast()` dans `js/ui.js`.
+- **Feedback d'achat** : tout achat passe par le retour de la fonction Game
+  (`res.ok / res.reason`), toast + `popNum` + `refreshStats` + `save`.
+
 ## Conventions de code
 
 - **Pas de commentaires** sauf JSDoc sur les fonctions exportées de `game.js` et
