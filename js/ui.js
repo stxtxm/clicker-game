@@ -102,11 +102,7 @@
           '<div class="up-desc">' + u.desc + '</div></div>' +
         '<div class="up-buy"><span class="up-cost" id="uc-' + u.id + '">0 €</span>' +
           '<button class="bb" id="ub-' + u.id + '">Acheter</button></div>';
-      card.addEventListener('click', () => buyUpgrade(u.id));
-      card.querySelector('.bb').addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        buyUpgrade(u.id);
-      });
+      card.querySelector('.bb').addEventListener('click', () => buyUpgrade(u.id));
       el.ug.appendChild(card);
     }
   }
@@ -189,7 +185,11 @@
     if (el.ar) el.ar.textContent = '+' + ar;
     if (el.hl) el.hl.textContent = pc;
 
-    if (el.stw) el.stw.textContent = fmt(state.stock.weed) + 'g dispo';
+    const cap = Game.maxWeedStorage(state);
+    if (el.stw) {
+      el.stw.textContent = fmt(state.stock.weed) + ' / ' + fmt(cap) + 'g';
+      el.stw.parentElement?.classList.toggle('full', state.stock.weed >= cap);
+    }
     if (el.sth) el.sth.textContent = fmt(state.stock.hash) + ' dispo';
     if (el.str) el.str.textContent = fmt(state.stock.resin) + ' dispo';
 
@@ -211,7 +211,10 @@
       const cost = document.getElementById('uc-' + u.id);
       if (cost) cost.textContent = fmt(Game.upgradeCost(state, u.id)) + ' €';
       const btn = document.getElementById('ub-' + u.id);
-      if (btn) btn.disabled = state.money < Game.upgradeCost(state, u.id);
+      const card = document.getElementById('ui-' + u.id);
+      const affordable = state.money >= Game.upgradeCost(state, u.id);
+      if (btn) btn.disabled = !affordable;
+      if (card) card.classList.toggle('affordable', affordable);
     }
     document.querySelectorAll('[id^="sb-"]').forEach((b) => {
       const id = b.id.slice(3);
@@ -230,6 +233,12 @@
     const ac = Game.perClick(state);
     state.weed += ac;
     state.stock.weed += ac;
+    // enforce storage cap
+    const cap = Game.maxWeedStorage(state);
+    if (state.stock.weed > cap) {
+      state.stock.weed = cap;
+      if (ac > 0) toast('Stock plein ! Vends ou agrandis 📦');
+    }
     const xp = Game.earnXp(state, ac);
     // retrigger animation even on rapid taps
     el.bc.classList.remove('pulse-active');
@@ -320,6 +329,8 @@
     if (ar > 0) {
       state.weed += ar;
       state.stock.weed += ar;
+      const cap = Game.maxWeedStorage(state);
+      if (state.stock.weed > cap) state.stock.weed = cap;
       Game.earnXp(state, ar);
     }
     if (state.stock.weed > 20 && Math.random() < Game.PRODUCT_DROP_CHANCE) {

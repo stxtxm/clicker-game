@@ -254,23 +254,39 @@
       background: linear-gradient(135deg, var(--panel), var(--panel2));
       border: 1px solid var(--border);
       border-radius: 14px;
-      padding: 12px 14px;
+      padding: 14px;
       display: flex;
       align-items: center;
       gap: 12px;
-      cursor: pointer;
-      transition: border-color .15s, transform .08s;
+      transition: border-color .15s, background .15s;
     }
-    .upgrade:active { transform: scale(0.98); }
+    .upgrade.affordable { border-color: var(--border2); background: linear-gradient(135deg, rgba(74,222,128,.08), var(--panel2)); }
     .upgrade.affordable { border-color: var(--border2); }
     .up-icon { font-size: 1.8rem; flex-shrink: 0; }
     .up-info { flex: 1; min-width: 0; }
     .up-name { font-size: .9rem; font-weight: 800; margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }
     .up-level { font-size: .7rem; font-weight: 700; color: var(--gold); background: rgba(251,191,36,0.1); padding: 1px 6px; border-radius: 999px; }
     .up-desc { font-size: .74rem; color: var(--muted); line-height: 1.35; }
-    .up-buy { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+    .up-buy { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
     .up-cost { font-size: .88rem; font-weight: 800; color: var(--gold); }
     .upgrade:not(.affordable) .up-cost { color: #666; }
+    .up-buy .bb, .st-buy .bb {
+      background: linear-gradient(135deg, var(--green-dim), var(--green));
+      color: #070a07;
+      border: none;
+      min-width: 88px;
+      min-height: 44px;
+      padding: 10px 16px;
+      border-radius: 12px;
+      font-size: .85rem;
+      font-weight: 800;
+      cursor: pointer;
+      transition: transform .12s, filter .12s, background .15s;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .up-buy .bb:active:not(:disabled), .st-buy .bb:active:not(:disabled) { transform: scale(.96); filter: brightness(1.1); }
+    .up-buy .bb:disabled, .st-buy .bb:disabled { background: var(--panel); color: #555; border: 1px solid var(--border); opacity: 1; cursor: not-allowed; transform: none; }
 
     /* ===== Strains view ===== */
     .strains { display: flex; flex-direction: column; gap: 10px; }
