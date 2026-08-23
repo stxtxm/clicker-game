@@ -231,8 +231,11 @@
     state.weed += ac;
     state.stock.weed += ac;
     const xp = Game.earnXp(state, ac);
+    // retrigger animation even on rapid taps
+    el.bs.classList.remove('pulse-active');
+    void el.bs.offsetWidth;
     el.bs.classList.add('pulse-active');
-    setTimeout(() => el.bs.classList.remove('pulse-active'), 280);
+    setTimeout(() => el.bs.classList.remove('pulse-active'), 300);
     let x = 50, y = 45;
     if (ev && ev.clientX && ev.clientY) {
       const r = el.bc.getBoundingClientRect();
