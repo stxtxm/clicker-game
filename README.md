@@ -13,7 +13,7 @@ A mobile-friendly idle grower: click the bud, craft products, sell for €, auto
 7. **Switch strains** in *Variétés* — 8 genetics with yield/price multipliers, unlocked by level.
 8. **Progress** in *Progression* — level up and collect milestone bonuses. Use *Zone de danger* to hard-reset.
 
-> **Stock plein ?** When weed hits the cap the bud pulses red, a clickable `⚠️ Stock plein` banner appears (jumps straight to the Marché) and clicks spawn a red `Plein !` — clicking is wasted until you sell or expand storage.
+> **Stock plein ?** When weed hits the cap the bud pulses red and a clickable `⚠️ Stock plein` banner appears (jumps straight to the Marché) — clicking is wasted until you sell or expand storage.
 
 ### The strategic loop
 
