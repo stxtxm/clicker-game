@@ -155,22 +155,31 @@
     }
   }
 
-  /** Render the market: one sellable product per card + weed brute. */
+  /** Trend arrow for a market at `now`: ↗ rising, ↘ falling, → flat. */
+  function trendArrow(marketId, now) {
+    const t = Game.trend(marketId, now);
+    if (t > 0) return '<span class="trend up">↗</span>';
+    if (t < 0) return '<span class="trend down">↘</span>';
+    return '<span class="trend">→</span>';
+  }
+
+  /** Render the market: one sellable product per card + weed brute.
+   *  Prices pulse ±30% on a ~2 min cycle — arrows show the current direction. */
   function renderMarket() {
     if (!el.marketGrid) return;
     el.marketGrid.innerHTML = '';
     const level = Game.levelFromXp(state.xp);
+    const now = Date.now();
 
     // Weed brute card — sell raw grams
     {
-      const pMult = (Game.getStrain(state.strain) || { priceMult: 1 }).priceMult;
-      const unit = Math.round(state.prices.weed * pMult);
+      const unit = Game.priceOf(state, 'weed', now);
       const have = state.stock.weed || 0;
       const n = qtyMode === 'max' ? have : Math.min(qtyMode, have);
       const card = document.createElement('div');
       card.className = 'market-card';
       card.innerHTML =
-        '<div class="mc-top"><div class="mc-title">🌿 Weed Brute</div><div class="mc-price">' + unit + ' €/g</div></div>' +
+        '<div class="mc-top"><div class="mc-title">🌿 Weed Brute</div><div class="mc-price">' + trendArrow('weed', now) + ' ' + unit + ' €/g</div></div>' +
         '<div class="mc-stock" id="sth-w">' + fmt(have) + 'g disponibles</div>' +
         '<div class="mc-actions"><button class="mc-btn sell" data-p="weed">Vendre ' +
           (qtyMode === 'max' ? 'tout (' + fmt(have) + 'g)' : 'x' + n + ' (' + fmt(n) + 'g)') + '</button></div>';
@@ -183,7 +192,7 @@
     // Crafted products
     for (const p of Game.PRODUCTS) {
       const locked = level < p.unlock;
-      const unit = Game.productUnitPrice(state, p);
+      const unit = Game.priceOf(state, p.id, now);
       const have = state.stock[p.id] || 0;
       const maxCraftable = Math.floor((state.stock.weed || 0) / p.cost);
       const card = document.createElement('div');
@@ -192,7 +201,7 @@
         ? (locked ? '' : '<span class="mc-qty">x' + fmt(maxCraftable) + '</span>')
         : '';
       card.innerHTML =
-        '<div class="mc-top"><div class="mc-title">' + p.icon + ' ' + p.name + qtyLabel + '</div><div class="mc-price">' + unit + ' €/u</div></div>' +
+        '<div class="mc-top"><div class="mc-title">' + p.icon + ' ' + p.name + qtyLabel + '</div><div class="mc-price">' + trendArrow(p.id, now) + ' ' + unit + ' €/u</div></div>' +
         (locked
           ? '<div class="mc-stock">🔒 Niveau ' + p.unlock + ' requis — ' + p.cost + 'g weed → 1u</div>'
           : '<div class="mc-stock">' + fmt(have) + ' dispo — ' + p.cost + 'g → 1u (' + p.desc + ')</div>') +

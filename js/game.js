@@ -36,16 +36,18 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
-  /** Upgrades catalog: id, display name, icon, description, base cost. */
+  /** Upgrades catalog: id, display name, icon, description, base cost.
+   *  Costs are tuned so early purchases take ~1-2 min of play to pay back. */
   const UPGRADES = [
-    { id: 'harvest', name: 'Ciseaux Pro',    icon: '✂️',   desc: '+1g de weed par clic',      cost: 80 },
-    { id: 'auto',    name: 'Système Auto',   icon: '🤖',   desc: '+1g de weed par seconde',   cost: 350 },
-    { id: 'expert',  name: 'Taille Expert',  icon: '🧑‍🌾', desc: '+5g de weed par clic',      cost: 900 },
-    { id: 'crew',    name: 'Équipe de Serre',icon: '👥',   desc: '+15g de weed par seconde',  cost: 3500 },
-    { id: 'turbo',   name: 'Éclairage Turbo',icon: '⚡',   desc: 'x2 production de weed',     cost: 18000 },
-    { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: 'x2 production globale',     cost: 90000 },
-    { id: 'sbox',    name: 'Boîte Étanche',  icon: '📦',   desc: '+500g capacité weed max',   cost: 500 },
-    { id: 'coldroom',name: 'Chambre Froide', icon: '❄️',   desc: '+2500g capacité weed max',  cost: 8500 }
+    { id: 'harvest', name: 'Ciseaux Pro',    icon: '✂️',   desc: '+1g de weed par clic',      cost: 100 },
+    { id: 'auto',    name: 'Système Auto',   icon: '🤖',   desc: '+1g de weed par seconde',   cost: 500 },
+    { id: 'thumb',   name: 'Doigts Agiles',  icon: '🫰',   desc: '+8% de ta prod./s s\'ajoute à chaque clic', cost: 800 },
+    { id: 'expert',  name: 'Taille Expert',  icon: '🧑‍🌾', desc: '+5g de weed par clic',      cost: 2500 },
+    { id: 'crew',    name: 'Équipe de Serre',icon: '👥',   desc: '+15g de weed par seconde',  cost: 12000 },
+    { id: 'turbo',   name: 'Éclairage Turbo',icon: '⚡',   desc: 'x2 production de weed',     cost: 60000 },
+    { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: 'x2 production globale',     cost: 400000 },
+    { id: 'sbox',    name: 'Boîte Étanche',  icon: '📦',   desc: '+500g capacité weed max',   cost: 600 },
+    { id: 'coldroom',name: 'Chambre Froide', icon: '❄️',   desc: '+2500g capacité weed max',  cost: 15000 }
   ];
 
   /**
@@ -85,8 +87,11 @@
   /** Base cost of each upgrade, indexed by id. */
   const BASE_COST = Object.fromEntries(UPGRADES.map((u) => [u.id, u.cost]));
 
+  /** Multiplicative growth of upgrade cost per level (Cookie-Clicker-like). */
+  const COST_GROWTH = 1.75;
+
   /** Default upgrade levels for a brand new game. */
-  const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, crew: 0, turbo: 0, mega: 0, sbox: 0, coldroom: 0 };
+  const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, thumb: 0, crew: 0, turbo: 0, mega: 0, sbox: 0, coldroom: 0 };
 
   /**
    * Product catalog — everything sellable at the market.
@@ -94,14 +99,14 @@
    * Higher tiers give a better €/g ratio but need more weed and a higher level.
    */
   const PRODUCTS = [
-    { id: 'joint',   icon: '🚬', name: 'Joint Roulé',        cost: 2,   price: 28,   unlock: 1,  desc: 'Le classique du marché' },
-    { id: 'sachet',  icon: '🛍️', name: 'Sachet Scellé',      cost: 6,   price: 90,   unlock: 4,  desc: 'Conditionné sous vide' },
-    { id: 'hash',    icon: '📦', name: 'Hash Conditionné',   cost: 12,  price: 200,  unlock: 8,  desc: 'Pressé à la main' },
-    { id: 'cake',    icon: '🍰', name: 'Space Cake',         cost: 25,  price: 450,  unlock: 13, desc: 'Recette maison gourmande' },
-    { id: 'resin',   icon: '🍯', name: 'Résine Supérieure',  cost: 40,  price: 800,  unlock: 19, desc: 'Extraction soignée' },
-    { id: 'huile',   icon: '💧', name: 'Huile Verte',        cost: 80,  price: 1800, unlock: 26, desc: 'Distillat concentré' },
-    { id: 'shatter', icon: '💎', name: 'Shatter Pur',        cost: 150, price: 3800, unlock: 34, desc: 'Translucide et puissant' },
-    { id: 'rosin',   icon: '🌟', name: 'Live Rosin',         cost: 300, price: 8500, unlock: 45, desc: 'Le nec plus ultra des extraits' }
+    { id: 'joint',   icon: '🚬', name: 'Joint Roulé',        cost: 2,   price: 18,   unlock: 1,  desc: 'Le classique du marché' },
+    { id: 'sachet',  icon: '🛍️', name: 'Sachet Scellé',      cost: 6,   price: 60,   unlock: 4,  desc: 'Conditionné sous vide' },
+    { id: 'hash',    icon: '📦', name: 'Hash Conditionné',   cost: 12,  price: 150,  unlock: 8,  desc: 'Pressé à la main' },
+    { id: 'cake',    icon: '🍰', name: 'Space Cake',         cost: 25,  price: 380,  unlock: 13, desc: 'Recette maison gourmande' },
+    { id: 'resin',   icon: '🍯', name: 'Résine Supérieure',  cost: 40,  price: 720,  unlock: 19, desc: 'Extraction soignée' },
+    { id: 'huile',   icon: '💧', name: 'Huile Verte',        cost: 80,  price: 1600, unlock: 26, desc: 'Distillat concentré' },
+    { id: 'shatter', icon: '💎', name: 'Shatter Pur',        cost: 150, price: 3400, unlock: 34, desc: 'Translucide et puissant' },
+    { id: 'rosin',   icon: '🌟', name: 'Live Rosin',         cost: 300, price: 7650, unlock: 45, desc: 'Le nec plus ultra des extraits' }
   ];
 
   /**
@@ -251,7 +256,7 @@
       money: 0,
       strain: 'green',
       stock,
-      prices: { weed: 12 },
+      prices: { weed: 8 },
       levels: { ...DEFAULT_LEVELS },
       auto: { craft: {}, sell: {} },
       xp: 0,
@@ -270,20 +275,78 @@
     return PRODUCTS.find((x) => x.id === id);
   }
 
-  /** @returns {number} sale price of one unit of `prod` with current strain multiplier */
-  function productUnitPrice(s, prod) {
+  /* ---- market pulse (strategic sell timing) ------------------------------- */
+  /**
+   * Commodity prices oscillate ±30% around their base on a ~2 min cycle, with
+   * a stable per-market phase offset. Players watch trends (↗/↘) and time
+   * their bulk sales for peaks — pure strategy layer, zero state needed
+   * (deterministic in `now`, so saves and tests stay reproducible).
+   */
+  const MARKET = { swing: 0.3, periodMs: 120000 };
+
+  /** Stable pseudo-random phase in [0, 2π) derived from the market id. */
+  function _phase(id) {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 997;
+    return (h / 997) * Math.PI * 2;
+  }
+
+  /**
+   * Market multiplier for one commodity at time `now` (ms), in [1-swing, 1+swing].
+   * `MARKET.periodMs` is the exact cycle duration (2π argument scaling).
+   * @param {string} marketId 'weed' or a product id
+   * @param {number} now epoch ms
+   * @returns {number} multiplier ~1 ± 0.3
+   */
+  function pulse(marketId, now) {
+    return 1 + MARKET.swing * Math.sin(now * (2 * Math.PI / MARKET.periodMs) + _phase(marketId));
+  }
+
+  /**
+   * Whether a market is currently rising or falling.
+   * @returns {1|-1|0} 1 rising, -1 falling, 0 flat (at a peak/trough)
+   */
+  function trend(marketId, now) {
+    const d = Math.cos(now * (2 * Math.PI / MARKET.periodMs) + _phase(marketId));
+    return d > 0.001 ? 1 : d < -0.001 ? -1 : 0;
+  }
+
+  /**
+   * Current sale price of weed or a product: base × strain priceMult × market pulse.
+   * @param {object} s state
+   * @param {string} kind 'weed' or a product id
+   * @param {number} [now] epoch ms (default Date.now())
+   * @returns {number} unit price in €
+   */
+  function priceOf(s, kind, now) {
+    const t = now === undefined ? Date.now() : now;
     const st = getStrain(s.strain);
-    return Math.round(prod.price * (st ? st.priceMult : 1.0));
+    const pm = st ? st.priceMult : 1.0;
+    if (kind === 'weed') return Math.round(s.prices.weed * pm * pulse('weed', t));
+    const p = getProduct(kind);
+    if (!p) return 0;
+    return Math.round(p.price * pm * pulse(kind, t));
+  }
+
+  /** @returns {number} sale price of one unit of `prod` (strain mult + market pulse) */
+  function productUnitPrice(s, prod, now) {
+    return priceOf(s, prod.id, now);
   }
 
   /**
    * Weed gained per click (grams).
+   *
+   * Cookie-Clicker-style relevance: beyond the flat harvest, every level of
+   * `thumb` (Doigts Agiles) adds a share of your per-second production to each
+   * click — clicking stays worthwhile because it scales with your economy.
    */
   function perClick(s) {
     let pc = s.levels.harvest + s.levels.expert * 5;
     if (s.levels.turbo > 0) pc *= 2;
     if (s.levels.mega > 0) pc *= 2;
-    return Math.round(pc * productionMult(s));
+    let total = pc * productionMult(s);
+    total += perSecond(s) * (s.levels.thumb || 0) * 0.08; // +8%/lvl of auto prod
+    return Math.round(total);
   }
 
   /**
@@ -294,10 +357,11 @@
   }
 
   /**
-   * Current purchase price of an upgrade: base cost doubles per owned level.
+   * Current purchase price of an upgrade: base cost × COST_GROWTH per level.
+   * Growth is gentler than the old x2.1 doubling — no more dead-end walls.
    */
   function upgradeCost(s, id) {
-    return Math.floor(BASE_COST[id] * Math.pow(2.1, s.levels[id] - (id === 'harvest' ? 1 : 0)));
+    return Math.floor(BASE_COST[id] * Math.pow(COST_GROWTH, s.levels[id] - (id === 'harvest' ? 1 : 0)));
   }
 
   /**
@@ -351,9 +415,10 @@
    *
    * No XP is granted: consistent with manual crafting/selling which only move €.
    * @param {object} s state (mutated)
+   * @param {number} [now] epoch ms for the market pulse (default Date.now())
    * @returns {{crafted:Object<string,number>, soldMoney:Object<string,number>}} per-product units crafted and cash earned this tick
    */
-  function autoTick(s) {
+  function autoTick(s, now) {
     const res = { crafted: {}, soldMoney: {} };
     for (const p of [...PRODUCTS].reverse()) {
       if (!hasAuto(s, 'craft', p.id)) continue;
@@ -363,7 +428,7 @@
     for (const p of PRODUCTS) {
       const made = res.crafted[p.id] || 0;
       if (!hasAuto(s, 'sell', p.id) || made <= 0) continue;
-      const gain = sellStock(s, p.id, made);
+      const gain = sellStock(s, p.id, made, now);
       if (gain > 0) res.soldMoney[p.id] = gain;
     }
     return res;
@@ -427,19 +492,18 @@
    * @param {object} s state
    * @param {'weed'|string|'all'} type 'weed', a product id from PRODUCTS, or 'all'
    * @param {number} [amount] units/grams to sell (default: all of that type)
+   * @param {number} [now] epoch ms for the market pulse (default Date.now())
    * @returns {number} cash gained
    */
-  function sellStock(s, type, amount) {
+  function sellStock(s, type, amount, now) {
     if (type === 'all') {
-      let total = sellStock(s, 'weed');
-      for (const p of PRODUCTS) total += sellStock(s, p.id);
+      let total = sellStock(s, 'weed', undefined, now);
+      for (const p of PRODUCTS) total += sellStock(s, p.id, undefined, now);
       return total;
     }
-    const st = getStrain(s.strain);
-    const pMult = st ? st.priceMult : 1.0;
     let gain = 0;
     if (type === 'weed') {
-      const unit = Math.round(s.prices.weed * pMult);
+      const unit = priceOf(s, 'weed', now);
       const toSell = amount === undefined ? (s.stock.weed || 0)
         : Math.min(s.stock.weed || 0, Math.max(1, Math.floor(amount)));
       gain = toSell * unit;
@@ -448,7 +512,7 @@
     } else {
       const prod = getProduct(type);
       if (prod) {
-        const unit = productUnitPrice(s, prod);
+        const unit = priceOf(s, type, now);
         const have = s.stock[type] || 0;
         const toSell = amount === undefined ? have : Math.min(have, Math.max(1, Math.floor(amount)));
         gain = toSell * unit;
@@ -564,8 +628,8 @@
      d.weed = typeof d.weed === 'number' && d.weed >= 0 ? d.weed : 0;
      d.xp = typeof d.xp === 'number' && d.xp >= 0 ? d.xp : 0;
      d.totalEarned = typeof d.totalEarned === 'number' && d.totalEarned >= 0 ? d.totalEarned : 0;
-     if (!d.prices || typeof d.prices !== 'object') d.prices = { weed: 12 };
-     else if (typeof d.prices.weed !== 'number') d.prices.weed = 12;
+     if (!d.prices || typeof d.prices !== 'object') d.prices = { weed: 8 };
+     else if (typeof d.prices.weed !== 'number') d.prices.weed = 8;
      // drop legacy fields
      delete d.points; delete d.genomes;
      delete d.stock.main; delete d.stock.premium; delete d.stock.moonrock;
@@ -593,7 +657,9 @@
     PRODUCTS,
     AUTOMATION,
     BASE_COST,
+    COST_GROWTH,
     DEFAULT_LEVELS,
+    MARKET,
     XP_BASE,
     XP_GROWTH,
     MILESTONES,
@@ -604,6 +670,9 @@
     getStrain,
     getProduct,
     productUnitPrice,
+    pulse,
+    trend,
+    priceOf,
     xpForLevel,
     levelFromXp,
     xpProgress,

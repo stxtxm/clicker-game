@@ -54,60 +54,75 @@ test('perSecond: auto + crew, scaled by level and strain multiplier', () => {
   assert.strictEqual(Game.perSecond(s), 33);     // 31 * 1.08 = 33.48 -> 33
 });
 
-test('upgradeCost scales properly', () => {
+test('upgradeCost scales with COST_GROWTH', () => {
   const s = Game.defaultState();
-  assert.strictEqual(Game.upgradeCost(s, 'harvest'), 80); // harvest starts at level 1
+  assert.strictEqual(Game.upgradeCost(s, 'harvest'), 100); // harvest starts at level 1
+  assert.strictEqual(Game.upgradeCost(s, 'harvest', ), Math.floor(100 * Math.pow(Game.COST_GROWTH, 0)));
   s.levels.harvest = 2;
-  assert.strictEqual(Game.upgradeCost(s, 'harvest'), Math.floor(80 * Math.pow(2.1, 1)));
-  assert.strictEqual(Game.upgradeCost(s, 'auto'), 350);   // auto starts at level 0
+  assert.strictEqual(Game.upgradeCost(s, 'harvest'), Math.floor(100 * Math.pow(Game.COST_GROWTH, 1)));
+  assert.strictEqual(Game.upgradeCost(s, 'auto'), 500);   // auto starts at level 0
 });
 
 test('buyUpgrade: insufficient funds does not mutate', () => {
   const s = Game.defaultState();
-  s.money = 79;
+  s.money = 99;
   const res = Game.buyUpgrade(s, 'harvest');
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'funds');
-  assert.strictEqual(s.money, 79);
+  assert.strictEqual(s.money, 99);
   assert.strictEqual(s.levels.harvest, 1);
 });
 
 test('buyUpgrade: success deducts money and levels up', () => {
   const s = Game.defaultState();
-  s.money = 100;
-  const res = Game.buyUpgrade(s, 'harvest');
+  s.money = 275;
+  const res = Game.buyUpgrade(s, 'harvest'); // lvl1 -> base cost 100 (exponent 0)
   assert.strictEqual(res.ok, true);
-  assert.strictEqual(res.cost, 80); // harvest level 1 cost = 80
+  assert.strictEqual(res.cost, 100);
   assert.strictEqual(res.name, 'Ciseaux Pro');
-  assert.strictEqual(s.money, 20);
+  assert.strictEqual(s.money, 175);
   assert.strictEqual(s.levels.harvest, 2);
 });
 
-test('sellStock: weed, product, partial amount and all', () => {
+// Deterministic market pulse for tests (t=0 → each market has a fixed phase)
+const px = (base, id) => Math.round(base * Game.pulse(id, 0));
+
+test('market pulse oscillates ±30% deterministically', () => {
+  for (const id of ['weed', 'joint', 'hash', 'rosin']) {
+    const p0 = Game.pulse(id, 0);
+    assert.ok(p0 >= 0.7 && p0 <= 1.3, id + ' pulse out of range');
+    assert.strictEqual(p0, Game.pulse(id, 0)); // deterministic
+  }
+  // same phase comes back after one full period
+  assert.ok(Math.abs(Game.pulse('joint', 120000) - Game.pulse('joint', 0)) < 1e-6);
+});
+
+test('sellStock: weed, product, partial amount and all (pulse-aware)', () => {
   const s = Game.defaultState();
   s.stock.weed = 10;
   s.stock.hash = 1;
   s.stock.resin = 1;
-  assert.strictEqual(Game.sellStock(s, 'weed'), 120); // 10 * 12 €
+  assert.strictEqual(Game.sellStock(s, 'weed', undefined, 0), 10 * px(8, 'weed'));
   assert.strictEqual(s.stock.weed, 0);
   assert.strictEqual(s.stock.hash, 1);
-  assert.strictEqual(Game.sellStock(s, 'hash'), 200);   // 1 * 200 € (catalog price)
-  assert.strictEqual(Game.sellStock(s, 'resin', 1), 800); // 1 * 800 €
-  assert.strictEqual(Game.sellStock(s, 'all'), 0);      // empty
+  assert.strictEqual(Game.sellStock(s, 'hash', undefined, 0), px(150, 'hash'));
+  assert.strictEqual(Game.sellStock(s, 'resin', 1, 0), px(720, 'resin'));
+  assert.strictEqual(Game.sellStock(s, 'all', undefined, 0), 0); // empty
 });
 
 test('sellStock: partial amounts and sell-all across products', () => {
   const s = Game.defaultState();
   s.stock.joint = 10;
   s.stock.weed = 50;
-  assert.strictEqual(Game.sellStock(s, 'joint', 3), 84); // 3 * 28 €
+  const unitJ = px(18, 'joint');
+  const gain3 = Game.sellStock(s, 'joint', 3, 0);
+  assert.strictEqual(gain3, 3 * unitJ);
   assert.strictEqual(s.stock.joint, 7);
-  // green x1: joints left (7*28) + raw weed (50*12)
-  const gain = Game.sellStock(s, 'all');
-  assert.strictEqual(gain, 7 * 28 + 50 * 12);
+  const gain = Game.sellStock(s, 'all', undefined, 0);
+  assert.strictEqual(gain, 7 * unitJ + 50 * px(8, 'weed'));
   assert.strictEqual(s.stock.joint, 0);
   assert.strictEqual(s.stock.weed, 0);
-  assert.strictEqual(s.money, 84 + gain);
+  assert.strictEqual(s.money, gain3 + gain);
 });
 
 test('craftProduct: consumes weed and supports qty / max', () => {
@@ -128,10 +143,21 @@ test('craftProduct: consumes weed and supports qty / max', () => {
   assert.strictEqual(r.reason, 'weed');
 });
 
-test('product prices scale with equipped strain multiplier', () => {
+test('product prices scale with equipped strain multiplier and pulse', () => {
   const s = Game.defaultState();
   s.strain = 'purple'; // x1.4
-  assert.strictEqual(Game.productUnitPrice(s, Game.getProduct('joint')), Math.round(28 * 1.4));
+  assert.strictEqual(Game.productUnitPrice(s, Game.getProduct('joint'), 0),
+    Math.round(18 * 1.4 * Game.pulse('joint', 0)));
+});
+
+test('perClick: Doigts Agiles adds a share of auto production', () => {
+  const s = Game.defaultState();          // harvest lvl1 -> 1*1.08
+  s.levels.auto = 10;                     // perSecond = round(10*1.08) = 11
+  s.levels.thumb = 1;                     // +8% of 11 = +0.88
+  // 1.08 + 0.88 = 1.96 -> 2 (vs 1 without thumb)
+  assert.strictEqual(Game.perClick(s), 2);
+  s.levels.thumb = 5;                     // +40% of 11 = +4.4 -> 1.08+4.4=5.48 -> 5
+  assert.strictEqual(Game.perClick(s), 5);
 });
 
 test('equipStrain: unknown id', () => {
@@ -226,7 +252,7 @@ test('deserialize: sanitizes unknown strain and bad shapes', () => {
 });
 
 test('data catalog is coherent', () => {
-  assert.strictEqual(Game.UPGRADES.length, 8);
+  assert.strictEqual(Game.UPGRADES.length, 9);
   assert.strictEqual(Game.STRAINS.length, 8);
   for (const u of Game.UPGRADES) {
     assert.ok(u.id && u.name && u.desc && u.cost > 0);
@@ -331,10 +357,12 @@ test('automation catalog: one hire per product, coherent costs', () => {
 
 test('buyAutomation: funds check, deducts money and unlocks craft+sell', () => {
   const s = Game.defaultState();
+  const COST = Game.AUTOMATION.find((a) => a.id === 'auto-joint').cost; // 18 * 400 = 7200
+  assert.strictEqual(COST, 7200);
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').reason, 'funds');
-  s.money = 11199; // just short of 11200
+  s.money = COST - 1;
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').reason, 'funds');
-  s.money = 11200;
+  s.money = COST;
   const r = Game.buyAutomation(s, 'auto-joint');
   assert.deepStrictEqual(r, { ok: true, name: 'Chaîne Joint Roulé' });
   assert.strictEqual(s.money, 0);
@@ -367,15 +395,15 @@ test('autoTick: no-op without any hire owned', () => {
 test('autoTick: chain crafts 1u/s and sells ONLY its own output', () => {
   const s = Game.defaultState();
   s.money = 100000;
-  Game.buyAutomation(s, 'auto-joint');    // cost 11200; 2g -> 28 €
+  Game.buyAutomation(s, 'auto-joint');    // cost 7200; 2g -> 1 joint
   s.stock.joint = 5;                      // hand-made stock
   s.stock.weed = 21;
-  const t = Game.autoTick(s);
-  assert.strictEqual(t.crafted.joint, 1);           // capped at 1u/s
-  assert.strictEqual(t.soldMoney.joint, 28);        // sells the crafted unit only
-  assert.strictEqual(s.stock.joint, 5);             // manual stock untouched!
+  const t = Game.autoTick(s, 0);
+  assert.strictEqual(t.crafted.joint, 1);               // capped at 1u/s
+  assert.strictEqual(t.soldMoney.joint, px(18, 'joint')); // sells the crafted unit only
+  assert.strictEqual(s.stock.joint, 5);                 // manual stock untouched!
   assert.strictEqual(s.stock.weed, 19);
-  assert.strictEqual(s.money, 100000 - 11200 + 28); // hire paid, trickle earned
+  assert.strictEqual(s.money, 100000 - 7200 + px(18, 'joint')); // hire paid, trickle earned
 });
 
 test('autoTick: dealer without crafter output sells nothing', () => {
