@@ -549,6 +549,15 @@
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
+      // Auto-reload once when a NEW service worker takes over (deploy transition),
+      // so players never keep playing a stale session. First install: no reload.
+      const hadController = !!navigator.serviceWorker.controller;
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadController || refreshing) return;
+        refreshing = true;
+        location.reload();
+      });
       navigator.serviceWorker.register('sw.js').then((reg) => {
         // Notify when a new version is waiting to take over after reload.
         reg.addEventListener('updatefound', () => {
