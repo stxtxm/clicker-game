@@ -54,6 +54,33 @@
    * matter), then stays driven by the near-cap threshold.
    */
   let fullBannerArmed = false;
+  let fullBannerShown = false;
+
+  /** Animated show/hide of the stock-full banner (compositor-only props). */
+  function setFullBanner(show) {
+    if (!el.fw || show === fullBannerShown) return;
+    fullBannerShown = show;
+    if (!el.fw.animate) { el.fw.hidden = !show; return; }
+    if (show) {
+      el.fw.hidden = false;
+      el.fw.animate(
+        [
+          { opacity: 0, transform: 'translateY(-14px) scale(.96)' },
+          { opacity: 1, transform: 'translateY(0) scale(1)' }
+        ],
+        { duration: 300, easing: 'cubic-bezier(.34,1.4,.64,1)' }
+      );
+    } else {
+      const out = el.fw.animate(
+        [
+          { opacity: 1, transform: 'translateY(0)' },
+          { opacity: 0, transform: 'translateY(-10px)' }
+        ],
+        { duration: 180, easing: 'ease-out' }
+      );
+      out.onfinish = () => { el.fw.hidden = true; };
+    }
+  }
 
   // --- helpers ---------------------------------------------------------------
   /** Format a number for display: 1.2K / 3.45M / floor below 1000. */
@@ -74,11 +101,13 @@
     setTimeout(() => { if (m.parentNode) m.remove(); }, 2200);
   }
 
-  /** Re-trigger the "pop" animation on a stat element. */
+  /** Re-trigger the "pop" animation on a stat element (WAAPI: no forced reflow). */
   function popNum(node) {
-    node.classList.remove('pop');
-    void node.offsetWidth;
-    node.classList.add('pop');
+    if (!node || !node.animate) return;
+    node.animate(
+      [{ transform: 'scale(1)' }, { transform: 'scale(1.16)' }, { transform: 'scale(1)' }],
+      { duration: 180, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+    );
   }
 
   // --- rendering -------------------------------------------------------------
@@ -328,7 +357,7 @@
     }
     // storage-full feedback: pulsing bud + clickable warning banner
     if (el.bc) el.bc.classList.toggle('storage-full', isFull);
-    if (el.fw) el.fw.hidden = !fullBannerArmed || !isFull;
+    setFullBanner(fullBannerArmed && isFull);
 
     renderMarket();
 
@@ -387,11 +416,20 @@
       lastFullToast = Date.now();
     }
     const xp = Game.earnXp(state, added);
-    // retrigger animation even on rapid taps
-    el.bc.classList.remove('pulse-active');
-    void el.bc.offsetWidth;
-    el.bc.classList.add('pulse-active');
-    setTimeout(() => el.bc.classList.remove('pulse-active'), 400);
+    // squash & stretch juice — WAAPI: compositor-driven, restarts cleanly on
+    // rapid taps (each new animation replaces the previous, no forced reflow)
+    if (el.bc.animate) {
+      el.bc.animate(
+        [
+          { transform: 'scale(1, 1)' },
+          { transform: 'scale(0.955, 1.045)', offset: 0.22 },
+          { transform: 'scale(1.055, 0.955)', offset: 0.42 },
+          { transform: 'scale(0.99, 1.015)', offset: 0.68 },
+          { transform: 'scale(1, 1)' }
+        ],
+        { duration: 320, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+      );
+    }
     if (added > 0) {
       spawnParticle('+' + ac + 'g');
       popNum(el.stw);
