@@ -153,7 +153,7 @@
       transform-origin: center bottom;
       transition: filter .12s;
     }
-    .bud-container:active { filter: brightness(1.12) saturate(1.15); }
+    .bud-container:active { filter: none; }
     #bs { display: block; width: 100%; height: 100%; animation: budSway 5.5s ease-in-out infinite; transform-origin: 50% 88%; will-change: transform; }
     @keyframes budSway { 0%, 100% { transform: rotate(-1.4deg); } 50% { transform: rotate(1.4deg); } }
     @media (prefers-reduced-motion: reduce) { #bs { animation: none; } }
@@ -189,7 +189,15 @@
     .full-warn b { color: #f87171; }
     .full-warn[hidden] { display: none; }
     @keyframes warnBlink { 0%, 100% { opacity: 1; } 50% { opacity: .72; } }
-    .bud-container svg { width: 100%; height: 100%; filter: drop-shadow(0 14px 28px rgba(74,222,128,0.22)); display: block; }
+    .bud-container::before {
+      content: '';
+      position: absolute;
+      inset: -12%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(74,222,128,0.18) 0%, rgba(74,222,128,0.05) 55%, transparent 70%);
+      pointer-events: none;
+    }
+    .bud-container svg { width: 100%; height: 100%; display: block; }
     .strain-badge {
       background: var(--panel2);
       border: 1px solid var(--border2);
@@ -204,9 +212,7 @@
       gap: 6px;
     }
     .click-fx {
-      position: absolute;
-      left: 50%;
-      top: 18%;
+      position: fixed;
       font-size: clamp(1rem, 4.2vw, 1.35rem);
       font-weight: 900;
       letter-spacing: .3px;
@@ -215,9 +221,10 @@
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
-      filter: drop-shadow(0 3px 6px rgba(0,0,0,.55));
+      text-shadow: 0 2px 8px rgba(0,0,0,.8);
     }
     .click-fx.warn { background: linear-gradient(180deg, #fecaca, #f87171); -webkit-background-clip: text; background-clip: text; }
+    #fx { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 60; }
       pointer-events: none;
       will-change: transform, opacity;
       animation: floatUp .7s cubic-bezier(.2,.7,.3,1) forwards;
