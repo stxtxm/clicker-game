@@ -47,12 +47,12 @@ An optimal sim ≈ 2-4× faster than a real player. The levers, in order of impa
 
 ## Progression
 
-Every harvested gram is 1 **XP**, earned forever. XP drives a hybrid curve (level N needs `150*(N-1)²*1.28^(N-1)` XP): fast early, then steep.
+Every **produced** gram is XP — stored grams count fully, grams lost to a full stock count for 25%: a full stock slows you without ever hard-locking progression. XP drives a hybrid curve (level N needs `150*(N-1)²*1.28^(N-1)` XP): fast early, then steep.
 
 - **Levels**: each level adds **+8%** to all production. Strains unlock at 1, 4, 8, 13, 19, 26, 34, 45.
 - **Strains**: `yieldMult` multiplies weed per click/second, `priceMult` the sale prices — together they are the big progression jumps, gated by steep costs (Purple 4 K€ → Widow 200 M€).
 - **Milestones**: permanent bonuses at 200 → +5%, 2.5K → +10%, 30K → +15%, 350K → +25%, 4M → +40%, 50M → +75%.
-- **Storage**: `maxWeedStorage()` = 1200 + 700×BoîteÉtanche + 3500×ChambreFroide. Harvest is capped, toast `Stock plein !` when full. Income ≈ cap × €/g, so **storage is the main money sink**: its cost grows ×3.0 per level (see Upgrades).
+- **Storage**: `maxWeedStorage()` = (1200 + 700×BoîteÉtanche + 3500×ChambreFroide) × (1 + 1%/level). Harvest is capped, toast `Stock plein !` when full. Income ≈ cap × €/g, so **storage is the main money sink**: its cost grows ×3.0 per level (see Upgrades).
 
 All bonuses multiply.
 

@@ -534,6 +534,11 @@ test('maxWeedStorage: missing/negative levels fall back to base', () => {
   // corrupted saves with negative levels must never brick the cap
   assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: -3, coldroom: undefined } }), 1200);
   assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: 2, coldroom: 1 } }), 1200 + 1400 + 3500);
+  // passive cap growth per level
+  const leveled = Game.defaultState();
+  leveled.levels.sbox = 2; leveled.levels.coldroom = 1;
+  leveled.xp = Game.xpForLevel(11); // level 11 -> x1.1
+  assert.strictEqual(Game.maxWeedStorage(leveled), Math.round(6100 * 1.1));
 });
 
 test('priceOf: unknown product is 0, weed uses prices.weed base', () => {
