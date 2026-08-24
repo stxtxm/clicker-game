@@ -97,7 +97,7 @@ Market actions support quantity presets **x1 / x10 / x100 / MAX** (craft & sell)
 
 Adventure-Capitalist-style managers in `AUTOMATION` (`js/game.js`), listed in the **Upgrades** tab with the same card format as hardware: for every product there is **one** one-time hire (`auto-<productId>`) that unlocks the full chain at once:
 
-- ⚙️ **Ouvrier** — converts **at least 1u/s**, up to **15% of your produced flow** (`CHAIN_FLOW_SHARE`): idle income is proportional to what the chain transforms, so it scales with your build instead of trickling while the stock caps out.
+- ⚙️ **Ouvrier** — converts **at least 1u/s**, up to **15% of your produced flow** (`CHAIN_FLOW_SHARE`); above **90% of the cap**, the piled-up excess joins the budget — a full stock visibly empties itself in a few ticks.
 - 💰 **Dealer** — sells the chain's whole fresh output, plus dips **1u/s into your manual stock** at the current market price (pulse included).
 
 The trade-off — idle comfort vs strategic leak:
