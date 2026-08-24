@@ -434,10 +434,10 @@
    *
    * Order matters and is deliberate:
    *   1. Auto-craft owned chains, most expensive product first. Throughput is
-   *      PROPORTIONAL to production: each chain converts at least its classic
-   *      1u/s floor, up to CHAIN_FLOW_SHARE of the tick's produced flow — idle
-   *      money scales with what you build. Chains only ever skim the INFLOW:
-   *      the player's stored weed and hand-made stock are never touched.
+   *      PROPORTIONAL to the flow that actually entered storage: each chain
+   *      converts up to CHAIN_FLOW_SHARE of the remaining budget (1u/s floor
+   *      when flow allows). No stored inflow (stock full) -> chains pause:
+   *      the player's pile and hand-made stock are never drained by chains.
    *   2. Dealers sell exactly their chain's fresh output at the CURRENT market
    *      price (pulse included): idle money is proportional to what the chain
    *      transformed, while hand-made bulk sales at a +30% peak stay the
@@ -454,10 +454,14 @@
     let budget = Math.max(0, flow || 0);
     for (const p of [...PRODUCTS].reverse()) {
       if (!hasAuto(s, 'craft', p.id)) continue;
-      // floor: the classic 1u/s; top-up: a share of the remaining flow.
-      // The budget never exceeds the flow, so chains skim the inflow only.
+      // chains convert ONLY what actually entered storage this tick:
+      // at least 1u/s when flow allows, up to CHAIN_FLOW_SHARE of the
+      // remaining budget. No flow -> they pause; the pile is never eaten.
+      if (budget < p.cost) continue;
       const grams = Math.min(budget, Math.max(p.cost, budget * CHAIN_FLOW_SHARE));
-      const r = craftProduct(s, p.id, Math.max(1, Math.floor(grams / p.cost)));
+      const units = Math.floor(grams / p.cost);
+      if (units < 1) continue;
+      const r = craftProduct(s, p.id, units);
       if (r.ok) {
         res.crafted[p.id] = r.amount;
         budget -= r.amount * p.cost;
