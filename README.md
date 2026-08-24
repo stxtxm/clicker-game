@@ -97,14 +97,14 @@ Market actions support quantity presets **x1 / x10 / x100 / MAX** (craft & sell)
 
 Adventure-Capitalist-style managers in `AUTOMATION` (`js/game.js`), listed in the **Upgrades** tab with the same card format as hardware: for every product there is **one** one-time hire (`auto-<productId>`) that unlocks the full chain at once:
 
-- ⚙️ **Ouvrier** — auto-crafts **at most 1 unit/s** while weed lasts.
-- 💰 **Dealer** — sells up to **2u/s**: the chain's fresh output first, then dips **1u/s into your manual stock at the current market price** (pulse included).
+- ⚙️ **Ouvrier** — converts **at least 1u/s**, up to **15% of your produced flow** (`CHAIN_FLOW_SHARE`): idle income is proportional to what the chain transforms, so it scales with your build instead of trickling while the stock caps out.
+- 💰 **Dealer** — sells the chain's whole fresh output, plus dips **1u/s into your manual stock** at the current market price (pulse included).
 
 The trade-off — idle comfort vs strategic leak:
 
-1. Passive income flows even with zero weed production, but your hoarded stock slowly leaks, sometimes at a -30% pulse: craft-and-hoard forever is no longer free.
-2. Hand-made bulk sales (craft x100/MAX + sell at a peak) still beat the dealer's dribble — timing your big sale before the leak eats it is the challenge.
-3. Sustaining a tier needs huge weed income (joint 2g/s → rosin 300g/s), so late chains idle until your production catches up.
+1. Money flows proportionally to production even while AFK, but hoarded stock slowly leaks, sometimes at a -30% pulse: craft-and-hoard forever is not free.
+2. Hand-made bulk sales (craft x100/MAX + sell at a +30% peak) still beat the continuous conversion — timing your big sale is the challenge.
+3. With 3 chains ~45% of the flow is auto-converted; the rest accumulates, keeping storage and manual peak-sales relevant.
 4. Costs ≈ `500× unit price`, unlocked 5 levels after the product itself:
 
 | Chaîne | Cost | Unlock | Passive max |

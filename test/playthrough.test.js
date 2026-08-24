@@ -47,13 +47,15 @@ function simulate(minutes) {
     // --- idle production
     const auto = Game.perSecond(s);
     if (auto > 0) Game.harvestXp(s, auto);
-    // --- automation chains (1u/s trickle)
-    Game.autoTick(s, now);
 
+    // storage pressure is measured right after production, BEFORE the chains
+    // drain their share (matches what the player sees when the tick lands)
     const cap = Game.maxWeedStorage(s);
-    if (s.stock.weed >= cap * 0.97) { cappedStreak++; } else { cappedStreak = 0; } // chains drain ~1u/s: near-cap counts as capped
-    // returning from AFK: capped for 2+ min straight -> dump everything (capHits = dumps)
+    if (s.stock.weed >= cap * 0.97) { cappedStreak++; } else { cappedStreak = 0; }
     if (cappedStreak >= 120) { capHits++; cappedStreak = 0; }
+
+    // --- automation chains (proportional to produced flow: auto + clicks)
+    Game.autoTick(s, now, auto + 2.5 * Game.perClick(s));
 
     if (afk) { /* away: no selling, stock piles up */ }
     // --- selling strategy (active only): best unlocked product by €/g × pulse; sell on

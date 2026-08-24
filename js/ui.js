@@ -437,12 +437,15 @@
   // --- game actions ----------------------------------------------------------
   /** Timestamp of the last "stock plein" toast (throttle: 1 per 2.5s max). */
   let lastFullToast = 0;
+  /** Grams produced by clicks since the last automation tick (chain flow). */
+  let clickFlow = 0;
 
   function onHarvest(ev) {
     if (ev && ev.preventDefault) { ev.preventDefault(); ev.stopPropagation(); }
     fullBannerArmed = true; // from now on the banner may show (first interaction)
     const ac = Game.perClick(state);
     const added = Game.harvestXp(state, ac);
+    clickFlow += ac; // clicks feed the chains' proportional flow too
     const full = added < ac;
     if (full && Date.now() - lastFullToast > 2500) {
       toast('Stock plein ! Vends ou agrandis 📦');
@@ -601,8 +604,10 @@
   function autoProduce() {
     const ar = Game.perSecond(state);
     if (ar > 0) Game.harvestXp(state, ar);
-    // automation hires (Ouvriers/Dealers) craft & sell owned products
-    Game.autoTick(state);
+    // automation hires (Ouvriers/Dealers) craft & sell owned products,
+    // proportionally to this tick's produced flow (auto + clicks)
+    Game.autoTick(state, undefined, ar + clickFlow);
+    clickFlow = 0;
     refreshStats();
     save();
   }
