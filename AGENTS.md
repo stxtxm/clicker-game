@@ -109,7 +109,7 @@ Vérifications avant tout commit : `npm test` passe **et** `node --check` sur ch
 L'économie est pilotée par les données, pas au doigt mouillé :
 
 1. Modifie les knobs dans `js/game.js` (dans l'ordre d'impact) :
-   - **Stockage** (`sbox`/`coldroom`, growth ×4.2) — le revenu ≈ cap × €/g, donc
+   - **Stockage** (`sbox`/`coldroom`, growth ×3.0) — le revenu ≈ cap × €/g, donc
      le cap de stockage gate tout le late game. C'est LE puits à argent.
    - **Coûts des variétés** — chaque variété est un saut exponentiel
      (`yieldMult × priceMult`) ; leurs coûts espacent les sauts.

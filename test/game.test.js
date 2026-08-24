@@ -60,9 +60,9 @@ test('upgradeCost scales with COST_GROWTH (storage has its own steeper growth)',
   s.levels.harvest = 2;
   assert.strictEqual(Game.upgradeCost(s, 'harvest'), Math.floor(150 * Math.pow(Game.COST_GROWTH, 1)));
   assert.strictEqual(Game.upgradeCost(s, 'auto'), 750);   // auto starts at level 0
-  assert.strictEqual(Game.upgradeCost(s, 'sbox'), 4500);
+  assert.strictEqual(Game.upgradeCost(s, 'sbox'), 4000);
   s.levels.sbox = 1;
-  assert.strictEqual(Game.upgradeCost(s, 'sbox'), Math.floor(4500 * 3.0)); // storage growth 3.0
+  assert.strictEqual(Game.upgradeCost(s, 'sbox'), Math.floor(4000 * 3.0)); // storage growth 3.0
 });
 
 test('buyUpgrade: insufficient funds does not mutate', () => {
@@ -523,17 +523,17 @@ test('craftProduct: fractional/NaN qty floors to safe values', () => {
 
 test('addWeed: respects cap exactly, returns 0 when full', () => {
   const s = Game.defaultState();
-  assert.strictEqual(Game.addWeed(s, 999999), 1000); // base cap
-  assert.strictEqual(s.stock.weed, 1000);
+  assert.strictEqual(Game.addWeed(s, 999999), 1200); // base cap
+  assert.strictEqual(s.stock.weed, 1200);
   assert.strictEqual(Game.addWeed(s, 5), 0);         // full -> nothing
-  assert.strictEqual(s.stock.weedByStrain.green, 1000);
+  assert.strictEqual(s.stock.weedByStrain.green, 1200);
 });
 
 test('maxWeedStorage: missing/negative levels fall back to base', () => {
-  assert.strictEqual(Game.maxWeedStorage({}), 1000);
+  assert.strictEqual(Game.maxWeedStorage({}), 1200);
   // corrupted saves with negative levels must never brick the cap
-  assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: -3, coldroom: undefined } }), 1000);
-  assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: 2, coldroom: 1 } }), 1000 + 1400 + 3500);
+  assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: -3, coldroom: undefined } }), 1200);
+  assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: 2, coldroom: 1 } }), 1200 + 1400 + 3500);
 });
 
 test('priceOf: unknown product is 0, weed uses prices.weed base', () => {

@@ -111,7 +111,7 @@ async function scenario() {
     report('auto-locked', rosinBtn.disabled && rosinBadge.textContent.includes('🔒'), rosinBadge.textContent);
 
     // 11. storage-full feedback: seed a near-cap save and reload iframe
-    const capSave = { weed: 1000, money: 10, strain: 'green', stock: { weed: 1000, weedByStrain: { green: 1000 }, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 };
+    const capSave = { weed: 1200, money: 10, strain: 'green', stock: { weed: 1200, weedByStrain: { green: 1200 }, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 };
     w.localStorage.setItem('budClicker', JSON.stringify(capSave));
     document.getElementById('game').src = '../index.html';
     await sleep(900);
