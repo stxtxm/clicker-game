@@ -34,6 +34,7 @@
     ug: document.getElementById('ug'),
     sv: document.getElementById('sv'),
     fw: document.getElementById('full-warn'),
+    mps: document.getElementById('mps'),
     xplv: document.getElementById('xplv'),
     xpmult: document.getElementById('xpmult'),
     xpf: document.getElementById('xpf'),
@@ -606,8 +607,13 @@
     if (ar > 0) Game.harvestXp(state, ar);
     // automation hires (Ouvriers/Dealers) craft & sell owned products,
     // proportionally to this tick's produced flow (auto + clicks)
-    Game.autoTick(state, undefined, ar + clickFlow);
+    const tick = Game.autoTick(state, undefined, ar + clickFlow);
     clickFlow = 0;
+    // idle income visibility: what the dealers just paid, shown as €/s
+    if (el.mps) {
+      const earned = Object.values(tick.soldMoney || {}).reduce((a, b) => a + b, 0);
+      el.mps.textContent = earned > 0 ? '+' + fmt(earned) + ' €/s' : '';
+    }
     refreshStats();
     save();
   }

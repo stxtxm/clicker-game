@@ -436,13 +436,12 @@
    *   1. Auto-craft owned chains, most expensive product first. Throughput is
    *      PROPORTIONAL to production: each chain converts at least its classic
    *      1u/s floor, up to CHAIN_FLOW_SHARE of the tick's produced flow — idle
-   *      money scales with what you build instead of a symbolic trickle that
-   *      lets the stock cap out. Above 90% of the cap, the EXCESS joins the
-   *      budget too: owned chains visibly drain a full stock in ~2 ticks.
-   *   2. Dealers sell their chain's whole fresh output, plus dip 1u/s into the
-   *      player's manual stock at the CURRENT market price (pulse included):
-   *      idle money is proportional to what the chain transformed, while
-   *      hand-made bulk sales at a +30% peak stay the bigger, smarter move.
+   *      money scales with what you build. Chains only ever skim the INFLOW:
+   *      the player's stored weed and hand-made stock are never touched.
+   *   2. Dealers sell exactly their chain's fresh output at the CURRENT market
+   *      price (pulse included): idle money is proportional to what the chain
+   *      transformed, while hand-made bulk sales at a +30% peak stay the
+   *      bigger, smarter move.
    *
    * No XP is granted: consistent with manual crafting/selling which only move €.
    * @param {object} s state (mutated)
@@ -452,15 +451,12 @@
    */
   function autoTick(s, now, flow) {
     const res = { crafted: {}, soldMoney: {} };
-    // overflow drain: above 90% of the cap, the piled-up excess joins the
-    // conversion budget so a full stock empties itself instead of sticking
-    const cap = maxWeedStorage(s);
-    const excess = Math.max(0, (s.stock.weed || 0) - cap * 0.9);
-    let budget = Math.max(0, flow || 0) + excess;
+    let budget = Math.max(0, flow || 0);
     for (const p of [...PRODUCTS].reverse()) {
       if (!hasAuto(s, 'craft', p.id)) continue;
-      // floor: the classic 1u/s; top-up: a share of the remaining flow
-      const grams = Math.max(p.cost, budget * CHAIN_FLOW_SHARE);
+      // floor: the classic 1u/s; top-up: a share of the remaining flow.
+      // The budget never exceeds the flow, so chains skim the inflow only.
+      const grams = Math.min(budget, Math.max(p.cost, budget * CHAIN_FLOW_SHARE));
       const r = craftProduct(s, p.id, Math.max(1, Math.floor(grams / p.cost)));
       if (r.ok) {
         res.crafted[p.id] = r.amount;
@@ -470,8 +466,7 @@
     for (const p of PRODUCTS) {
       if (!hasAuto(s, 'sell', p.id)) continue;
       const made = res.crafted[p.id] || 0;
-      // dealer quota: chain output + 1u/s dipped from manual stock (may be 0 if empty)
-      const gain = sellStock(s, p.id, made + 1, now);
+      const gain = sellStock(s, p.id, made, now); // chain output only — manual stock is sacred
       if (gain > 0) res.soldMoney[p.id] = gain;
     }
     return res;
@@ -548,7 +543,7 @@
     if (type === 'weed') {
       const unit = priceOf(s, 'weed', now);
       const toSell = amount === undefined ? (s.stock.weed || 0)
-        : Math.min(s.stock.weed || 0, Math.max(1, Math.floor(amount)));
+        : Math.min(s.stock.weed || 0, Math.max(0, Math.floor(amount)));
       gain = toSell * unit;
       s.stock.weed = (s.stock.weed || 0) - toSell;
       drainByStrain(s, 'weedByStrain', toSell);
@@ -557,7 +552,7 @@
       if (prod) {
         const unit = priceOf(s, type, now);
         const have = s.stock[type] || 0;
-        const toSell = amount === undefined ? have : Math.min(have, Math.max(1, Math.floor(amount)));
+        const toSell = amount === undefined ? have : Math.min(have, Math.max(0, Math.floor(amount)));
         gain = toSell * unit;
         s.stock[type] = have - toSell;
         drainByStrain(s, type + 'ByStrain', toSell);
