@@ -22,7 +22,7 @@
  *       resinByStrain: { [id]: number },
  *       strains: string[]
  *     },
- *     prices: { weed, hash, resin },
+ *     prices: { weed },
  *     levels: { harvest, auto, expert, crew, turbo, mega, sbox, coldroom },
  *     xp: number,                        // lifetime XP
  *     milestones: string[],
@@ -46,9 +46,9 @@
     { id: 'crew',    name: 'Équipe de Serre',icon: '👥',   desc: '+15g de weed par seconde',  cost: 25000 },
     { id: 'turbo',   name: 'Éclairage Turbo',icon: '⚡',   desc: 'x2 production de weed',     cost: 90000 },
     { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: 'x2 production globale',     cost: 750000 },
-    // Storage upgrades grow much faster (growth: 3.2) than production ones:
+    // Storage upgrades grow much faster (growth: 3.0) than production ones:
     // income ≈ cap × €/g, so storage is THE money sink pacing the endgame.
-    { id: 'sbox',    name: 'Boîte Étanche',  icon: '📦',   desc: '+700g capacité weed max',   cost: 4500, growth: 3.0 },
+    { id: 'sbox',    name: 'Boîte Étanche',  icon: '📦',   desc: '+700g capacité weed max',   cost: 4000, growth: 3.0 },
     { id: 'coldroom',name: 'Chambre Froide', icon: '❄️',   desc: '+3500g capacité weed max',  cost: 240000, growth: 3.0 }
   ];
 
@@ -235,13 +235,13 @@
 
   /** Maximum weed storage capacity based on upgrades. */
   function maxWeedStorage(s) {
-    let cap = 1000;
+    let cap = 1200;
     if (s && s.levels) {
       // clamp corrupted/negative save levels — a negative cap bricks the game
       cap += Math.max(0, s.levels.sbox || 0) * 700;
       cap += Math.max(0, s.levels.coldroom || 0) * 3500;
     }
-    return Math.max(1000, cap);
+    return Math.max(1200, cap);
   }
 
   /**
@@ -534,37 +534,6 @@
     return gain;
   }
 
-  /**
-   * Sell stock as a specific strain (applies that strain's priceMult).
-   * Uses per-strain stock; for old saves with empty per-strain maps, falls back to generic total once.
-   * @param {object} s state
-   * @param {'weed'|'hash'|'resin'} type
-   * @param {string} strainId
-   * @param {number} amount grams/units to sell (default 1, or Infinity for all)
-   * @returns {number} cash gained (0 if nothing to sell)
-   */
-  function sellByStrain(s, type, strainId, amount) {
-    const st = getStrain(strainId);
-    if (!st || !s.stock.strains.includes(strainId)) return 0;
-    const pMult = st.priceMult;
-    const unitPrice = Math.round(s.prices[type] * pMult);
-    const mapKey = type + 'ByStrain';
-    const perStrain = s.stock[mapKey] || {};
-    const strainStock = perStrain[strainId] || 0;
-    const isOldSave = perStrain && Object.keys(perStrain).length === 0 && (s.stock[type] || 0) > 0;
-    const effectiveStock = (strainStock > 0 || !isOldSave) ? strainStock : (s.stock[type] || 0);
-    const toSell = amount === Infinity ? effectiveStock : Math.min(effectiveStock, amount || 1);
-    if (toSell <= 0) return 0;
-    // deduct from per-strain and total
-    if (!s.stock[mapKey]) s.stock[mapKey] = {};
-    s.stock[mapKey][strainId] = Math.max(0, (perStrain[strainId] || 0) - toSell);
-    s.stock[type] = Math.max(0, (s.stock[type] || 0) - toSell);
-    const gain = toSell * unitPrice;
-    s.money += gain;
-    s.totalEarned = (s.totalEarned || 0) + gain;
-    return gain;
-  }
-
   /** Add weed to stock (total + per-strain), respecting maxWeedStorage cap. Returns actual added. */
   function addWeed(s, amount) {
     const cap = maxWeedStorage(s);
@@ -697,7 +666,6 @@
     autoTick,
     craftProduct,
     sellStock,
-    sellByStrain,
     equipStrain,
     serialize,
     deserialize
