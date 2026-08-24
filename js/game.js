@@ -426,29 +426,41 @@
     return { ok: true, name: a.name };
   }
 
+  /** Share of the tick's produced flow each owned chain converts (15%). */
+  const CHAIN_FLOW_SHARE = 0.15;
+
   /**
    * Automation tick — runs every second after weed production.
    *
    * Order matters and is deliberate:
-   *   1. Auto-craft owned chains, most expensive product first: when weed is
-   *      scarce the highest €/g conversion wins. Throughput is hard-capped at
-   *      1 unit/s per product.
-   *   2. Dealers sell up to 2u/s: their chain's fresh output FIRST, then dip
-   *      into the player's manual stock (1u/s) at the CURRENT market price —
-   *      pulse included. Idle income even without weed, but hoarded stock
-   *      slowly leaks (maybe at -30%): hand-made bulk sales stay the smart move.
+   *   1. Auto-craft owned chains, most expensive product first. Throughput is
+   *      PROPORTIONAL to production: each chain converts at least its classic
+   *      1u/s floor, up to CHAIN_FLOW_SHARE of the tick's produced flow — idle
+   *      money scales with what you build instead of a symbolic trickle that
+   *      lets the stock cap out.
+   *   2. Dealers sell their chain's whole fresh output, plus dip 1u/s into the
+   *      player's manual stock at the CURRENT market price (pulse included):
+   *      idle money is proportional to what the chain transformed, while
+   *      hand-made bulk sales at a +30% peak stay the bigger, smarter move.
    *
    * No XP is granted: consistent with manual crafting/selling which only move €.
    * @param {object} s state (mutated)
    * @param {number} [now] epoch ms for the market pulse (default Date.now())
+   * @param {number} [flow] grams produced this tick (clicks + auto); default 0
    * @returns {{crafted:Object<string,number>, soldMoney:Object<string,number>}} per-product units crafted and cash earned this tick
    */
-  function autoTick(s, now) {
+  function autoTick(s, now, flow) {
     const res = { crafted: {}, soldMoney: {} };
+    let budget = Math.max(0, flow || 0);
     for (const p of [...PRODUCTS].reverse()) {
       if (!hasAuto(s, 'craft', p.id)) continue;
-      const r = craftProduct(s, p.id, 1);
-      if (r.ok) res.crafted[p.id] = r.amount;
+      // floor: the classic 1u/s; top-up: a share of the remaining flow
+      const grams = Math.max(p.cost, budget * CHAIN_FLOW_SHARE);
+      const r = craftProduct(s, p.id, Math.max(1, Math.floor(grams / p.cost)));
+      if (r.ok) {
+        res.crafted[p.id] = r.amount;
+        budget -= r.amount * p.cost;
+      }
     }
     for (const p of PRODUCTS) {
       if (!hasAuto(s, 'sell', p.id)) continue;

@@ -636,3 +636,36 @@ test('autoTick: multiple chains drain weed expensive-first, dealers sell each ou
   assert.strictEqual(t.soldMoney.cake, px(290, 'cake'));
   assert.strictEqual(t.soldMoney.joint, px(14, 'joint'));
 });
+
+test('autoTick: chains scale with produced flow (30% share, 1u/s floor)', () => {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(20);
+  s.money = 1e9;
+  Game.buyAutomation(s, 'auto-hash'); // 12g -> 115 €
+  s.stock.weed = 500;
+  // flow 240g: budget = max(12, 240*0.15=36) -> 3 units
+  let t = Game.autoTick(s, 0, 240);
+  assert.strictEqual(t.crafted.hash, 3);
+  assert.strictEqual(t.soldMoney.hash, 3 * px(115, 'hash'));
+  // small flow: the 1u/s floor holds
+  s.stock.weed = 500;
+  t = Game.autoTick(s, 0, 10);
+  assert.strictEqual(t.crafted.hash, 1);
+  // no flow: same floor
+  s.stock.weed = 500;
+  t = Game.autoTick(s, 0);
+  assert.strictEqual(t.crafted.hash, 1);
+});
+
+test('autoTick: flow budget is consumed expensive-first across chains', () => {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(20);
+  s.money = 1e9;
+  Game.buyAutomation(s, 'auto-cake');   // 25g -> 290 €
+  Game.buyAutomation(s, 'auto-joint');  // 2g  -> 14 €
+  s.stock.weed = 500;
+  const t = Game.autoTick(s, 0, 120);
+  // cake: max(25, 36) = 36g -> 1 unit, budget 120-25 = 95
+  // joint: max(2, 14.25) = 14.25g -> 7 units
+  assert.deepStrictEqual(t.crafted, { cake: 1, joint: 7 });
+});

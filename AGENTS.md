@@ -118,6 +118,10 @@ L'économie est pilotée par les données, pas au doigt mouillé :
      ≈ cap × €/g, donc le cap gate tout le late game. C'est LE puits à argent.
      L'XP vient des grammes produits (`harvestXp`): pertes au cap = 25% — la
      boucle « plein → bloqué » ne doit jamais revenir.
+   - **Chaînes proportionnelles** (`CHAIN_FLOW_SHARE` 0.15) — chaque chaîne
+     transforme min 1u/s, max 15% du flux produit du tick (autoTick reçoit
+     le flux: auto + clics). L'argent idle est proportionnel à ce qui est
+     transformé; au-delà de ~3 chaînes, garder de la pression de cap.
    - **Coûts des variétés** — chaque variété est un saut exponentiel
      (`yieldMult × priceMult`) ; leurs coûts espacent les sauts.
    - `XP_GROWTH` (1.32) — les niveaux gate produits/chaînes/variétés.
