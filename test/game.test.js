@@ -416,8 +416,8 @@ test('autoTick: dealer sells chain output only — manual stock is sacred', () =
   Game.buyAutomation(s, 'auto-joint');    // cost 7000; 2g -> 1 joint
   s.stock.joint = 5;                      // hand-made stock
   s.stock.weed = 21;
-  const t = Game.autoTick(s, 0);
-  assert.strictEqual(t.crafted.joint, 1);                 // 1u/s floor (no flow passed)
+  const t = Game.autoTick(s, 0, 21);      // 21g entered storage this tick
+  assert.strictEqual(t.crafted.joint, 1);                 // min(21, max(2, 3.15)) -> 1 unit
   assert.strictEqual(t.soldMoney.joint, px(14, 'joint')); // sells the crafted unit only
   assert.strictEqual(s.stock.joint, 5);                   // manual stock untouched!
   assert.strictEqual(s.stock.weed, 19);
@@ -444,10 +444,10 @@ test('autoTick: scarce weed goes to the most expensive product first', () => {
     assert.strictEqual(Game.buyAutomation(s, id).ok, true);
   }
   s.stock.weed = 350;
-  const t = Game.autoTick(s);
-  // 1u/s cap each: rosin eats 300g (best €/g), then hash 12g, joint 2g
-  assert.deepStrictEqual(t.crafted, { rosin: 1, hash: 1, joint: 1 });
-  assert.strictEqual(s.stock.weed, 36);
+  const t = Game.autoTick(s, 0, 350);
+  // expensive-first with the flow budget: rosin 300g, hash 12g, joint 5.7g -> 2u
+  assert.deepStrictEqual(t.crafted, { rosin: 1, hash: 1, joint: 2 });
+  assert.strictEqual(s.stock.weed, 350 - 300 - 12 - 4);
 });
 
 test('automation flags survive serialize/deserialize roundtrip', () => {
@@ -621,8 +621,8 @@ test('autoTick: multiple chains drain weed expensive-first, dealers sell each ou
   s.xp = Game.xpForLevel(20);
   s.money = 1e9;
   for (const id of ['auto-cake', 'auto-joint']) assert.strictEqual(Game.buyAutomation(s, id).ok, true);
-  s.stock.weed = 30; // cake eats 25g, joint gets the last 5g — but 1u/s cap each
-  const t = Game.autoTick(s, 0);
+  s.stock.weed = 30;
+  const t = Game.autoTick(s, 0, 30); // cake 25g, joint the last 5g -> 2u? min(5, max(2,.75))=2 -> 1u
   assert.deepStrictEqual(t.crafted, { cake: 1, joint: 1 });
   assert.strictEqual(t.soldMoney.cake, px(290, 'cake'));
   assert.strictEqual(t.soldMoney.joint, px(14, 'joint'));
@@ -641,7 +641,7 @@ test('autoTick: chains never consume beyond the flow (pile untouched)', () => {
   assert.strictEqual(before - s.stock.weed, 36);    // consumed <= flow, never the pile
 });
 
-test('autoTick: chains scale with produced flow (30% share, 1u/s floor)', () => {
+test('autoTick: chains scale with stored flow (15% share, pause without inflow)', () => {
   const s = Game.defaultState();
   s.xp = Game.xpForLevel(20);
   s.money = 1e9;
@@ -651,14 +651,14 @@ test('autoTick: chains scale with produced flow (30% share, 1u/s floor)', () => 
   let t = Game.autoTick(s, 0, 240);
   assert.strictEqual(t.crafted.hash, 3);
   assert.strictEqual(t.soldMoney.hash, 3 * px(115, 'hash'));
-  // small flow: the 1u/s floor holds
+  // flow below one unit's cost: nothing crafted this tick (no pile eating)
   s.stock.weed = 500;
   t = Game.autoTick(s, 0, 10);
-  assert.strictEqual(t.crafted.hash, 1);
-  // no flow: same floor
+  assert.strictEqual(t.crafted.hash, undefined);
+  // no flow (stock full): chains pause entirely
   s.stock.weed = 500;
-  t = Game.autoTick(s, 0);
-  assert.strictEqual(t.crafted.hash, 1);
+  t = Game.autoTick(s, 0, 0);
+  assert.strictEqual(t.crafted.hash, undefined);
 });
 
 test('autoTick: flow budget is consumed expensive-first across chains', () => {
@@ -674,3 +674,16 @@ test('autoTick: flow budget is consumed expensive-first across chains', () => {
   assert.deepStrictEqual(t.crafted, { cake: 1, joint: 7 });
 });
 
+
+test('autoTick: at cap nothing new is stored, chains pause (no pile drain)', () => {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(20);
+  s.money = 1e9;
+  Game.buyAutomation(s, 'auto-hash');
+  const cap = Game.maxWeedStorage(s);
+  s.stock.weed = cap; // full
+  const t = Game.autoTick(s, 0, 0); // flow 0: nothing entered storage this tick
+  assert.deepStrictEqual(t.crafted, {});
+  assert.strictEqual(s.stock.weed, cap); // pile untouched
+  assert.deepStrictEqual(t.soldMoney, {});
+});

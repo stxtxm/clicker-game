@@ -446,7 +446,7 @@
     fullBannerArmed = true; // from now on the banner may show (first interaction)
     const ac = Game.perClick(state);
     const added = Game.harvestXp(state, ac);
-    clickFlow += ac; // clicks feed the chains' proportional flow too
+    clickFlow += added; // chains only process grams that actually entered storage
     const full = added < ac;
     if (full && Date.now() - lastFullToast > 2500) {
       toast('Stock plein ! Vends ou agrandis 📦');
@@ -604,10 +604,12 @@
   /** One auto-production tick (every second): weed growth, then automation. */
   function autoProduce() {
     const ar = Game.perSecond(state);
-    if (ar > 0) Game.harvestXp(state, ar);
+    let addedAuto = 0;
+    if (ar > 0) addedAuto = Game.harvestXp(state, ar);
     // automation hires (Ouvriers/Dealers) craft & sell owned products,
-    // proportionally to this tick's produced flow (auto + clicks)
-    const tick = Game.autoTick(state, undefined, ar + clickFlow);
+    // proportionally to what actually entered storage this tick — at cap
+    // they pause instead of draining the player's pile
+    const tick = Game.autoTick(state, undefined, addedAuto + clickFlow);
     clickFlow = 0;
     // idle income visibility: what the dealers just paid, shown as €/s
     if (el.mps) {
