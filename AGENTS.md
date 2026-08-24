@@ -89,6 +89,11 @@ Vérifications avant tout commit : `npm test` passe **et** `node --check` sur ch
   timer au lieu de réempiler) — voir `toast()` dans `js/ui.js`.
 - **Feedback d'achat** : tout achat passe par le retour de la fonction Game
   (`res.ok / res.reason`), toast + `popNum` + `refreshStats` + `save`.
+- **Latence de jeu** : la récolte écoute `pointerdown` (réponse instantanée au
+  touch), avec garde anti double-fire sur `click` (e2e/souris). Les particules
+  vivent dans un pool réutilisé sur une couche `#fx` séparée — jamais dans la
+  couche compositée du bud. `refreshStats` ne met à jour que la vue active
+  (`switchTab` déclenche un refresh à l'entrée d'une vue).
 
 ## Conventions de code
 

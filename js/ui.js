@@ -318,7 +318,6 @@
   function renderProgress() {
     const prog = Game.xpProgress(state.xp);
     const mult = Game.productionMult(state);
-    if (el.lv) el.lv.textContent = prog.level;
     if (el.xplv) el.xplv.textContent = 'Niveau ' + prog.level;
     if (el.xpmult) el.xpmult.textContent = 'x' + mult.toFixed(2);
     if (el.xpf) {
@@ -363,14 +362,21 @@
     }
   }
 
-  /** Sync every dynamic text / disabled state with `state`. */
+  /** Sync every dynamic text / disabled state with `state`.
+   *  Hidden views are skipped: the per-second tick only writes to the DOM the
+   *  player is actually looking at (less style/layout work, smoother on mobile). */
   function refreshStats() {
     const pc = Game.perClick(state);
     const ar = Game.perSecond(state);
+    const active = (name) => {
+      const v = document.getElementById('v-' + name);
+      return !v || v.classList.contains('active');
+    };
 
     if (el.m) el.m.textContent = fmt(state.money) + ' €';
     if (el.ar) el.ar.textContent = '+' + ar;
     if (el.hl) el.hl.textContent = pc;
+    if (el.lv) el.lv.textContent = Game.levelFromXp(state.xp); // header: always fresh
 
     const cap = Game.maxWeedStorage(state);
     // 97% threshold (not exact cap): owned chains drain a few g/s continuously,
@@ -385,7 +391,9 @@
     if (el.bc) el.bc.classList.toggle('storage-full', isFull);
     setFullBanner(fullBannerArmed && isFull);
 
-    renderMarket();
+    if (active('sell')) renderMarket();
+    if (active('progress') || active('harvest')) renderProgress();
+    if (!active('upgrades')) return;
 
     for (const u of Game.UPGRADES) {
       const lv = document.getElementById('ul-' + u.id);
@@ -431,8 +439,7 @@
   let lastFullToast = 0;
 
   function onHarvest(ev) {
-    ev.preventDefault();
-    ev.stopPropagation();
+    if (ev && ev.preventDefault) { ev.preventDefault(); ev.stopPropagation(); }
     fullBannerArmed = true; // from now on the banner may show (first interaction)
     const ac = Game.perClick(state);
     const added = Game.addWeed(state, ac);
@@ -476,14 +483,46 @@
     }
   }
 
+  /* Particle pool — reused nodes in a dedicated overlay ABOVE the bud, so a
+     click never dirties the bud's compositor layer (re-raster of the filtered
+     SVG was the main per-tap jank). */
+  const FX_POOL = [];
+  let fxFloor = 0;
+  function fxLayer() {
+    if (el.fx) return el.fx;
+    el.fx = document.createElement('div');
+    el.fx.id = 'fx';
+    (el.bc ? el.bc.parentElement : document.body).appendChild(el.fx);
+    return el.fx;
+  }
   function spawnParticle(text, warn) {
-    const p = document.createElement('div');
+    const layer = fxLayer();
+    let p = FX_POOL.find((n) => !n._busy);
+    if (!p) {
+      if (FX_POOL.length >= 8) p = FX_POOL[fxFloor++ % 8];
+      else { p = document.createElement('div'); FX_POOL.push(p); layer.appendChild(p); }
+    }
+    p._busy = true;
     p.className = 'click-fx' + (warn ? ' warn' : '');
     p.textContent = text;
-    // léger jitter horizontal pour les taps rapides, vertical fixe
-    p.style.left = (50 + (Math.random() - 0.5) * 16) + '%';
-    el.bc.appendChild(p);
-    setTimeout(() => p.remove(), 720);
+    // anchor to the bud's current rect (fixed particles get their own
+    // compositor layers — the bud's layer is never invalidated by them)
+    const r = el.bc.getBoundingClientRect();
+    p.style.left = Math.round(r.left + r.width * (0.5 + (Math.random() - 0.5) * 0.16)) + 'px';
+    p.style.top = Math.round(r.top + r.height * 0.18) + 'px';
+    if (p.animate) {
+      const a = p.animate(
+        [
+          { opacity: 0, transform: 'translateY(8px) scale(.7)' },
+          { opacity: 1, transform: 'translateY(-6px) scale(1)', offset: 0.25 },
+          { opacity: 0, transform: 'translateY(-58px) scale(1.05)' }
+        ],
+        { duration: 700, easing: 'cubic-bezier(.2,.7,.3,1)' }
+      );
+      a.onfinish = () => { p._busy = false; p.style.opacity = 0; };
+    } else {
+      setTimeout(() => { p._busy = false; }, 700);
+    }
   }
 
   function onCraft(productId) {
@@ -593,11 +632,21 @@
     if (target) target.classList.add('active');
     document.querySelectorAll('.tab-btn').forEach((b) =>
       b.classList.toggle('active', b.dataset.tab === tab));
+    refreshStats(); // the newly visible view is stale by up to one tick
   }
 
   // --- wiring -----------------------------------------------------------------
-  if (el.bs) el.bs.addEventListener('click', onHarvest);
-  else if (el.bc) el.bc.addEventListener('click', onHarvest);
+  // pointerdown = réponse instantanée au touch; click reste écouté pour les
+  // clicks programmatiques (e2e) — le garde évite le double déclenchement souris
+  let lastPointerDown = 0;
+  const harvestTarget = el.bs || el.bc;
+  if (harvestTarget) {
+    harvestTarget.addEventListener('pointerdown', () => { lastPointerDown = Date.now(); onHarvest(new MouseEvent('tap')); });
+    harvestTarget.addEventListener('click', (ev) => {
+      if (Date.now() - lastPointerDown < 600) return; // déjà récolté au pointerdown
+      onHarvest(ev);
+    });
+  }
   if (el.sellAll) el.sellAll.addEventListener('click', () => onSell('all'));
   if (el.fw) el.fw.addEventListener('click', () => switchTab('sell'));
   if (el.qtyRow) {
