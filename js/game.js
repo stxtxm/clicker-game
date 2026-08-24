@@ -200,6 +200,18 @@
     return m;
   }
 
+  /**
+   * XP granted for a harvest of `produced` grams: stored grams count fully,
+   * grams lost to a full stock count for a quarter — a full stock slows you down
+   * without ever hard-locking progression.
+   */
+  function harvestXp(s, produced) {
+    const added = addWeed(s, produced);
+    const wasted = produced - added;
+    earnXp(s, added + wasted * 0.25);
+    return added;
+  }
+
   /** Add lifetime XP (e.g. from harvested weed), returns what just happened. */
   function earnXp(s, n) {
     const before = levelFromXp(s.xp);
@@ -233,7 +245,11 @@
     };
   }
 
-  /** Maximum weed storage capacity based on upgrades. */
+  /**
+   * Maximum weed storage capacity: purchases (Boîte Étanche / Chambre Froide)
+   * times a small passive growth of +1% per level — leveling always widens the cap,
+   * so a full stock can never hard-lock progression.
+   */
   function maxWeedStorage(s) {
     let cap = 1200;
     if (s && s.levels) {
@@ -241,7 +257,8 @@
       cap += Math.max(0, s.levels.sbox || 0) * 700;
       cap += Math.max(0, s.levels.coldroom || 0) * 3500;
     }
-    return Math.max(1200, cap);
+    const level = s ? levelFromXp(s.xp) : 1;
+    return Math.round(Math.max(1200, cap) * (1 + 0.01 * (level - 1)));
   }
 
   /**
@@ -644,6 +661,7 @@
     mulberry32,
     maxWeedStorage,
     addWeed,
+    harvestXp,
     defaultState,
     getStrain,
     getProduct,

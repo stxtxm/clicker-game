@@ -46,7 +46,7 @@ function simulate(minutes) {
     }
     // --- idle production
     const auto = Game.perSecond(s);
-    if (auto > 0) Game.earnXp(s, Game.addWeed(s, auto));
+    if (auto > 0) Game.harvestXp(s, auto);
     // --- automation chains (1u/s trickle)
     Game.autoTick(s, now);
 
@@ -171,5 +171,7 @@ test('playthrough 2h: pacing targets + stats', () => {
   assert.ok(st.earned[1000000] >= 6 && st.earned[1000000] <= 20, '1M lifetime around 10 min of optimal play');
   assert.ok(st.earned[10000000] >= 9, '10M not before ~13 min even when perfect');
   assert.ok(st.end.level >= 20, 'progression keeps flowing (no wall)');
-  assert.ok(st.end.totalEarned < 10e9, 'economy stays bounded over a 2h optimal run');
+  // 15B: raised when the full-stock deadlock was fixed (XP on wasted grams +
+  // small level cap growth) — guards against explosions, not against progress.
+  assert.ok(st.end.totalEarned < 15e9, 'economy stays bounded over a 2h optimal run');
 });

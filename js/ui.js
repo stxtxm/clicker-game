@@ -442,13 +442,13 @@
     if (ev && ev.preventDefault) { ev.preventDefault(); ev.stopPropagation(); }
     fullBannerArmed = true; // from now on the banner may show (first interaction)
     const ac = Game.perClick(state);
-    const added = Game.addWeed(state, ac);
+    const added = Game.harvestXp(state, ac);
     const full = added < ac;
     if (full && Date.now() - lastFullToast > 2500) {
       toast('Stock plein ! Vends ou agrandis 📦');
       lastFullToast = Date.now();
     }
-    const xp = Game.earnXp(state, added);
+    const xp = Game.xpProgress(state.xp); // refreshed after harvestXp above
     // squash & stretch juice — WAAPI: compositor-driven, restarts cleanly on
     // rapid taps (each new animation replaces the previous, no forced reflow)
     if (el.bc.animate) {
@@ -600,10 +600,7 @@
   /** One auto-production tick (every second): weed growth, then automation. */
   function autoProduce() {
     const ar = Game.perSecond(state);
-    if (ar > 0) {
-      const added = Game.addWeed(state, ar);
-      Game.earnXp(state, added);
-    }
+    if (ar > 0) Game.harvestXp(state, ar);
     // automation hires (Ouvriers/Dealers) craft & sell owned products
     Game.autoTick(state);
     refreshStats();
