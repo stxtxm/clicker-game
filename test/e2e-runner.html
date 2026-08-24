@@ -135,13 +135,38 @@ async function scenario() {
     await sleep(900);
     report('persistence', money() === moneyPersist, moneyPersist + ' vs ' + money());
 
-    // 13. hard reset via danger zone (double click)
+    // 13. milestones: built once, updated in place (node identity survives ticks)
+    q('.tab-btn[data-tab="progress"]').click();
+    await sleep(80);
+    const msItems = gameDoc().querySelectorAll('#ms .ms-item');
+    const firstNode = msItems[0];
+    await sleep(1300); // > 1 autoProduce tick: an innerHTML rebuild would swap the node
+    const msAfter = gameDoc().querySelectorAll('#ms .ms-item');
+    report('milestones-stable', msItems.length === 6 && msAfter.length === 6 && msAfter[0] === firstNode,
+      'count=' + msAfter.length + ' sameNode=' + (msAfter[0] === firstNode));
+
+    // 14. toast dedup: spamming a broke buy shows ONE toast, not a stack
+    w.localStorage.setItem('budClicker', JSON.stringify({ weed: 0, money: 0, strain: 'green', stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 }));
+    document.getElementById('game').src = '../index.html';
+    await sleep(900);
+    q('.tab-btn[data-tab="upgrades"]').click();
+    await sleep(100);
+    const brokeBtn = q('#ub-harvest');
+    brokeBtn.click(); brokeBtn.click(); brokeBtn.click();
+    await sleep(150);
+    const toasts = gameDoc().querySelectorAll('#mc .ms').length;
+    report('toast-dedup', toasts === 1, 'toasts=' + toasts);
+
+    // 15. reset dialog: first click arms (animated state), second confirms
     q('.tab-btn[data-tab="progress"]').click();
     await sleep(80);
     q('#rb').click();
+    await sleep(80);
+    const armed = q('#rb').classList.contains('armed') && q('#rb').textContent.includes('Confirmer');
     q('#rb').click();
     await sleep(150);
-    report('hard-reset', money() === 0 && q('#sb').textContent.includes('Green Dream'), 'money=' + money());
+    report('reset-dialog', armed && money() === 0 && q('#sb').textContent.includes('Green Dream'),
+      'armed=' + armed + ' money=' + money());
   } catch (e) {
     report('scenario-crash', false, String(e));
   }

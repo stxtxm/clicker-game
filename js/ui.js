@@ -90,15 +90,24 @@
       : Math.floor(n);
   }
 
-  /** Short toast notification — max 3 visibles, les plus anciens sortent. */
+  /**
+   * Short toast notification — max 2 visibles, dédoublonnées: re-notifier le
+   * même message (ex « Pas assez d'argent » en spam-cliquant) ne réempile pas,
+   * ça relance seulement le timer du toast existant.
+   */
   function toast(text) {
+    const last = el.mc.lastElementChild;
+    if (last && last.textContent === text) {
+      clearTimeout(last._timer);
+      last._timer = setTimeout(() => { if (last.parentNode) last.remove(); }, 2200);
+      return;
+    }
     const m = document.createElement('div');
     m.className = 'ms';
     m.textContent = text;
-    // limite à 3 toasts simultanés
-    while (el.mc.children.length >= 3) el.mc.firstElementChild.remove();
+    while (el.mc.children.length >= 2) el.mc.firstElementChild.remove();
     el.mc.appendChild(m);
-    setTimeout(() => { if (m.parentNode) m.remove(); }, 2200);
+    m._timer = setTimeout(() => { if (m.parentNode) m.remove(); }, 2200);
   }
 
   /** Re-trigger the "pop" animation on a stat element (WAAPI: no forced reflow). */
@@ -319,21 +328,38 @@
     if (el.xpcur) el.xpcur.textContent = fmt(prog.current);
     if (el.xpnext) el.xpnext.textContent = ' / ' + fmt(prog.needed) + ' XP';
 
-    if (el.ms) {
-      el.ms.innerHTML = '';
-      for (const mi of Game.MILESTONES) {
-        const done = state.milestones.includes(mi.id);
-        const item = document.createElement('div');
-        item.className = 'ms-item' + (done ? ' done' : '');
-        const pct2 = Math.min(100, Math.round((state.xp / mi.xp) * 100));
-        item.innerHTML =
-          '<span class="ms-icon">' + mi.icon + '</span>' +
-          '<div class="ms-info"><div class="ms-name">' + mi.name +
-            (done ? ' <span class="ms-badge">+' + mi.bonus + '%</span>' : '') + '</div>' +
-            '<div class="ms-bar"><div class="ms-fill" style="width:' + pct2 + '%"></div></div></div>' +
-          '<span class="ms-xp">' + (done ? '✓' : fmt(mi.xp) + ' XP') + '</span>';
-        el.ms.appendChild(item);
-      }
+    updateMilestones();
+  }
+
+  /* Milestones — same structure/values split as the market: built once, the
+     per-second tick only touches widths/classes (no innerHTML churn). */
+  function buildMilestones() {
+    el.ms.innerHTML = '';
+    for (const mi of Game.MILESTONES) {
+      const item = document.createElement('div');
+      item.className = 'ms-item';
+      item.id = 'msi-' + mi.id;
+      item.innerHTML =
+        '<span class="ms-icon">' + mi.icon + '</span>' +
+        '<div class="ms-info"><div class="ms-name">' + mi.name +
+          '<span class="ms-badge" id="msb-' + mi.id + '"></span></div>' +
+          '<div class="ms-bar"><div class="ms-fill" id="msf-' + mi.id + '"></div></div></div>' +
+        '<span class="ms-xp" id="msx-' + mi.id + '"></span>';
+      el.ms.appendChild(item);
+    }
+  }
+
+  function updateMilestones() {
+    if (!el.ms) return;
+    if (el.ms.children.length !== Game.MILESTONES.length) buildMilestones();
+    for (const mi of Game.MILESTONES) {
+      const done = state.milestones.includes(mi.id);
+      const item = document.getElementById('msi-' + mi.id);
+      const pct = Math.min(100, Math.round((state.xp / mi.xp) * 100));
+      item.classList.toggle('done', done);
+      document.getElementById('msf-' + mi.id).style.width = pct + '%';
+      document.getElementById('msb-' + mi.id).textContent = done ? '+' + mi.bonus + '%' : '';
+      document.getElementById('msx-' + mi.id).textContent = done ? '✓' : fmt(mi.xp) + ' XP';
     }
   }
 
@@ -598,6 +624,12 @@
     if (!rbTimer) {
       el.rb.classList.add('armed');
       el.rb.textContent = '⚠ Confirmer la remise à zéro';
+      if (el.rb.animate) {
+        el.rb.animate(
+          [{ transform: 'scale(1)' }, { transform: 'scale(1.04)' }, { transform: 'scale(1)' }],
+          { duration: 220, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+        );
+      }
       toast('Reclique pour tout effacer !');
       rbTimer = setTimeout(disarmReset, 4000);
       return;
