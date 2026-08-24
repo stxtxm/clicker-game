@@ -669,3 +669,19 @@ test('autoTick: flow budget is consumed expensive-first across chains', () => {
   // joint: max(2, 14.25) = 14.25g -> 7 units
   assert.deepStrictEqual(t.crafted, { cake: 1, joint: 7 });
 });
+
+test('autoTick: excess above 90% cap joins the budget (full stock drains itself)', () => {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(9);
+  s.money = 1e9;
+  Game.buyAutomation(s, 'auto-joint'); // 2g -> 14 €
+  s.stock.weed = s.stock.weed = Game.maxWeedStorage(s); // full, zero flow (AFK)
+  const before = s.stock.weed;
+  const t = Game.autoTick(s, 0, 0);
+  assert.ok(t.crafted.joint >= 1, 'chains convert the piled-up excess');
+  assert.ok(s.stock.weed < before, 'stock actually goes down');
+  // and it keeps draining toward the 90% band on later ticks
+  const t2 = Game.autoTick(s, 0, 0);
+  assert.ok(s.stock.weed < before, 'second tick keeps draining');
+  assert.ok(s.stock.weed >= Game.maxWeedStorage(s) * 0.88, 'drain stops in the 90% band');
+});

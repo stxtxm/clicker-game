@@ -437,7 +437,8 @@
    *      PROPORTIONAL to production: each chain converts at least its classic
    *      1u/s floor, up to CHAIN_FLOW_SHARE of the tick's produced flow — idle
    *      money scales with what you build instead of a symbolic trickle that
-   *      lets the stock cap out.
+   *      lets the stock cap out. Above 90% of the cap, the EXCESS joins the
+   *      budget too: owned chains visibly drain a full stock in ~2 ticks.
    *   2. Dealers sell their chain's whole fresh output, plus dip 1u/s into the
    *      player's manual stock at the CURRENT market price (pulse included):
    *      idle money is proportional to what the chain transformed, while
@@ -451,7 +452,11 @@
    */
   function autoTick(s, now, flow) {
     const res = { crafted: {}, soldMoney: {} };
-    let budget = Math.max(0, flow || 0);
+    // overflow drain: above 90% of the cap, the piled-up excess joins the
+    // conversion budget so a full stock empties itself instead of sticking
+    const cap = maxWeedStorage(s);
+    const excess = Math.max(0, (s.stock.weed || 0) - cap * 0.9);
+    let budget = Math.max(0, flow || 0) + excess;
     for (const p of [...PRODUCTS].reverse()) {
       if (!hasAuto(s, 'craft', p.id)) continue;
       // floor: the classic 1u/s; top-up: a share of the remaining flow
