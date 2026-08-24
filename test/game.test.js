@@ -409,7 +409,7 @@ test('autoTick: no-op without any hire owned', () => {
   assert.strictEqual(s.money, 0);
 });
 
-test('autoTick: dealer sells chain output + dips 1u/s into manual stock', () => {
+test('autoTick: dealer sells chain output only — manual stock is sacred', () => {
   const s = Game.defaultState();
   s.xp = Game.xpForLevel(6);
   s.money = 100000;
@@ -417,30 +417,22 @@ test('autoTick: dealer sells chain output + dips 1u/s into manual stock', () => 
   s.stock.joint = 5;                      // hand-made stock
   s.stock.weed = 21;
   const t = Game.autoTick(s, 0);
-  assert.strictEqual(t.crafted.joint, 1);               // capped at 1u/s
-  assert.strictEqual(t.soldMoney.joint, 2 * px(14, 'joint')); // chain unit + 1 manual unit
-  assert.strictEqual(s.stock.joint, 4);                 // manual stock leaks 1u/s
+  assert.strictEqual(t.crafted.joint, 1);                 // 1u/s floor (no flow passed)
+  assert.strictEqual(t.soldMoney.joint, px(14, 'joint')); // sells the crafted unit only
+  assert.strictEqual(s.stock.joint, 5);                   // manual stock untouched!
   assert.strictEqual(s.stock.weed, 19);
-  assert.strictEqual(s.money, 100000 - 7000 + 2 * px(14, 'joint'));
+  assert.strictEqual(s.money, 100000 - 7000 + px(14, 'joint'));
 });
 
-test('autoTick: idle dealer drains manual stock even without weed', () => {
+test('autoTick: dealer without output sells nothing — no manual dip', () => {
   const s = Game.defaultState();
-  s.auto.sell.joint = true; // dealer (legacy partial save or starved ouvrier)
+  s.auto.sell.joint = true;
   s.stock.joint = 3;
   s.stock.weed = 0;
   const t = Game.autoTick(s, 0);
   assert.deepStrictEqual(t.crafted, {});
-  assert.strictEqual(t.soldMoney.joint, px(14, 'joint')); // 1 manual unit sold
-  assert.strictEqual(s.stock.joint, 2);
-});
-
-test('autoTick: dealer quota stops at empty stock', () => {
-  const s = Game.defaultState();
-  s.auto.sell.joint = true;
-  s.stock.joint = 0;
-  const t = Game.autoTick(s, 0);
   assert.deepStrictEqual(t.soldMoney, {});
+  assert.strictEqual(s.stock.joint, 3); // hoarded stock stays yours
   assert.strictEqual(s.money, 0);
 });
 
@@ -505,9 +497,9 @@ test('sellStock: clamps amount above stock, ignores zero/negative', () => {
   assert.strictEqual(Game.sellStock(s, 'joint', 99, 0), 4 * u);   // clamped to stock
   assert.strictEqual(s.stock.joint, 0);
   s.stock.joint = 5;
-  assert.strictEqual(Game.sellStock(s, 'joint', 0, 0), 1 * u);    // 0 -> min 1
-  assert.strictEqual(Game.sellStock(s, 'joint', -5, 0), 1 * u);   // negative -> min 1
-  assert.strictEqual(s.stock.joint, 3);
+  assert.strictEqual(Game.sellStock(s, 'joint', 0, 0), 0);        // 0 -> sells nothing
+  assert.strictEqual(Game.sellStock(s, 'joint', -5, 0), 0);       // negative -> nothing
+  assert.strictEqual(s.stock.joint, 5);
 });
 
 test('craftProduct: fractional/NaN qty floors to safe values', () => {
@@ -632,9 +624,21 @@ test('autoTick: multiple chains drain weed expensive-first, dealers sell each ou
   s.stock.weed = 30; // cake eats 25g, joint gets the last 5g — but 1u/s cap each
   const t = Game.autoTick(s, 0);
   assert.deepStrictEqual(t.crafted, { cake: 1, joint: 1 });
-  // dealers sell their chain output (no manual stock to dip into -> quota clamped)
   assert.strictEqual(t.soldMoney.cake, px(290, 'cake'));
   assert.strictEqual(t.soldMoney.joint, px(14, 'joint'));
+});
+
+test('autoTick: chains never consume beyond the flow (pile untouched)', () => {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(20);
+  s.money = 1e9;
+  Game.buyAutomation(s, 'auto-hash'); // 12g -> 115 €
+  s.stock.weed = 5000;                // a big pile
+  const before = s.stock.weed;
+  const flow = 240;
+  const t = Game.autoTick(s, 0, flow);
+  assert.strictEqual(t.crafted.hash, 3);            // 15% of 240 = 36g -> 3 units
+  assert.strictEqual(before - s.stock.weed, 36);    // consumed <= flow, never the pile
 });
 
 test('autoTick: chains scale with produced flow (30% share, 1u/s floor)', () => {
@@ -670,18 +674,3 @@ test('autoTick: flow budget is consumed expensive-first across chains', () => {
   assert.deepStrictEqual(t.crafted, { cake: 1, joint: 7 });
 });
 
-test('autoTick: excess above 90% cap joins the budget (full stock drains itself)', () => {
-  const s = Game.defaultState();
-  s.xp = Game.xpForLevel(9);
-  s.money = 1e9;
-  Game.buyAutomation(s, 'auto-joint'); // 2g -> 14 €
-  s.stock.weed = s.stock.weed = Game.maxWeedStorage(s); // full, zero flow (AFK)
-  const before = s.stock.weed;
-  const t = Game.autoTick(s, 0, 0);
-  assert.ok(t.crafted.joint >= 1, 'chains convert the piled-up excess');
-  assert.ok(s.stock.weed < before, 'stock actually goes down');
-  // and it keeps draining toward the 90% band on later ticks
-  const t2 = Game.autoTick(s, 0, 0);
-  assert.ok(s.stock.weed < before, 'second tick keeps draining');
-  assert.ok(s.stock.weed >= Game.maxWeedStorage(s) * 0.88, 'drain stops in the 90% band');
-});
