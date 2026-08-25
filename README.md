@@ -54,7 +54,7 @@ Every **produced** gram is XP — stored grams count fully, grams lost to a full
 - **Milestones**: permanent bonuses at 200 → +5%, 2.5K → +10%, 30K → +15%, 350K → +25%, 4M → +40%, 50M → +75%.
 - **Storage**: `maxWeedStorage()` = (1600 + 900×BoîteÉtanche + 4000×ChambreFroide) × (1 + 1.2%/level). Harvest is capped, toast `Stock plein !` when full. Income ≈ cap × €/g, so **storage is the main money sink**: its cost grows ×1.9/level (B1, was ×3.0) — plus fréquent, moins bloquant.
 
-All bonuses multiply (`level × strain × milestones × golden × tier`).
+All bonuses multiply (`level × strain × milestones × tier`).
 
 ## Upgrades
 
@@ -76,13 +76,13 @@ Cost = `BASE_COST * growth^(level - (harvest?1:0))`. Hardware grows ×1.35/level
 
 **Paliers (Cookie/AdvCap)** — tous les 25 niveaux d'un même upgrade → `×2` permanent (stack : 25→×2, 50→×4, 75→×8). Affiché `Lvl 27 ×2 (23→×4)` et bordure dorée quand le palier est proche (≤5). Rend chaque branche scalable late-game ; cliquer reste utile via `Doigts Agiles` + production.
 
-**Golden Bud (Cookie frenzy)** — ~1 fois/90s, 13s `×7` prod. Déclenché dans `autoProduce` via `maybeTriggerGolden` (1.2%/s, cooldown 60-120s), toast `✨ Golden Bud !`, bud doré `drop-shadow`, particule `FRENZY ×7`. `productionMult` inclut le ×7, `perClick/perSecond` le propagent, `priceOf` reste normal (×7 total, pas ×49).
-
 **Offline (AdvCap)** — `lastSeen` timestamp, `offlineTick` à 50% pendant jusqu'à 8h (cap 28 800s). Au `load`, `+Xg +Y€` toast si >30s d'absence. `harvestXp` + `autoTick` sont rejoués, capped par `maxWeedStorage`.
 
 ## Market Pulse
 
 All prices (weed included) oscillate between **-30% and +30%** of their base on independent ~2 min sine cycles (`MARKET` in `js/game.js`, deterministic in time — no state). The Marché shows each price with its trend (↗ rising / ↘ falling / → peak or trough). Selling a MAX stock at +30% instead of -30% is a 1.86× difference: timing matters more than volume.
+
+**Ruées (spikes)** — ~1 fois/70s, un produit aléatoire (weed inclus) passe `×1.6` pendant 15s (`SPIKE_*` dans `js/game.js`, état `spikeUntil/spikeProduct/spikeNextAt`, `isSpikeActive/spikeMult/maybeTriggerSpike`). Déclenché dans `autoProduce` (1.4%/s), toast `🔥 Ruée sur X !` + carte dorée `spike` + prix `🔥`. Remplace le Golden Bud : spike marché, pas prod — moins intrusif, plus stratégique (vendre au pic).
 
 ## Market Products
 
@@ -190,7 +190,7 @@ clicker-game/
 
 ### Modules
 
-- **`js/game.js`** — no DOM. Exports `UPGRADES`, `STRAINS`, `PRODUCTS`, `AUTOMATION`, `BASE_COST`, `COST_GROWTH`, `STORAGE_GROWTH`, `DEFAULT_LEVELS`, `XP_BASE`, `XP_GROWTH`, `MILESTONES`, `TIER_EVERY`, `GOLDEN_*`, `mulberry32`, `maxWeedStorage`, `defaultState`, `getStrain`, `getProduct`, `productUnitPrice`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `checkMilestones`, `perClick`, `perSecond`, `upgradeCost`, `buyUpgrade`, `hasAuto`, `buyAutomation`, `autoTick`, `craftProduct`, `sellStock`, `equipStrain`, `serialize`, `deserialize`, `tierMult`, `isGoldenActive`, `goldenMult`, `maybeTriggerGolden`, `offlineTick`, `upgradeBulkCost`, `buyUpgradeBulk`, `timeToAfford`. State under localStorage `budClicker` (+ `goldenUntil`, `goldenNextAt`, `lastSeen`).
+- **`js/game.js`** — no DOM. Exports `UPGRADES`, `STRAINS`, `PRODUCTS`, `AUTOMATION`, `BASE_COST`, `COST_GROWTH`, `STORAGE_GROWTH`, `DEFAULT_LEVELS`, `XP_BASE`, `XP_GROWTH`, `MILESTONES`, `TIER_EVERY`, `mulberry32`, `maxWeedStorage`, `defaultState`, `getStrain`, `getProduct`, `productUnitPrice`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `checkMilestones`, `perClick`, `perSecond`, `upgradeCost`, `buyUpgrade`, `hasAuto`, `buyAutomation`, `autoTick`, `craftProduct`, `sellStock`, `equipStrain`, `serialize`, `deserialize`, `tierMult`, `offlineTick`, `upgradeBulkCost`, `buyUpgradeBulk`, `timeToAfford`. State under localStorage `budClicker` (+ `lastSeen`).
 - **`js/bud.js`** — `renderBudSvg(strainId)` deterministic (seeds: calyxes 2024, pistils 99, trichomes 777).
 - **`js/ui.js`** — wiring, market rendering (`renderMarket` qty pills), automation hires rendered in the Upgrades view (`renderAutomation`), `autoProduce` 1s (weed growth + `autoTick`), autosave 10s, Space-to-harvest, tabs, storage-full feedback (pulsing bud + warning banner), stock-full click guard.
 

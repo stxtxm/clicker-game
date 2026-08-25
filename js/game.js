@@ -159,34 +159,37 @@
     return t <= 0 ? 1 : Math.pow(2, t);
   }
 
-  /** Golden Bud — Cookie Clicker-like burst: ~1 per 90s, 13s ×7. */
-  const GOLDEN_DURATION = 13000;
-  const GOLDEN_MULT = 7;
-  const GOLDEN_COOLDOWN_MIN = 60000;
-  const GOLDEN_COOLDOWN_MAX = 120000;
-  function isGoldenActive(s, now) {
+  /** Market spike — remplace Golden Bud : ~1 fois/70s, 15s ×1.6 sur un produit aléatoire. */
+  const SPIKE_DURATION = 15000;
+  const SPIKE_MULT = 1.6;
+  const SPIKE_COOLDOWN_MIN = 50000;
+  const SPIKE_COOLDOWN_MAX = 90000;
+  function isSpikeActive(s, kind, now) {
     const t = now === undefined ? Date.now() : now;
-    return !!(s && s.goldenUntil && t < s.goldenUntil);
+    return !!(s && s.spikeUntil && s.spikeProduct === kind && t < s.spikeUntil);
   }
-  function goldenMult(s, now) {
-    return isGoldenActive(s, now) ? GOLDEN_MULT : 1;
+  function spikeMult(s, kind, now) {
+    return isSpikeActive(s, kind, now) ? SPIKE_MULT : 1;
   }
-  function maybeTriggerGolden(s, now, rng) {
+  function maybeTriggerSpike(s, now, rng) {
     const t = now === undefined ? Date.now() : now;
     if (!s) return false;
-    if (isGoldenActive(s, t)) return false;
-    if (s.goldenNextAt && t < s.goldenNextAt) return false;
-    const chance = 0.012; // ~1.2%/s ≈ 1 per 80s when checked each second
+    if (s.spikeUntil && t < s.spikeUntil) return false;
+    if (s.spikeNextAt && t < s.spikeNextAt) return false;
+    const chance = 0.014; // ~1.4%/s ≈ 1 per 70s
     const r = rng ? rng() : Math.random();
     if (r < chance) {
-      s.goldenUntil = t + GOLDEN_DURATION;
-      const span = GOLDEN_COOLDOWN_MAX - GOLDEN_COOLDOWN_MIN;
-      s.goldenNextAt = t + GOLDEN_DURATION + GOLDEN_COOLDOWN_MIN + Math.floor((rng ? rng() : Math.random()) * span);
-      return true;
+      const pool = ['weed'].concat(PRODUCTS.map((p) => p.id));
+      const pick = pool[Math.floor((rng ? rng() : Math.random()) * pool.length)];
+      s.spikeProduct = pick;
+      s.spikeUntil = t + SPIKE_DURATION;
+      const span = SPIKE_COOLDOWN_MAX - SPIKE_COOLDOWN_MIN;
+      s.spikeNextAt = t + SPIKE_DURATION + SPIKE_COOLDOWN_MIN + Math.floor((rng ? rng() : Math.random()) * span);
+      return pick;
     }
-    if (!s.goldenNextAt) {
-      const span = GOLDEN_COOLDOWN_MAX - GOLDEN_COOLDOWN_MIN;
-      s.goldenNextAt = t + GOLDEN_COOLDOWN_MIN + Math.floor((rng ? rng() : Math.random()) * span);
+    if (!s.spikeNextAt) {
+      const span = SPIKE_COOLDOWN_MAX - SPIKE_COOLDOWN_MIN;
+      s.spikeNextAt = t + SPIKE_COOLDOWN_MIN + Math.floor((rng ? rng() : Math.random()) * span);
     }
     return false;
   }
@@ -227,19 +230,16 @@
 
   /**
    * Total production multiplier from level, strain yieldMult
-   * and awarded milestones. Golden + prestige multiply on top.
+   * and awarded milestones.
    * @param {object} s state
-   * @param {number} [now] epoch ms (for golden)
    */
-  function productionMult(s, now) {
+  function productionMult(s) {
     let m = 1 + 0.08 * levelFromXp(s.xp);
     const st = getStrain(s.strain);
     if (st) m *= st.yieldMult;
     const bonus = MILESTONES.reduce((a, mi) =>
       a + ((s.milestones || []).includes(mi.id) ? mi.bonus : 0), 0);
     m *= 1 + bonus / 100;
-    const gm = goldenMult(s, now);
-    if (gm !== 1) m *= gm;
     return m;
   }
 
@@ -323,9 +323,10 @@
       xp: 0,
       milestones: [],
       totalEarned: 0,
-      goldenUntil: 0,
-      goldenNextAt: 0,
-      lastSeen: 0
+      lastSeen: 0,
+      spikeUntil: 0,
+      spikeProduct: null,
+      spikeNextAt: 0
     };
   }
 
@@ -377,7 +378,6 @@
 
   /**
    * Current sale price of weed or a product: base × strain priceMult × market pulse.
-   * Golden does NOT boost price (only production) to keep frenzy ×7, not ×49.
    * @param {object} s state
    * @param {string} kind 'weed' or a product id
    * @param {number} [now] epoch ms (default Date.now())
@@ -387,10 +387,11 @@
     const t = now === undefined ? Date.now() : now;
     const st = getStrain(s.strain);
     const pm = st ? st.priceMult : 1.0;
-    if (kind === 'weed') return Math.round(s.prices.weed * pm * pulse('weed', t));
+    const sm = spikeMult(s, kind, t);
+    if (kind === 'weed') return Math.round(s.prices.weed * pm * pulse('weed', t) * sm);
     const p = getProduct(kind);
     if (!p) return 0;
-    return Math.round(p.price * pm * pulse(kind, t));
+    return Math.round(p.price * pm * pulse(kind, t) * sm);
   }
 
   /**
@@ -427,14 +428,14 @@
    * click — clicking stays worthwhile because it scales with your economy.
    * Tier bonus: every 25 levels → ×2 per upgrade.
    */
-  function perClick(s, now) {
+  function perClick(s) {
     const h = (s.levels.harvest || 0) * tierMult(s.levels.harvest || 0);
     const e = (s.levels.expert || 0) * 5 * tierMult(s.levels.expert || 0);
     let pc = h + e;
     if (s.levels.turbo > 0) pc *= 2 * tierMult(s.levels.turbo || 0);
     if (s.levels.mega > 0) pc *= 2 * tierMult(s.levels.mega || 0);
-    let total = pc * productionMult(s, now);
-    total += perSecond(s, now) * (s.levels.thumb || 0) * 0.08; // +8%/lvl of auto prod
+    let total = pc * productionMult(s);
+    total += perSecond(s) * (s.levels.thumb || 0) * 0.08; // +8%/lvl of auto prod
     return Math.round(total);
   }
 
@@ -442,10 +443,10 @@
    * Weed gained per second (auto production), scaled by production multiplier.
    * Tier bonus applies per upgrade.
    */
-  function perSecond(s, now) {
+  function perSecond(s) {
     const a = (s.levels.auto || 0) * tierMult(s.levels.auto || 0);
     const c = (s.levels.crew || 0) * 15 * tierMult(s.levels.crew || 0);
-    return Math.round((a + c) * productionMult(s, now));
+    return Math.round((a + c) * productionMult(s));
   }
 
   /**
@@ -785,10 +786,13 @@
         }
         d.auto[kind] = clean;
       }
-      d.goldenUntil = typeof d.goldenUntil === 'number' && d.goldenUntil >= 0 ? d.goldenUntil : 0;
-      d.goldenNextAt = typeof d.goldenNextAt === 'number' && d.goldenNextAt >= 0 ? d.goldenNextAt : 0;
       d.lastSeen = typeof d.lastSeen === 'number' && d.lastSeen >= 0 ? d.lastSeen : 0;
-      // drop prestige fields if present (removed)
+      d.spikeUntil = typeof d.spikeUntil === 'number' && d.spikeUntil >= 0 ? d.spikeUntil : 0;
+      d.spikeProduct = typeof d.spikeProduct === 'string' && (d.spikeProduct === 'weed' || PRODUCTS.some((p) => p.id === d.spikeProduct)) ? d.spikeProduct : null;
+      d.spikeNextAt = typeof d.spikeNextAt === 'number' && d.spikeNextAt >= 0 ? d.spikeNextAt : 0;
+      // drop removed fields (golden, prestige)
+      delete d.goldenUntil;
+      delete d.goldenNextAt;
       delete d.prestige;
       delete d.lifetimeEarned;
      return d;
@@ -808,10 +812,10 @@
     XP_GROWTH,
     MILESTONES,
     TIER_EVERY,
-    GOLDEN_DURATION,
-    GOLDEN_MULT,
-    GOLDEN_COOLDOWN_MIN,
-    GOLDEN_COOLDOWN_MAX,
+    SPIKE_DURATION,
+    SPIKE_MULT,
+    SPIKE_COOLDOWN_MIN,
+    SPIKE_COOLDOWN_MAX,
     mulberry32,
     maxWeedStorage,
     addWeed,
@@ -842,9 +846,9 @@
     serialize,
     deserialize,
     tierMult,
-    isGoldenActive,
-    goldenMult,
-    maybeTriggerGolden,
+    isSpikeActive,
+    spikeMult,
+    maybeTriggerSpike,
     offlineTick,
     upgradeBulkCost,
     buyUpgradeBulk,
