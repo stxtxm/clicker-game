@@ -137,8 +137,6 @@
     } else {
       el.bs.innerHTML = '<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">' + svg + '</svg>';
     }
-    // golden visual pulse
-    if (el.bc) el.bc.classList.toggle('golden', Game.isGoldenActive(state));
   }
 
   function renderUpgrades() {
@@ -271,8 +269,11 @@
       const unit = Game.priceOf(state, 'weed', now);
       const have = state.stock.weed || 0;
       const n = qtyMode === 'max' ? have : Math.min(qtyMode, have);
-      document.getElementById('mp-weed').innerHTML = trendArrow('weed', now) + ' ' + unit + ' €/g';
-      document.getElementById('ms-weed').textContent = fmt(have) + 'g disponibles';
+      const spike = Game.isSpikeActive && Game.isSpikeActive(state, 'weed', now);
+      document.getElementById('mp-weed').innerHTML = (spike ? '🔥 ' : '') + trendArrow('weed', now) + ' ' + unit + ' €/g';
+      const weedCard = el.marketGrid.querySelector('.market-card');
+      if (weedCard) weedCard.classList.toggle('spike', !!spike);
+      document.getElementById('ms-weed').textContent = fmt(have) + 'g disponibles' + (spike ? ' — 🔥 Ruée ×1.6 !' : '');
       const btn = document.getElementById('mb-weed');
       btn.textContent = 'Vendre ' + (qtyMode === 'max' ? 'tout (' + fmt(have) + 'g)' : 'x' + n + ' (' + fmt(n) + 'g)');
       btn.disabled = n <= 0;
@@ -301,8 +302,10 @@
       const unit = Game.priceOf(state, p.id, now);
       const have = state.stock[p.id] || 0;
       const maxCraftable = Math.floor((state.stock.weed || 0) / p.cost);
-      priceEl.innerHTML = trendArrow(p.id, now) + ' ' + unit + ' €/u';
-      stockEl.textContent = fmt(have) + ' dispo — ' + p.cost + 'g → 1u (' + p.desc + ')';
+      const spike = Game.isSpikeActive && Game.isSpikeActive(state, p.id, now);
+      card.classList.toggle('spike', !!spike);
+      priceEl.innerHTML = (spike ? '🔥 ' : '') + trendArrow(p.id, now) + ' ' + unit + ' €/u';
+      stockEl.textContent = fmt(have) + ' dispo — ' + p.cost + 'g → 1u (' + p.desc + ')' + (spike ? ' — 🔥 Ruée ×1.6 !' : '');
       qtyEl.textContent = qtyMode === 'max' ? 'x' + fmt(maxCraftable) : '';
       cBtn.textContent = 'Fabriquer ' + (qtyMode === 'max' ? 'max (' + fmt(maxCraftable) + ')' : 'x' + Math.min(qtyMode, Math.max(1, maxCraftable)));
       cBtn.disabled = maxCraftable <= 0;
@@ -373,20 +376,17 @@
    *  Hidden views are skipped: the per-second tick only writes to the DOM the
    *  player is actually looking at (less style/layout work, smoother on mobile). */
   function refreshStats() {
-    const now = Date.now();
-    const pc = Game.perClick(state, now);
-    const ar = Game.perSecond(state, now);
+    const pc = Game.perClick(state);
+    const ar = Game.perSecond(state);
     const active = (name) => {
       const v = document.getElementById('v-' + name);
       return !v || v.classList.contains('active');
     };
 
-    const golden = Game.isGoldenActive(state, now);
-    if (el.m) el.m.textContent = fmt(state.money) + ' €' + (golden ? ' ✨×7' : '');
-    if (el.ar) el.ar.textContent = '+' + ar + (golden ? ' ✨' : '');
-    if (el.hl) el.hl.textContent = pc + (golden ? ' ✨' : '');
+    if (el.m) el.m.textContent = fmt(state.money) + ' €';
+    if (el.ar) el.ar.textContent = '+' + ar;
+    if (el.hl) el.hl.textContent = pc;
     if (el.lv) el.lv.textContent = Game.levelFromXp(state.xp); // header: always fresh
-    if (el.bc) el.bc.classList.toggle('golden', golden);
 
     const cap = Game.maxWeedStorage(state);
     // 97% threshold (not exact cap): owned chains drain a few g/s continuously,
@@ -472,13 +472,6 @@
   function onHarvest(ev) {
     if (ev && ev.preventDefault) { ev.preventDefault(); ev.stopPropagation(); }
     fullBannerArmed = true; // from now on the banner may show (first interaction)
-    // golden click: if active, harvest is already ×7 via perClick
-    if (Game.isGoldenActive(state)) {
-      // extra juice during frenzy
-      if (el.bc && el.bc.animate) {
-        el.bc.animate([{ filter: 'brightness(1.4)' }, { filter: 'brightness(1)' }], { duration: 180 });
-      }
-    }
     const ac = Game.perClick(state);
     const added = Game.harvestXp(state, ac);
     clickFlow += added; // chains only process grams that actually entered storage
@@ -641,15 +634,14 @@
   /** One auto-production tick (every second): weed growth, then automation. */
   function autoProduce() {
     const now = Date.now();
-    // Golden Bud trigger (Cookie-like burst)
-    if (Game.maybeTriggerGolden && Game.maybeTriggerGolden(state, now)) {
-      toast('✨ Golden Bud ! ×7 pendant 13s !');
-      if (el.bc) {
-        el.bc.animate && el.bc.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: 400, easing: 'cubic-bezier(.34,1.56,.64,1)' });
-      }
-      spawnParticle('✨ FRENZY ×7 !');
+    const spiked = Game.maybeTriggerSpike && Game.maybeTriggerSpike(state, now);
+    if (spiked) {
+      const prod = Game.getProduct(spiked);
+      const name = prod ? prod.name : spiked === 'weed' ? 'Weed Brute' : spiked;
+      toast('🔥 Ruée sur ' + name + ' ×1.6 (15s) !');
+      spawnParticle('🔥 ' + name + ' ×1.6 !');
     }
-    const ar = Game.perSecond(state, now);
+    const ar = Game.perSecond(state);
     let addedAuto = 0;
     if (ar > 0) addedAuto = Game.harvestXp(state, ar);
     // automation hires (Ouvriers/Dealers) craft & sell owned products,
@@ -662,11 +654,6 @@
       const earned = Object.values(tick.soldMoney || {}).reduce((a, b) => a + b, 0);
       el.mps.textContent = earned > 0 ? '+' + fmt(earned) + ' €/s' : '';
     }
-    // golden expiry toast
-    if (state.goldenUntil && now >= state.goldenUntil && state._wasGolden) {
-      toast('Golden Bud terminé');
-    }
-    state._wasGolden = Game.isGoldenActive(state, now);
     refreshStats();
     save();
   }

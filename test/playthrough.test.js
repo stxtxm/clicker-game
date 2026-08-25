@@ -107,12 +107,12 @@ function simulate(minutes) {
         }
       }
     }
-    // 3) storage when capped too often
-    for (const sid of ['sbox', 'coldroom']) {
+    // 3) storage when capped too often (incl. silo late)
+    for (const sid of ['sbox', 'coldroom', 'silo']) {
       if (capHits >= 2 && s.money >= Game.upgradeCost(s, sid)) Game.buyUpgrade(s, sid);
     }
     // 4) cheapest hardware upgrade
-    const hw = Game.UPGRADES.filter((u) => !['sbox', 'coldroom'].includes(u.id));
+    const hw = Game.UPGRADES.filter((u) => !['sbox', 'coldroom', 'silo'].includes(u.id));
     const affordable = hw
       .map((u) => ({ u, c: Game.upgradeCost(s, u.id) }))
       .filter((x) => s.money >= x.c)
@@ -169,14 +169,15 @@ test('playthrough 2h: pacing targets + stats', () => {
   console.log('SIM2H ' + fmtStats(st));
   console.log('SIM2H end ' + JSON.stringify(st.end));
   // Pacing targets for an OPTIMAL player (real players are 2-4x slower).
-  // B1 rebalance (growth 1.35, soft cap): faster early hook, more purchases.
+  // Extended curve (12 produits, 10 strains, 9 jalons, XP 1.38, paliers 25) : plus longue.
   assert.ok(st.firstUpgrade !== null && st.firstUpgrade <= 1, 'first upgrade within a minute');
   assert.ok(st.levels[10] >= 5 && st.levels[10] <= 20, 'level 10 around 10 min of optimal play');
-  assert.ok(st.levels[20] >= 15 && st.levels[20] <= 60, 'level 20 is a ~25 min milestone');
+  assert.ok(st.levels[20] >= 12 && st.levels[20] <= 60, 'level 20 is a ~25 min milestone');
+  assert.ok(st.levels[30] >= 25 && st.levels[30] <= 90, 'level 30 mid-late');
   assert.ok(st.firstChain >= 2 && st.firstChain <= 15, 'first chain is an early mid-game goal');
   assert.ok(st.earned[1000000] >= 4 && st.earned[1000000] <= 20, '1M lifetime around 10 min of optimal play');
   assert.ok(st.earned[10000000] >= 9, '10M not before ~13 min even when perfect');
-  assert.ok(st.end.level >= 20, 'progression keeps flowing (no wall)');
-  // 40B: B1 soft cap + growth 1.35 raises ceiling vs old 15B, still bounded.
-  assert.ok(st.end.totalEarned < 40e9, 'economy stays bounded over a 2h optimal run');
+  assert.ok(st.end.level >= 30, 'progression keeps flowing (no wall) — vise 34+ avec nouveau contenu');
+  // 150B: 12 produits + paliers + strains étendus relèvent le plafond
+  assert.ok(st.end.totalEarned < 150e9, 'economy stays bounded over a 2h optimal run');
 });

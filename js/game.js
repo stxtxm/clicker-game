@@ -38,19 +38,25 @@
 
   /** Upgrades catalog: id, display name, icon, description, base cost.
    *  Costs are tuned so early purchases take ~1-2 min of play to pay back.
-   *  B1 rebalance (growth 1.35): cheaper early hook, more frequent purchases. */
+   *  B1 rebalance (growth 1.35): cheaper early hook, more frequent purchases.
+   *  Progression lissée : 4 nouveaux paliers intermédiaires pour rallonger. */
   const UPGRADES = [
     { id: 'harvest', name: 'Ciseaux Pro',    icon: '✂️',   desc: '+1g de weed par clic',      cost: 120 },
     { id: 'auto',    name: 'Système Auto',   icon: '🤖',   desc: '+1g de weed par seconde',   cost: 550 },
     { id: 'thumb',   name: 'Doigts Agiles',  icon: '🫰',   desc: '+8% de ta prod./s s\'ajoute à chaque clic', cost: 1200 },
     { id: 'expert',  name: 'Taille Expert',  icon: '🧑‍🌾', desc: '+5g de weed par clic',      cost: 4000 },
+    { id: 'mist',    name: 'Brume Foliaire', icon: '💧',   desc: '+2g de weed par seconde',   cost: 12000, growth: 1.35 },
+    { id: 'trim',    name: 'Trimmer Pro',    icon: '🔧',   desc: '+5g de weed par clic',      cost: 25000, growth: 1.35 },
     { id: 'crew',    name: 'Équipe de Serre',icon: '👥',   desc: '+15g de weed par seconde',  cost: 25000 },
+    { id: 'co2',     name: 'Injecteur CO₂',  icon: '🫧',   desc: '+15g de weed par seconde',  cost: 180000, growth: 1.35 },
     { id: 'turbo',   name: 'Éclairage Turbo',icon: '⚡',   desc: 'x2 production de weed',     cost: 90000 },
+    { id: 'uv',      name: 'Chambre UV',     icon: '🔮',   desc: 'x1.4 production globale',   cost: 500000, growth: 1.35 },
     { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: 'x2 production globale',     cost: 750000 },
     // Storage upgrades: B1 soft cap — growth softened to 1.9 (was 3.0),
     // larger base but still a sink.
     { id: 'sbox',    name: 'Boîte Étanche',  icon: '📦',   desc: '+900g capacité weed max',   cost: 4000, growth: 1.9 },
-    { id: 'coldroom',name: 'Chambre Froide', icon: '❄️',   desc: '+4000g capacité weed max',  cost: 240000, growth: 1.9 }
+    { id: 'coldroom',name: 'Chambre Froide', icon: '❄️',   desc: '+4000g capacité weed max',  cost: 240000, growth: 1.9 },
+    { id: 'silo',    name: 'Silo Auto',      icon: '🏭',   desc: '+8000g capacité weed max', cost: 2000000, growth: 1.9 }
   ];
 
   /**
@@ -84,7 +90,13 @@
       vein: '#30220c', stroke: '#241a08', pistil: '#ffaa00', pistil2: '#ffcc44', frost: 2.5 },
     { id: 'widow',  name: 'White Widow', icon: '🕷️', cost: 200000000, unlock: 45, yieldMult: 22.0, priceMult: 18.0, desc: 'Blanche de trichomes, le sommet absolu',
       d: ['#4a4a4a', '#202020'], m: ['#707070', '#383838'], l: ['#a8a8a8', '#5a5a5a'], f: ['#e0e0e0', '#888888'],
-      vein: '#1f1f1f', stroke: '#121212', pistil: '#ffffff', pistil2: '#ffffff', frost: 3.0 }
+      vein: '#1f1f1f', stroke: '#121212', pistil: '#ffffff', pistil2: '#ffffff', frost: 3.0 },
+    { id: 'zkittlez', name: 'Zkittlez', icon: '🍬', cost: 800000000, unlock: 52, yieldMult: 26.0, priceMult: 22.0, desc: 'Arc-en-ciel sucré, explosion fruitée',
+      d: ['#6e2f6e', '#3a153a'], m: ['#8f3f8f', '#4a1f4a'], l: ['#d06fd0', '#8a3f8a'], f: ['#eea8ee', '#c080c0'],
+      vein: '#2a0f2a', stroke: '#1c0a1c', pistil: '#ffd700', pistil2: '#ffea00', frost: 3.2 },
+    { id: 'gelato', name: 'Gelato 33', icon: '🍦', cost: 2000000000, unlock: 62, yieldMult: 32.0, priceMult: 28.0, desc: 'Crémeuse et glaciale, le graal moderne',
+      d: ['#4a6e2f', '#1f2f15'], m: ['#6e8f3f', '#2f4a1f'], l: ['#a8d070', '#5a8f3f'], f: ['#d8e8a8', '#a0c070'],
+      vein: '#1a2f10', stroke: '#0f1a08', pistil: '#ff69b4', pistil2: '#ffb6c1', frost: 3.5 }
   ];
 
   /** Base cost of each upgrade, indexed by id. */
@@ -98,7 +110,7 @@
   const STORAGE_GROWTH = 1.9;
 
   /** Default upgrade levels for a brand new game. */
-  const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, thumb: 0, crew: 0, turbo: 0, mega: 0, sbox: 0, coldroom: 0 };
+  const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, thumb: 0, crew: 0, turbo: 0, mega: 0, sbox: 0, coldroom: 0, mist: 0, trim: 0, co2: 0, uv: 0, silo: 0 };
 
   /**
    * Product catalog — everything sellable at the market.
@@ -113,7 +125,11 @@
     { id: 'resin',   icon: '🍯', name: 'Résine Supérieure',  cost: 40,  price: 550,  unlock: 19, desc: 'Extraction soignée' },
     { id: 'huile',   icon: '💧', name: 'Huile Verte',        cost: 80,  price: 1200, unlock: 26, desc: 'Distillat concentré' },
     { id: 'shatter', icon: '💎', name: 'Shatter Pur',        cost: 150, price: 2600, unlock: 34, desc: 'Translucide et puissant' },
-    { id: 'rosin',   icon: '🌟', name: 'Live Rosin',         cost: 300, price: 5800, unlock: 45, desc: 'Le nec plus ultra des extraits' }
+    { id: 'rosin',   icon: '🌟', name: 'Live Rosin',         cost: 300, price: 5800, unlock: 45, desc: 'Le nec plus ultra des extraits' },
+    { id: 'vape',    icon: '🔋', name: 'Vape Cart',          cost: 600, price: 12500, unlock: 52, desc: 'Distillat en cartouche' },
+    { id: 'diamonds',icon: '💠', name: 'THC Diamonds',       cost: 1200,price: 26000, unlock: 60, desc: 'Cristaux purs à 99%' },
+    { id: 'moonrock',icon: '🌙', name: 'Moonrock',           cost: 2500,price: 55000, unlock: 68, desc: 'Fleur trempée dans l\'huile et le kief' },
+    { id: 'soda',    icon: '🥤', name: 'Soda THC',           cost: 5000,price: 115000,unlock: 75, desc: 'Boisson pétillante infusée' }
   ];
 
   /**
@@ -138,9 +154,9 @@
     unlock: p.unlock + 4
   }));
 
-  /* ---- progression curve (Slower, deeper & more rewarding) ---------------- */
+  /* ---- progression curve (lissée, plus longue) ---------------- */
   const XP_BASE = 150;
-  const XP_GROWTH = 1.32;
+  const XP_GROWTH = 1.38;
 
   /** Milestones: permanent production bonuses granted at lifetime-XP thresholds. */
   const MILESTONES = [
@@ -149,7 +165,10 @@
     { id: 'm3', xp: 30000,   bonus: 15, name: 'Laboratoire de prod',  icon: '🏭' },
     { id: 'm4', xp: 350000,  bonus: 25, name: 'Baron de la résine',   icon: '💎' },
     { id: 'm5', xp: 4000000, bonus: 40, name: 'Légende internationale',icon: '👑' },
-    { id: 'm6', xp: 50000000,bonus: 75, name: 'Empereur du Cannabis',icon: '🪐' }
+    { id: 'm6', xp: 50000000,bonus: 75, name: 'Empereur du Cannabis',icon: '🪐' },
+    { id: 'm7', xp: 150000000,bonus: 60, name: 'Cartel Mondial',     icon: '🌍' },
+    { id: 'm8', xp: 400000000,bonus: 80, name: 'Nébuleuse Verte',    icon: '🌌' },
+    { id: 'm9', xp: 1000000000,bonus: 100, name: 'Légende Éternelle', icon: '♾️' }
   ];
 
   /** Tier bonus: every 25 levels of an upgrade → ×2 (Cookie/AdvCap). */
@@ -159,34 +178,37 @@
     return t <= 0 ? 1 : Math.pow(2, t);
   }
 
-  /** Golden Bud — Cookie Clicker-like burst: ~1 per 90s, 13s ×7. */
-  const GOLDEN_DURATION = 13000;
-  const GOLDEN_MULT = 7;
-  const GOLDEN_COOLDOWN_MIN = 60000;
-  const GOLDEN_COOLDOWN_MAX = 120000;
-  function isGoldenActive(s, now) {
+  /** Market spike — remplace Golden Bud : ~1 fois/70s, 15s ×1.6 sur un produit aléatoire. */
+  const SPIKE_DURATION = 15000;
+  const SPIKE_MULT = 1.6;
+  const SPIKE_COOLDOWN_MIN = 50000;
+  const SPIKE_COOLDOWN_MAX = 90000;
+  function isSpikeActive(s, kind, now) {
     const t = now === undefined ? Date.now() : now;
-    return !!(s && s.goldenUntil && t < s.goldenUntil);
+    return !!(s && s.spikeUntil && s.spikeProduct === kind && t < s.spikeUntil);
   }
-  function goldenMult(s, now) {
-    return isGoldenActive(s, now) ? GOLDEN_MULT : 1;
+  function spikeMult(s, kind, now) {
+    return isSpikeActive(s, kind, now) ? SPIKE_MULT : 1;
   }
-  function maybeTriggerGolden(s, now, rng) {
+  function maybeTriggerSpike(s, now, rng) {
     const t = now === undefined ? Date.now() : now;
     if (!s) return false;
-    if (isGoldenActive(s, t)) return false;
-    if (s.goldenNextAt && t < s.goldenNextAt) return false;
-    const chance = 0.012; // ~1.2%/s ≈ 1 per 80s when checked each second
+    if (s.spikeUntil && t < s.spikeUntil) return false;
+    if (s.spikeNextAt && t < s.spikeNextAt) return false;
+    const chance = 0.014; // ~1.4%/s ≈ 1 per 70s
     const r = rng ? rng() : Math.random();
     if (r < chance) {
-      s.goldenUntil = t + GOLDEN_DURATION;
-      const span = GOLDEN_COOLDOWN_MAX - GOLDEN_COOLDOWN_MIN;
-      s.goldenNextAt = t + GOLDEN_DURATION + GOLDEN_COOLDOWN_MIN + Math.floor((rng ? rng() : Math.random()) * span);
-      return true;
+      const pool = ['weed'].concat(PRODUCTS.map((p) => p.id));
+      const pick = pool[Math.floor((rng ? rng() : Math.random()) * pool.length)];
+      s.spikeProduct = pick;
+      s.spikeUntil = t + SPIKE_DURATION;
+      const span = SPIKE_COOLDOWN_MAX - SPIKE_COOLDOWN_MIN;
+      s.spikeNextAt = t + SPIKE_DURATION + SPIKE_COOLDOWN_MIN + Math.floor((rng ? rng() : Math.random()) * span);
+      return pick;
     }
-    if (!s.goldenNextAt) {
-      const span = GOLDEN_COOLDOWN_MAX - GOLDEN_COOLDOWN_MIN;
-      s.goldenNextAt = t + GOLDEN_COOLDOWN_MIN + Math.floor((rng ? rng() : Math.random()) * span);
+    if (!s.spikeNextAt) {
+      const span = SPIKE_COOLDOWN_MAX - SPIKE_COOLDOWN_MIN;
+      s.spikeNextAt = t + SPIKE_COOLDOWN_MIN + Math.floor((rng ? rng() : Math.random()) * span);
     }
     return false;
   }
@@ -227,19 +249,16 @@
 
   /**
    * Total production multiplier from level, strain yieldMult
-   * and awarded milestones. Golden + prestige multiply on top.
+   * and awarded milestones.
    * @param {object} s state
-   * @param {number} [now] epoch ms (for golden)
    */
-  function productionMult(s, now) {
+  function productionMult(s) {
     let m = 1 + 0.08 * levelFromXp(s.xp);
     const st = getStrain(s.strain);
     if (st) m *= st.yieldMult;
     const bonus = MILESTONES.reduce((a, mi) =>
       a + ((s.milestones || []).includes(mi.id) ? mi.bonus : 0), 0);
     m *= 1 + bonus / 100;
-    const gm = goldenMult(s, now);
-    if (gm !== 1) m *= gm;
     return m;
   }
 
@@ -289,7 +308,7 @@
 
   /**
    * Maximum weed storage capacity: B1 soft cap — larger base and per-level
-   * growth so storage stays a sink but never a wall.
+   * growth so storage stays a sink but never a wall. Silo adds late-game cap.
    */
   function maxWeedStorage(s) {
     let cap = 1600;
@@ -297,6 +316,7 @@
       // clamp corrupted/negative save levels — a negative cap bricks the game
       cap += Math.max(0, s.levels.sbox || 0) * 900;
       cap += Math.max(0, s.levels.coldroom || 0) * 4000;
+      cap += Math.max(0, s.levels.silo || 0) * 8000;
     }
     const level = s ? levelFromXp(s.xp) : 1;
     return Math.round(Math.max(1600, cap) * (1 + 0.012 * (level - 1)));
@@ -323,9 +343,10 @@
       xp: 0,
       milestones: [],
       totalEarned: 0,
-      goldenUntil: 0,
-      goldenNextAt: 0,
-      lastSeen: 0
+      lastSeen: 0,
+      spikeUntil: 0,
+      spikeProduct: null,
+      spikeNextAt: 0
     };
   }
 
@@ -377,7 +398,6 @@
 
   /**
    * Current sale price of weed or a product: base × strain priceMult × market pulse.
-   * Golden does NOT boost price (only production) to keep frenzy ×7, not ×49.
    * @param {object} s state
    * @param {string} kind 'weed' or a product id
    * @param {number} [now] epoch ms (default Date.now())
@@ -387,10 +407,11 @@
     const t = now === undefined ? Date.now() : now;
     const st = getStrain(s.strain);
     const pm = st ? st.priceMult : 1.0;
-    if (kind === 'weed') return Math.round(s.prices.weed * pm * pulse('weed', t));
+    const sm = spikeMult(s, kind, t);
+    if (kind === 'weed') return Math.round(s.prices.weed * pm * pulse('weed', t) * sm);
     const p = getProduct(kind);
     if (!p) return 0;
-    return Math.round(p.price * pm * pulse(kind, t));
+    return Math.round(p.price * pm * pulse(kind, t) * sm);
   }
 
   /**
@@ -426,26 +447,35 @@
    * `thumb` (Doigts Agiles) adds a share of your per-second production to each
    * click — clicking stays worthwhile because it scales with your economy.
    * Tier bonus: every 25 levels → ×2 per upgrade.
+   * Progression lissée: trim s'ajoute à expert.
    */
-  function perClick(s, now) {
+  function perClick(s) {
     const h = (s.levels.harvest || 0) * tierMult(s.levels.harvest || 0);
     const e = (s.levels.expert || 0) * 5 * tierMult(s.levels.expert || 0);
-    let pc = h + e;
+    const t = (s.levels.trim || 0) * 5 * tierMult(s.levels.trim || 0);
+    let pc = h + e + t;
     if (s.levels.turbo > 0) pc *= 2 * tierMult(s.levels.turbo || 0);
+    if (s.levels.uv > 0) pc *= 1.4 * tierMult(s.levels.uv || 0);
     if (s.levels.mega > 0) pc *= 2 * tierMult(s.levels.mega || 0);
-    let total = pc * productionMult(s, now);
-    total += perSecond(s, now) * (s.levels.thumb || 0) * 0.08; // +8%/lvl of auto prod
+    let total = pc * productionMult(s);
+    total += perSecond(s) * (s.levels.thumb || 0) * 0.08; // +8%/lvl of auto prod
     return Math.round(total);
   }
 
   /**
    * Weed gained per second (auto production), scaled by production multiplier.
-   * Tier bonus applies per upgrade.
+   * Tier bonus applies per upgrade. Progression lissée: mist/co2.
    */
-  function perSecond(s, now) {
+  function perSecond(s) {
     const a = (s.levels.auto || 0) * tierMult(s.levels.auto || 0);
+    const mi = (s.levels.mist || 0) * 2 * tierMult(s.levels.mist || 0);
     const c = (s.levels.crew || 0) * 15 * tierMult(s.levels.crew || 0);
-    return Math.round((a + c) * productionMult(s, now));
+    const co = (s.levels.co2 || 0) * 15 * tierMult(s.levels.co2 || 0);
+    let base = a + mi + c + co;
+    if (s.levels.uv > 0) base *= 1.4 * tierMult(s.levels.uv || 0);
+    if (s.levels.mega > 0) base *= 2 * tierMult(s.levels.mega || 0);
+    // turbo does not affect perSecond (only click weed)
+    return Math.round(base * productionMult(s));
   }
 
   /**
@@ -767,9 +797,10 @@
      d.totalEarned = typeof d.totalEarned === 'number' && d.totalEarned >= 0 ? d.totalEarned : 0;
      if (!d.prices || typeof d.prices !== 'object') d.prices = { weed: 6 };
      else if (typeof d.prices.weed !== 'number') d.prices.weed = 6;
-     // drop legacy fields
-     delete d.points; delete d.genomes;
-     delete d.stock.main; delete d.stock.premium; delete d.stock.moonrock;
+      // drop legacy fields
+      delete d.points; delete d.genomes;
+      delete d.stock.main; delete d.stock.premium;
+      // moonrock is now a valid product (was legacy premium), keep it
      d.milestones = Array.isArray(d.milestones)
        ? d.milestones.filter((m) => MILESTONES.some((mi) => mi.id === m))
        : [];
@@ -785,10 +816,13 @@
         }
         d.auto[kind] = clean;
       }
-      d.goldenUntil = typeof d.goldenUntil === 'number' && d.goldenUntil >= 0 ? d.goldenUntil : 0;
-      d.goldenNextAt = typeof d.goldenNextAt === 'number' && d.goldenNextAt >= 0 ? d.goldenNextAt : 0;
       d.lastSeen = typeof d.lastSeen === 'number' && d.lastSeen >= 0 ? d.lastSeen : 0;
-      // drop prestige fields if present (removed)
+      d.spikeUntil = typeof d.spikeUntil === 'number' && d.spikeUntil >= 0 ? d.spikeUntil : 0;
+      d.spikeProduct = typeof d.spikeProduct === 'string' && (d.spikeProduct === 'weed' || PRODUCTS.some((p) => p.id === d.spikeProduct)) ? d.spikeProduct : null;
+      d.spikeNextAt = typeof d.spikeNextAt === 'number' && d.spikeNextAt >= 0 ? d.spikeNextAt : 0;
+      // drop removed fields (golden, prestige)
+      delete d.goldenUntil;
+      delete d.goldenNextAt;
       delete d.prestige;
       delete d.lifetimeEarned;
      return d;
@@ -808,10 +842,10 @@
     XP_GROWTH,
     MILESTONES,
     TIER_EVERY,
-    GOLDEN_DURATION,
-    GOLDEN_MULT,
-    GOLDEN_COOLDOWN_MIN,
-    GOLDEN_COOLDOWN_MAX,
+    SPIKE_DURATION,
+    SPIKE_MULT,
+    SPIKE_COOLDOWN_MIN,
+    SPIKE_COOLDOWN_MAX,
     mulberry32,
     maxWeedStorage,
     addWeed,
@@ -842,9 +876,9 @@
     serialize,
     deserialize,
     tierMult,
-    isGoldenActive,
-    goldenMult,
-    maybeTriggerGolden,
+    isSpikeActive,
+    spikeMult,
+    maybeTriggerSpike,
     offlineTick,
     upgradeBulkCost,
     buyUpgradeBulk,

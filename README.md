@@ -38,23 +38,24 @@ sessions, strains and chains when unlocked + affordable — and asserts pacing:
 | Level 20 | 15–60 min |
 | 1M lifetime | 4–20 min |
 | 10M lifetime | ≥ 9 min |
-| 2h ceiling | < 40 B€ lifetime |
+| 2h ceiling | < 150 B€ lifetime |
+| Level 30 | 25–90 min |
 
 An optimal sim ≈ 2-4× faster than a real player. The levers, in order of impact:
-**storage cost growth (×1.9)** — income ≈ cap × €/g, so storage gates everything; **B1 soft cap** (1600 + 900×sbox + 4000×coldroom ×1.2%/lvl) plus **growth 1.35** évite les murs;
-**strain costs** (exponential income jumps); **XP_GROWTH 1.32** (level gates);
+**storage cost growth (×1.9)** — income ≈ cap × €/g, so storage gates everything; **B1 soft cap** (1600 + 900×sbox + 4000×coldroom + 8000×silo ×1.2%/lvl) plus **growth 1.35** évite les murs;
+**strain costs** (10 variétés, exponentiel); **XP_GROWTH 1.38** (level gates, allongé); **12 produits** + **14 upgrades** + **9 jalons** rallongent la courbe;
 **product €/g ladder** (crafting depth). Tune those, re-run the sim, compare.
 
 ## Progression
 
-Every **produced** gram is XP — stored grams count fully, grams lost to a full stock count for **60%** (B1 soft cap, was 25%) : a full stock slows you without ever hard-locking progression. XP drives a hybrid curve (level N needs `150*(N-1)²*1.32^(N-1)` XP): fast early, then steep.
+Every **produced** gram is XP — stored grams count fully, grams lost to a full stock count for **60%** (B1 soft cap, was 25%) : a full stock slows you without ever hard-locking progression. XP drives a hybrid curve (level N needs `150*(N-1)²*1.38^(N-1)` XP) — **allongée** pour 75 niveaux.
 
-- **Levels**: each level adds **+8%** to all production. Strains unlock at 1, 4, 8, 13, 19, 26, 34, 45.
-- **Strains**: `yieldMult` multiplies weed per click/second, `priceMult` the sale prices — together they are the big progression jumps, gated by steep costs (Purple 4 K€ → Widow 200 M€).
-- **Milestones**: permanent bonuses at 200 → +5%, 2.5K → +10%, 30K → +15%, 350K → +25%, 4M → +40%, 50M → +75%.
-- **Storage**: `maxWeedStorage()` = (1600 + 900×BoîteÉtanche + 4000×ChambreFroide) × (1 + 1.2%/level). Harvest is capped, toast `Stock plein !` when full. Income ≈ cap × €/g, so **storage is the main money sink**: its cost grows ×1.9/level (B1, was ×3.0) — plus fréquent, moins bloquant.
+- **Levels**: each level adds **+8%** to all production. Strains unlock at 1, 4, 8, 13, 19, 26, 34, 45, 52, 62.
+- **Strains**: `yieldMult` multiplies weed per click/second, `priceMult` the sale prices — 10 variétés (Green→Gelato 33), gated by coûts exponentiels (Purple 4K → Gelato 2Md€).
+- **Milestones**: 9 jalons à 200→+5%, 2.5K→+10%, 30K→+15%, 350K→+25%, 4M→+40%, 50M→+75%, 150M→+60%, 400M→+80%, 1Md→+100%.
+- **Storage**: `maxWeedStorage()` = (1600 + 900×BoîteÉtanche + 4000×ChambreFroide + 8000×Silo) × (1 + 1.2%/level). Harvest is capped, toast `Stock plein !` when full. Income ≈ cap × €/g, so **storage is the main money sink**: its cost grows ×1.9/level — 3 paliers (Silo late).
 
-All bonuses multiply (`level × strain × milestones × golden × tier`).
+All bonuses multiply (`level × strain × milestones × tier`).
 
 ## Upgrades
 
@@ -64,11 +65,16 @@ All bonuses multiply (`level × strain × milestones × golden × tier`).
 | Système Auto | +1g per second | 550 € | 1.35 |
 | Doigts Agiles | clicks gain +8% of your prod./s (per level) | 1 200 € | 1.35 |
 | Taille Expert | +5g per click | 4 000 € | 1.35 |
+| Brume Foliaire | +2g per second | 12 000 € | 1.35 |
+| Trimmer Pro | +5g per click | 25 000 € | 1.35 |
 | Équipe de Serre | +15g per second | 25 000 € | 1.35 |
+| Injecteur CO₂ | +15g per second | 180 000 € | 1.35 |
 | Éclairage Turbo | x2 weed production | 90 000 € | 1.35 |
-| Laboratoire+ | x2 all production | 750 000 € | 1.35 |
+| Chambre UV | x1.4 production globale | 500 000 € | 1.35 |
+| Laboratoire+ | x2 production globale | 750 000 € | 1.35 |
 | Boîte Étanche | +900g max weed | 4 000 € | **1.9** |
 | Chambre Froide | +4000g max weed | 240 000 € | **1.9** |
+| Silo Auto | +8000g max weed | 2 000 000 € | **1.9** |
 
 Cost = `BASE_COST * growth^(level - (harvest?1:0))`. Hardware grows ×1.35/level (B1, was ×1.85) ; storage grows ×1.9/level (was ×3.0) — achats plus fréquents, courbe Cookie Clicker-like, storage reste sink sans mur.
 
@@ -76,17 +82,17 @@ Cost = `BASE_COST * growth^(level - (harvest?1:0))`. Hardware grows ×1.35/level
 
 **Paliers (Cookie/AdvCap)** — tous les 25 niveaux d'un même upgrade → `×2` permanent (stack : 25→×2, 50→×4, 75→×8). Affiché `Lvl 27 ×2 (23→×4)` et bordure dorée quand le palier est proche (≤5). Rend chaque branche scalable late-game ; cliquer reste utile via `Doigts Agiles` + production.
 
-**Golden Bud (Cookie frenzy)** — ~1 fois/90s, 13s `×7` prod. Déclenché dans `autoProduce` via `maybeTriggerGolden` (1.2%/s, cooldown 60-120s), toast `✨ Golden Bud !`, bud doré `drop-shadow`, particule `FRENZY ×7`. `productionMult` inclut le ×7, `perClick/perSecond` le propagent, `priceOf` reste normal (×7 total, pas ×49).
-
 **Offline (AdvCap)** — `lastSeen` timestamp, `offlineTick` à 50% pendant jusqu'à 8h (cap 28 800s). Au `load`, `+Xg +Y€` toast si >30s d'absence. `harvestXp` + `autoTick` sont rejoués, capped par `maxWeedStorage`.
 
 ## Market Pulse
 
 All prices (weed included) oscillate between **-30% and +30%** of their base on independent ~2 min sine cycles (`MARKET` in `js/game.js`, deterministic in time — no state). The Marché shows each price with its trend (↗ rising / ↘ falling / → peak or trough). Selling a MAX stock at +30% instead of -30% is a 1.86× difference: timing matters more than volume.
 
+**Ruées (spikes)** — ~1 fois/70s, un produit aléatoire (weed inclus) passe `×1.6` pendant 15s (`SPIKE_*` dans `js/game.js`, état `spikeUntil/spikeProduct/spikeNextAt`, `isSpikeActive/spikeMult/maybeTriggerSpike`). Déclenché dans `autoProduce` (1.4%/s), toast `🔥 Ruée sur X !` + carte dorée `spike` + prix `🔥`. Remplace le Golden Bud : spike marché, pas prod — moins intrusif, plus stratégique (vendre au pic).
+
 ## Market Products
 
-8 products in `PRODUCTS` (`js/game.js`). Crafting consumes weed from total stock; sale price = `price × strain.priceMult × pulse`. €/g improves with tier, so crafting big beats selling raw — but only worth it when the market cooperates.
+12 products in `PRODUCTS` (`js/game.js`). Crafting consumes weed from total stock; sale price = `price × strain.priceMult × pulse × spike`. €/g improves with tier, so crafting big beats selling raw — mais demande du weed et du niveau.
 
 | Product | Weed | Base Price | €/g | Unlock |
 |---------|------|-----------|-----|--------|
@@ -98,6 +104,10 @@ All prices (weed included) oscillate between **-30% and +30%** of their base on 
 | 💧 Huile Verte | 80g | 1 200 € | 15 | 26 |
 | 💎 Shatter Pur | 150g | 2 600 € | 17.3 | 34 |
 | 🌟 Live Rosin | 300g | 5 800 € | 19.3 | 45 |
+| 🔋 Vape Cart | 600g | 12 500 € | 20.8 | 52 |
+| 💠 THC Diamonds | 1200g | 26 000 € | 21.7 | 60 |
+| 🌙 Moonrock | 2500g | 55 000 € | 22 | 68 |
+| 🥤 Soda THC | 5000g | 115 000 € | 23 | 75 |
 
 Market actions support quantity presets **x1 / x10 / x100 / MAX** (craft & sell) plus a global **💸 Tout vendre**.
 
@@ -125,6 +135,10 @@ The trade-off — idle comfort vs strategic leak:
 | Huile Verte | 480 000 € | 30 | 1 200 €/s (80g/s) |
 | Shatter Pur | 1 040 000 € | 38 | 2 600 €/s (150g/s) |
 | Live Rosin | 2 320 000 € | 49 | 5 800 €/s (300g/s) |
+| Vape Cart | 5 000 000 € | 56 | 12 500 €/s (600g/s) |
+| THC Diamonds | 10 400 000 € | 64 | 26 000 €/s (1200g/s) |
+| Moonrock | 22 000 000 € | 72 | 55 000 €/s (2500g/s) |
+| Soda THC | 46 000 000 € | 79 | 115 000 €/s (5000g/s) |
 
 ROI is uniform (~400 s at full speed); the gating factor is weed supply. Owned cards show `✓ Actif`; higher tiers show their level gate.
 
@@ -137,7 +151,7 @@ Automation grants no XP (consistent with manual craft/sell). Owned flags live in
 
 ## Strains
 
-8 genetics, each with `yieldMult`/`priceMult` and its own bud palette. See `STRAINS` in `js/game.js`.
+10 genetics (Green Dream → Gelato 33), each with `yieldMult`/`priceMult` and its own bud palette. See `STRAINS` in `js/game.js` (unlocks 1,4,8,13,19,26,34,45,52,62).
 
 ## Running the Game
 
@@ -190,7 +204,7 @@ clicker-game/
 
 ### Modules
 
-- **`js/game.js`** — no DOM. Exports `UPGRADES`, `STRAINS`, `PRODUCTS`, `AUTOMATION`, `BASE_COST`, `COST_GROWTH`, `STORAGE_GROWTH`, `DEFAULT_LEVELS`, `XP_BASE`, `XP_GROWTH`, `MILESTONES`, `TIER_EVERY`, `GOLDEN_*`, `mulberry32`, `maxWeedStorage`, `defaultState`, `getStrain`, `getProduct`, `productUnitPrice`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `checkMilestones`, `perClick`, `perSecond`, `upgradeCost`, `buyUpgrade`, `hasAuto`, `buyAutomation`, `autoTick`, `craftProduct`, `sellStock`, `equipStrain`, `serialize`, `deserialize`, `tierMult`, `isGoldenActive`, `goldenMult`, `maybeTriggerGolden`, `offlineTick`, `upgradeBulkCost`, `buyUpgradeBulk`, `timeToAfford`. State under localStorage `budClicker` (+ `goldenUntil`, `goldenNextAt`, `lastSeen`).
+- **`js/game.js`** — no DOM. Exports `UPGRADES`, `STRAINS`, `PRODUCTS`, `AUTOMATION`, `BASE_COST`, `COST_GROWTH`, `STORAGE_GROWTH`, `DEFAULT_LEVELS`, `XP_BASE`, `XP_GROWTH`, `MILESTONES`, `TIER_EVERY`, `mulberry32`, `maxWeedStorage`, `defaultState`, `getStrain`, `getProduct`, `productUnitPrice`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `checkMilestones`, `perClick`, `perSecond`, `upgradeCost`, `buyUpgrade`, `hasAuto`, `buyAutomation`, `autoTick`, `craftProduct`, `sellStock`, `equipStrain`, `serialize`, `deserialize`, `tierMult`, `offlineTick`, `upgradeBulkCost`, `buyUpgradeBulk`, `timeToAfford`. State under localStorage `budClicker` (+ `lastSeen`).
 - **`js/bud.js`** — `renderBudSvg(strainId)` deterministic (seeds: calyxes 2024, pistils 99, trichomes 777).
 - **`js/ui.js`** — wiring, market rendering (`renderMarket` qty pills), automation hires rendered in the Upgrades view (`renderAutomation`), `autoProduce` 1s (weed growth + `autoTick`), autosave 10s, Space-to-harvest, tabs, storage-full feedback (pulsing bud + warning banner), stock-full click guard.
 
