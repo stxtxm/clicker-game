@@ -175,7 +175,7 @@ test('equipStrain: unknown id', () => {
 test('equipStrain: buying unlocks and equips (level gate satisfied)', () => {
   const s = Game.defaultState();
   s.money = 5000;
-  s.xp = 3500;                                   // level 4 >= unlock 4
+  s.xp = Game.xpForLevel(4);                                   // level 4 >= unlock 4
   const res = Game.equipStrain(s, 'purple');
   assert.strictEqual(res.ok, true);
   assert.strictEqual(res.justUnlocked, true);
@@ -198,7 +198,7 @@ test('equipStrain: level gate blocks purchase below required level', () => {
 test('equipStrain: not enough money', () => {
   const s = Game.defaultState();
   s.money = 10;
-  s.xp = 3500;                                   // passes the level gate
+  s.xp = Game.xpForLevel(4);                                   // passes the level gate
   const res = Game.equipStrain(s, 'purple');
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'funds');
@@ -258,8 +258,10 @@ test('deserialize: sanitizes unknown strain and bad shapes', () => {
 });
 
 test('data catalog is coherent', () => {
-  assert.strictEqual(Game.UPGRADES.length, 9);
-  assert.strictEqual(Game.STRAINS.length, 8);
+  assert.strictEqual(Game.UPGRADES.length, 14);
+  assert.strictEqual(Game.STRAINS.length, 10);
+  assert.strictEqual(Game.PRODUCTS.length, 12);
+  assert.strictEqual(Game.MILESTONES.length, 9);
   for (const u of Game.UPGRADES) {
     assert.ok(u.id && u.name && u.desc && u.cost > 0);
     assert.strictEqual(Game.BASE_COST[u.id], u.cost);
@@ -276,26 +278,31 @@ test('data catalog is coherent', () => {
 });
 
 test('level curve: hybrid quadratic-exponential XP thresholds', () => {
+  const g = Game.XP_GROWTH;
+  const exp2 = Math.round(150 * 1 * Math.pow(g, 1));
+  const exp3 = Math.round(150 * 4 * Math.pow(g, 2));
   assert.strictEqual(Game.xpForLevel(1), 0);
-  assert.strictEqual(Game.xpForLevel(2), 198);   // 150 * 1² * 1.32¹ rounded
-  assert.strictEqual(Game.xpForLevel(3), 1045);
+  assert.strictEqual(Game.xpForLevel(2), exp2);
+  assert.strictEqual(Game.xpForLevel(3), exp3);
   assert.strictEqual(Game.levelFromXp(0), 1);
-  assert.strictEqual(Game.levelFromXp(197), 1);
-  assert.strictEqual(Game.levelFromXp(198), 2);
-  assert.strictEqual(Game.levelFromXp(1044), 2);
-  assert.strictEqual(Game.levelFromXp(1045), 3);
+  assert.strictEqual(Game.levelFromXp(exp2 - 1), 1);
+  assert.strictEqual(Game.levelFromXp(exp2), 2);
+  assert.strictEqual(Game.levelFromXp(exp3 - 1), 2);
+  assert.strictEqual(Game.levelFromXp(exp3), 3);
 });
 
 test('xpProgress reports level, progress and XP needed', () => {
-  const p = Game.xpProgress(200);
+  const xp2 = Game.xpForLevel(2);
+  const p = Game.xpProgress(xp2 + 2);
   assert.strictEqual(p.level, 2);
   assert.strictEqual(p.current, 2);
 });
 
 test('earnXp levels up and reports milestones', () => {
   const s = Game.defaultState();
-  let r = Game.earnXp(s, 200);
-  assert.strictEqual(s.xp, 200);
+  const xp2 = Game.xpForLevel(2);
+  let r = Game.earnXp(s, xp2);
+  assert.strictEqual(s.xp, xp2);
   assert.strictEqual(r.leveledUp, true);      // 0 -> level 2
   assert.strictEqual(r.level, 2);
   assert.deepStrictEqual(r.milestones.map((m) => m.id), ['m1']); // 200 XP milestone
@@ -324,8 +331,9 @@ test('perClick/perSecond scale with level', () => {
   s.levels.harvest = 5;
   const base = 5 * 1.08;
   assert.strictEqual(Game.perClick(s), Math.round(base));
-  s.xp = 3105;                                                // level 4 -> x1.32
-  assert.strictEqual(Game.perClick(s), Math.round(5 * 1.32));
+  s.xp = Game.xpForLevel(4);                                                // level 4 -> x1.32
+  const lvl4Mult = 1 + 0.08 * 4;
+  assert.strictEqual(Game.perClick(s), Math.round(5 * lvl4Mult));
 });
 
 test('deserialize: old saves get default progression fields', () => {
