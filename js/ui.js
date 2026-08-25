@@ -34,7 +34,6 @@
     headerLogo: document.getElementById('header-bud-logo'),
     ug: document.getElementById('ug'),
     sv: document.getElementById('sv'),
-    fw: document.getElementById('full-warn'),
     mps: document.getElementById('mps'),
     xplv: document.getElementById('xplv'),
     xpmult: document.getElementById('xpmult'),
@@ -50,40 +49,6 @@
   /** Quantity preset for market craft/sell actions: 1, 10, 100 or 'max'. */
   let qtyMode = 1;
   let upgradeQtyMode = 1;
-
-  /**
-   * Stock-full banner arming: hidden at launch even with a full save — it only
-   * appears after the player's first bud click (i.e. when clicking starts to
-   * matter), then stays driven by the near-cap threshold.
-   */
-  let fullBannerArmed = false;
-  let fullBannerShown = false;
-
-  /** Animated show/hide of the stock-full banner (compositor-only props). */
-  function setFullBanner(show) {
-    if (!el.fw || show === fullBannerShown) return;
-    fullBannerShown = show;
-    if (!el.fw.animate) { el.fw.hidden = !show; return; }
-    if (show) {
-      el.fw.hidden = false;
-      el.fw.animate(
-        [
-          { opacity: 0, transform: 'translateY(-14px) scale(.96)' },
-          { opacity: 1, transform: 'translateY(0) scale(1)' }
-        ],
-        { duration: 300, easing: 'cubic-bezier(.34,1.4,.64,1)' }
-      );
-    } else {
-      const out = el.fw.animate(
-        [
-          { opacity: 1, transform: 'translateY(0)' },
-          { opacity: 0, transform: 'translateY(-10px)' }
-        ],
-        { duration: 180, easing: 'ease-out' }
-      );
-      out.onfinish = () => { el.fw.hidden = true; };
-    }
-  }
 
   // --- helpers ---------------------------------------------------------------
   /** Format a number for display: 1.2K / 3.45M / floor below 1000. */
@@ -388,18 +353,8 @@
     if (el.hl) el.hl.textContent = pc;
     if (el.lv) el.lv.textContent = Game.levelFromXp(state.xp); // header: always fresh
 
-    const cap = Game.maxWeedStorage(state);
-    // 97% threshold (not exact cap): owned chains drain a few g/s continuously,
-    // so the stock hovers just under the cap while clicks are still wasted —
-    // the banner must stay up for the player to reach the Marché.
-    const isFull = (state.stock.weed || 0) >= cap * 0.97;
-    if (el.stw) {
-      el.stw.textContent = fmt(state.stock.weed) + ' / ' + fmt(cap) + 'g';
-      el.stw.parentElement?.classList.toggle('full', isFull);
-    }
-    // storage-full feedback: pulsing bud + clickable warning banner
-    if (el.bc) el.bc.classList.toggle('storage-full', isFull);
-    setFullBanner(fullBannerArmed && isFull);
+    // PAS de cap : le stock est libre, on affiche juste le total
+    if (el.stw) el.stw.textContent = fmt(state.stock.weed) + 'g dispo';
 
     if (active('sell')) renderMarket();
     if (active('progress') || active('harvest')) renderProgress();
@@ -464,23 +419,15 @@
   }
 
   // --- game actions ----------------------------------------------------------
-  /** Timestamp of the last "stock plein" toast (throttle: 1 per 2.5s max). */
-  let lastFullToast = 0;
   /** Grams produced by clicks since the last automation tick (chain flow). */
   let clickFlow = 0;
 
   function onHarvest(ev) {
     if (ev && ev.preventDefault) { ev.preventDefault(); ev.stopPropagation(); }
-    fullBannerArmed = true; // from now on the banner may show (first interaction)
     const ac = Game.perClick(state);
     const added = Game.harvestXp(state, ac);
-    clickFlow += added; // chains only process grams that actually entered storage
-    const full = added < ac;
-    if (full && Date.now() - lastFullToast > 2500) {
-      toast('Stock plein ! Vends ou agrandis 📦');
-      lastFullToast = Date.now();
-    }
-    const xp = Game.xpProgress(state.xp); // refreshed after harvestXp above
+    clickFlow += added; // chains only process grams produced this tick
+    const xp = Game.xpProgress(state.xp);
     // squash & stretch juice — WAAPI: compositor-driven, restarts cleanly on
     // rapid taps (each new animation replaces the previous, no forced reflow)
     if (el.bc.animate) {
@@ -495,14 +442,8 @@
         { duration: 320, easing: 'cubic-bezier(.34,1.56,.64,1)' }
       );
     }
-    if (added > 0) {
-      spawnParticle('+' + ac + 'g');
-      popNum(el.stw);
-    } else {
-      // storage capped: red feedback instead of a fake gain
-      spawnParticle('Plein !', true);
-      popNum(el.stw);
-    }
+    spawnParticle('+' + ac + 'g');
+    popNum(el.stw);
     refreshStats();
     save();
     if (xp.leveledUp) {
@@ -645,10 +586,11 @@
     let addedAuto = 0;
     if (ar > 0) addedAuto = Game.harvestXp(state, ar);
     // automation hires (Ouvriers/Dealers) craft & sell owned products,
-    // proportionally to what actually entered storage this tick — at cap
-    // they pause instead of draining the player's pile
+    // proportionally to what was actually produced this tick
     const tick = Game.autoTick(state, now, addedAuto + clickFlow);
     clickFlow = 0;
+    // spoilage doux (remplace le cap) : le surplus au-dessus du plancher se dégrade
+    const spoiled = Game.applySpoil ? Game.applySpoil(state) : 0;
     // idle income visibility: what the dealers just paid, shown as €/s
     if (el.mps) {
       const earned = Object.values(tick.soldMoney || {}).reduce((a, b) => a + b, 0);
@@ -707,7 +649,6 @@
     });
   }
   if (el.sellAll) el.sellAll.addEventListener('click', () => onSell('all'));
-  if (el.fw) el.fw.addEventListener('click', () => switchTab('sell'));
   if (el.qtyRow) {
     el.qtyRow.querySelectorAll('.qty-pill').forEach((b) => {
       b.addEventListener('click', () => {

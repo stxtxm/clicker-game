@@ -110,24 +110,15 @@ async function scenario() {
     const rosinBadge = q('#ul-auto-rosin');
     report('auto-locked', rosinBtn.disabled && rosinBadge.textContent.includes('🔒'), rosinBadge.textContent);
 
-    // 11. storage-full feedback: seed a near-cap save and reload iframe (cap 1600 B1)
-    const capSave = { weed: 1600, money: 10, strain: 'green', stock: { weed: 1600, weedByStrain: { green: 1600 }, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 };
-    w.localStorage.setItem('budClicker', JSON.stringify(capSave));
+    // 11. no storage cap: big stock accumulates freely, no banner, no pulse
+    w.localStorage.setItem('budClicker', JSON.stringify({ weed: 0, money: 5000, strain: 'green', stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 }));
     document.getElementById('game').src = '../index.html';
     await sleep(900);
-    // banner must NOT show at launch (armed by first bud click only)…
-    const hiddenAtLaunch = q('#full-warn').hidden;
-    const budPulsing = q('#bc').classList.contains('storage-full');
-    // …then appear on the first click while the stock is capped
-    q('#bs').click();
+    for (let i = 0; i < 30; i++) q('#bs').click();
     await sleep(150);
-    const fullShown = !q('#full-warn').hidden;
-    report('storage-full', hiddenAtLaunch && fullShown && budPulsing,
-      'hidden@launch=' + hiddenAtLaunch + ' banner@click=' + fullShown + ' pulse=' + budPulsing);
-    // banner jumps to Marché
-    q('#full-warn').click();
-    await sleep(100);
-    report('banner-nav', q('#v-sell').classList.contains('active'), '');
+    const stockBig = weedStock() >= 25;
+    const bannerGone = !q('#full-warn');
+    report('no-cap', stockBig && bannerGone, 'stock=' + weedStock() + ' banner=' + (!bannerGone));
 
     // 12. save persistence: reload keeps money
     const moneyPersist = money();

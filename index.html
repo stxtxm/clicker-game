@@ -158,38 +158,7 @@
     @keyframes budSway { 0%, 100% { transform: rotate(-1.4deg); } 50% { transform: rotate(1.4deg); } }
     @media (prefers-reduced-motion: reduce) { #bs { animation: none; } }
 
-    /* ===== Stock-full feedback ===== */
-    .bud-container.storage-full { border-radius: 50%; }
-    .bud-container.storage-full::after {
-      content: '';
-      position: absolute;
-      inset: -6%;
-      border-radius: 50%;
-      box-shadow: 0 0 34px 10px rgba(248, 113, 113, 0.4);
-      animation: ringPulse 1.5s ease-in-out infinite;
-      pointer-events: none;
-    }
-    @keyframes ringPulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
     .upgrade.tier-ready { border-color: var(--gold) !important; box-shadow: 0 0 12px rgba(251,191,36,0.25); }
-    .stat-pill.full .val { color: #f87171; }
-    .full-warn {
-      display: block;
-      width: 100%;
-      margin: 10px auto 0;
-      padding: 10px 14px;
-      background: linear-gradient(135deg, rgba(248,113,113,0.16), rgba(248,113,113,0.07));
-      border: 1px solid rgba(248, 113, 113, 0.45);
-      color: #fecaca;
-      font-size: .82rem;
-      font-weight: 600;
-      border-radius: 12px;
-      cursor: pointer;
-      animation: warnBlink 1.5s ease-in-out infinite;
-      text-align: center;
-    }
-    .full-warn b { color: #f87171; }
-    .full-warn[hidden] { display: none; }
-    @keyframes warnBlink { 0%, 100% { opacity: 1; } 50% { opacity: .72; } }
     .bud-container::before {
       content: '';
       position: absolute;
@@ -487,8 +456,6 @@
         <div class="stat-pill"><div class="label">Stock Weed</div><div class="val" id="stw">0g dispo</div></div>
       </div>
 
-      <button class="full-warn" id="full-warn" hidden>⚠️ Stock plein — <b>Vendre au Marché →</b></button>
-
       <div class="bud-container" id="bc" title="Clique !">
         <div id="bs"></div>
       </div>
@@ -517,7 +484,7 @@
       <div class="qty-row" id="upg-qty-row" style="margin-bottom:10px;">
         <button class="qty-pill active" data-q="1">x1</button>
         <button class="qty-pill" data-q="10">x10</button>
-        <span style="margin-left:auto;font-size:.72rem;color:var(--muted);">Paliers ×2 tous les 25</span>
+        <span style="margin-left:auto;font-size:.72rem;color:var(--muted);">Paliers ×2 tous les 40</span>
       </div>
       <div class="upgrades" id="ug"></div>
     </section>

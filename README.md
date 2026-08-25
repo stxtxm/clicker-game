@@ -15,7 +15,7 @@ A mobile-friendly idle grower: click the bud, craft products, sell for €, auto
 7. **Switch strains** in *Variétés* — 8 genetics with yield/price multipliers, unlocked by level.
 8. **Progress** in *Progression* — level up and collect milestone bonuses. Use *Zone de danger* to hard-reset.
 
-> **Stock plein ?** When weed hits the cap the bud pulses red and a clickable `⚠️ Stock plein` banner appears (jumps straight to the Marché) — clicking is wasted until you sell or expand storage.
+> **Pas de cap de stock** : la weed s'accumule librement, cliquer n'est jamais bloqué. Au-delà d'un plancher (60s de production), le brut se dégrade lentement (1%/s) — vendre ou fabriquer reste la bonne idée, sans mur ni bannière.
 
 ### The strategic loop
 
@@ -27,33 +27,35 @@ A mobile-friendly idle grower: click the bud, craft products, sell for €, auto
 
 `test/playthrough.test.js` plays the REAL game logic like a player — 2.5 clicks/s,
 crafts the best unlocked product, sells at favorable market pulses, goes AFK 3 min
-every 8 min, dumps on return, buys upgrades cheapest-first, storage after capped
-sessions, strains and chains when unlocked + affordable — and asserts pacing:
+every 8 min, dumps on return, buys upgrades cheapest-first, distribution paliers,
+strains and chains when unlocked + affordable — and asserts pacing:
 
 | Milestone (optimal play) | Target |
 |---|---|
 | First upgrade | ≤ 1 min |
 | Level 10 | 5–20 min |
 | First Chaîne | 2–15 min |
-| Level 20 | 15–60 min |
+| Level 20 | 9–60 min |
+| Level 30 | 14–90 min |
 | 1M lifetime | 4–20 min |
 | 10M lifetime | ≥ 9 min |
-| 2h ceiling | < 150 B€ lifetime |
-| Level 30 | 25–90 min |
+| Runaway guard | < 5 P€ / 2h |
 
 An optimal sim ≈ 2-4× faster than a real player. The levers, in order of impact:
-**storage cost growth (×1.9)** — income ≈ cap × €/g, so storage gates everything; **B1 soft cap** (1600 + 900×sbox + 4000×coldroom + 8000×silo ×1.2%/lvl) plus **growth 1.35** évite les murs;
-**strain costs** (10 variétés, exponentiel); **XP_GROWTH 1.38** (level gates, allongé); **12 produits** + **14 upgrades** + **9 jalons** rallongent la courbe;
-**product €/g ladder** (crafting depth). Tune those, re-run the sim, compare.
+**chainShare** (`dist1/2/3`, ×1.9 growth) gate le revenu idle ; **spoilage doux** (1%/s du surplus) remplace le cap et borne l'économie sans jamais bloquer ;
+**strain costs** (10 variétés) et **XP_GROWTH 1.42** espacent les unlocks ;
+**12 produits** + **14 upgrades** + **9 jalons** rallongent la courbe.
 
 ## Progression
 
-Every **produced** gram is XP — stored grams count fully, grams lost to a full stock count for **60%** (B1 soft cap, was 25%) : a full stock slows you without ever hard-locking progression. XP drives a hybrid curve (level N needs `150*(N-1)²*1.38^(N-1)` XP) — **allongée** pour 75 niveaux.
+Every **produced** gram is XP — **plus aucun cap** : cliquer n'est jamais bloqué. XP drives a hybrid curve (level N needs `150*(N-1)²*1.42^(N-1)` XP) — **allongée** vers 75 niveaux.
 
 - **Levels**: each level adds **+8%** to all production. Strains unlock at 1, 4, 8, 13, 19, 26, 34, 45, 52, 62.
 - **Strains**: `yieldMult` multiplies weed per click/second, `priceMult` the sale prices — 10 variétés (Green→Gelato 33), gated by coûts exponentiels (Purple 4K → Gelato 2Md€).
 - **Milestones**: 9 jalons à 200→+5%, 2.5K→+10%, 30K→+15%, 350K→+25%, 4M→+40%, 50M→+75%, 150M→+60%, 400M→+80%, 1Md→+100%.
-- **Storage**: `maxWeedStorage()` = (1600 + 900×BoîteÉtanche + 4000×ChambreFroide + 8000×Silo) × (1 + 1.2%/level). Harvest is capped, toast `Stock plein !` when full. Income ≈ cap × €/g, so **storage is the main money sink**: its cost grows ×1.9/level — 3 paliers (Silo late).
+- **Pas de cap de stock** : `addWeed` garde tout. La pression est remplacée par :
+  - **Spoilage doux** — au-delà de `max(500g, 60s de prod/s)`, le brut se dégrade de **1%/s** (`applySpoil`) : thésauriser n'est plus rentable, mais rien ne bloque jamais ;
+  - **chainShare** — les chaînes ne convertissent que 15% + paliers Distribution du flux produit : le vrai gate late-game est l'automatisation achetable, pas un mur.
 
 All bonuses multiply (`level × strain × milestones × tier`).
 
@@ -72,17 +74,17 @@ All bonuses multiply (`level × strain × milestones × tier`).
 | Éclairage Turbo | x2 weed production | 90 000 € | 1.35 |
 | Chambre UV | x1.4 production globale | 500 000 € | 1.35 |
 | Laboratoire+ | x2 production globale | 750 000 € | 1.35 |
-| Boîte Étanche | +900g max weed | 4 000 € | **1.9** |
-| Chambre Froide | +4000g max weed | 240 000 € | **1.9** |
-| Silo Auto | +8000g max weed | 2 000 000 € | **1.9** |
+| Réseau Local | +3% flux chaînes | 4 000 € | **1.9** |
+| Logistique Régionale | +6% flux chaînes | 240 000 € | **1.9** |
+| Entrepôts Nationaux | +10% flux chaînes | 2 000 000 € | **1.9** |
 
-Cost = `BASE_COST * growth^(level - (harvest?1:0))`. Hardware grows ×1.35/level (B1, was ×1.85) ; storage grows ×1.9/level (was ×3.0) — achats plus fréquents, courbe Cookie Clicker-like, storage reste sink sans mur.
+Cost = `BASE_COST * growth^(level - (harvest?1:0))`. Hardware grows ×1.35/level ; distribution grows ×1.9/level — le sink late-game élargit l'automatisation au lieu d'un cap artificiel.
 
 **Bulk & ROI (AdvCap)** — `x1 / x10` toggle dans Upgrades, `upgradeBulkCost` (somme géométrique), `buyUpgradeBulk`, `timeToAfford` affiché `(12s / 3m)` à côté du coût. Le joueur voit instantanément le prochain palier rentable.
 
-**Paliers (Cookie/AdvCap)** — tous les 25 niveaux d'un même upgrade → `×2` permanent (stack : 25→×2, 50→×4, 75→×8). Affiché `Lvl 27 ×2 (23→×4)` et bordure dorée quand le palier est proche (≤5). Rend chaque branche scalable late-game ; cliquer reste utile via `Doigts Agiles` + production.
+**Paliers (Cookie/AdvCap)** — tous les **40** niveaux d'un même upgrade → `×2` permanent (stack : 40→×2, 80→×4). Affiché sur la carte avec compte à rebours ; bordure dorée quand proche. Espacés pour lisser le late-game ; cliquer reste utile via `Doigts Agiles`.
 
-**Offline (AdvCap)** — `lastSeen` timestamp, `offlineTick` à 50% pendant jusqu'à 8h (cap 28 800s). Au `load`, `+Xg +Y€` toast si >30s d'absence. `harvestXp` + `autoTick` sont rejoués, capped par `maxWeedStorage`.
+**Offline (AdvCap)** — `lastSeen` timestamp, `offlineTick` à 50% pendant jusqu'à 8h (cap 28 800s), spoilage appliqué au retour. Toast `+Xg +Y€` si >30s d'absence.
 
 ## Market Pulse
 
@@ -178,7 +180,7 @@ npm test        # node --test — 70 unit + playthrough + e2e (e2e skips without
 
 - `test/game.test.js` — economy (costs, sell, craft, storage), strains + level gates, progression (curve, XP, milestones, productionMult), market products (catalog, qty craft/sell, pulse bounds & trends), automation (hires, level gate, autoTick ordering & isolation, save roundtrip), edge cases & save corruption hardening
 - `test/playthrough.test.js` — simulated optimal player (see « Boucle de progression ») asserting the pacing curve
-- `test/e2e.test.js` — drives the REAL game in headless chromium (13 scenarios: harvest click/space, tabs, market render & trends, sell, qty pills, craft+sell, upgrade buy, automation level lock, storage-full banner & navigation, save persistence, hard reset). Skips gracefully if no browser; CI provides one.
+- `test/e2e.test.js` — drives the REAL game in headless chromium (12 scenarios: harvest click/space, tabs, market render & trends, sell, qty pills, craft+sell, upgrade buy, automation level lock, no-cap accumulation, save persistence, hard reset). Skips gracefully if no browser; CI provides one.
 - `test/bud.test.js` — SVG validity, determinism, `url(#…)` regression, structural counts (72 calyxes, 116 bracts total via rows, fan leaves, sugar leaves)
 
 ## CI & Branch Policy
@@ -204,13 +206,13 @@ clicker-game/
 
 ### Modules
 
-- **`js/game.js`** — no DOM. Exports `UPGRADES`, `STRAINS`, `PRODUCTS`, `AUTOMATION`, `BASE_COST`, `COST_GROWTH`, `STORAGE_GROWTH`, `DEFAULT_LEVELS`, `XP_BASE`, `XP_GROWTH`, `MILESTONES`, `TIER_EVERY`, `mulberry32`, `maxWeedStorage`, `defaultState`, `getStrain`, `getProduct`, `productUnitPrice`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `checkMilestones`, `perClick`, `perSecond`, `upgradeCost`, `buyUpgrade`, `hasAuto`, `buyAutomation`, `autoTick`, `craftProduct`, `sellStock`, `equipStrain`, `serialize`, `deserialize`, `tierMult`, `offlineTick`, `upgradeBulkCost`, `buyUpgradeBulk`, `timeToAfford`. State under localStorage `budClicker` (+ `lastSeen`).
+- **`js/game.js`** — no DOM. Exports `UPGRADES`, `STRAINS`, `PRODUCTS`, `AUTOMATION`, `BASE_COST`, `COST_GROWTH`, `STORAGE_GROWTH`, `DEFAULT_LEVELS`, `XP_BASE`, `XP_GROWTH`, `MILESTONES`, `TIER_EVERY`, `mulberry32`, `addWeed`, `defaultState`, `getStrain`, `getProduct`, `productUnitPrice`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `checkMilestones`, `perClick`, `perSecond`, `upgradeCost`, `buyUpgrade`, `hasAuto`, `buyAutomation`, `autoTick`, `craftProduct`, `sellStock`, `equipStrain`, `serialize`, `deserialize`, `tierMult`, `isSpikeActive`, `spikeMult`, `maybeTriggerSpike`, `chainShare`, `CHAIN_FLOW_SHARE`, `applySpoil`, `SPOIL_RATE`, `offlineTick`, `upgradeBulkCost`, `buyUpgradeBulk`, `timeToAfford`. State under localStorage `budClicker` (+ `lastSeen`, `spike*`).
 - **`js/bud.js`** — `renderBudSvg(strainId)` deterministic (seeds: calyxes 2024, pistils 99, trichomes 777).
-- **`js/ui.js`** — wiring, market rendering (`renderMarket` qty pills), automation hires rendered in the Upgrades view (`renderAutomation`), `autoProduce` 1s (weed growth + `autoTick`), autosave 10s, Space-to-harvest, tabs, storage-full feedback (pulsing bud + warning banner), stock-full click guard.
+- **`js/ui.js`** — wiring, market rendering (`renderMarket` qty pills), automation hires rendered in the Upgrades view (`renderAutomation`), `autoProduce` 1s (weed growth + `autoTick` + `applySpoil`), autosave 10s, Space-to-harvest, tabs.
 
 ### View layout
 
-- **Récolte** — bud, stats, strain badge, stock-full banner.
+- **Récolte** — bud, stats, strain badge. Pas de cap, pas de bannière.
 - **Marché** — quantity pills, 💸 Tout vendre, the 9 product cards. Nothing else.
 - **Upgrades** — hardware + automation (8 product chains), same card format.
 - **Variétés** — buy/equip strains.
