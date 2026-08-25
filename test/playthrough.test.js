@@ -169,15 +169,14 @@ test('playthrough 2h: pacing targets + stats', () => {
   console.log('SIM2H ' + fmtStats(st));
   console.log('SIM2H end ' + JSON.stringify(st.end));
   // Pacing targets for an OPTIMAL player (real players are 2-4x slower).
-  // Tuned against the storage-gated economy — see README "Boucle de progression".
+  // B1 rebalance (growth 1.35, soft cap): faster early hook, more purchases.
   assert.ok(st.firstUpgrade !== null && st.firstUpgrade <= 1, 'first upgrade within a minute');
-  assert.ok(st.levels[10] >= 6 && st.levels[10] <= 20, 'level 10 around 10 min of optimal play');
-  assert.ok(st.levels[20] >= 20 && st.levels[20] <= 60, 'level 20 is a ~35 min milestone');
-  assert.ok(st.firstChain >= 3 && st.firstChain <= 15, 'first chain is an early mid-game goal');
-  assert.ok(st.earned[1000000] >= 6 && st.earned[1000000] <= 20, '1M lifetime around 10 min of optimal play');
+  assert.ok(st.levels[10] >= 5 && st.levels[10] <= 20, 'level 10 around 10 min of optimal play');
+  assert.ok(st.levels[20] >= 15 && st.levels[20] <= 60, 'level 20 is a ~25 min milestone');
+  assert.ok(st.firstChain >= 2 && st.firstChain <= 15, 'first chain is an early mid-game goal');
+  assert.ok(st.earned[1000000] >= 4 && st.earned[1000000] <= 20, '1M lifetime around 10 min of optimal play');
   assert.ok(st.earned[10000000] >= 9, '10M not before ~13 min even when perfect');
   assert.ok(st.end.level >= 20, 'progression keeps flowing (no wall)');
-  // 15B: raised when the full-stock deadlock was fixed (XP on wasted grams +
-  // small level cap growth) — guards against explosions, not against progress.
-  assert.ok(st.end.totalEarned < 15e9, 'economy stays bounded over a 2h optimal run');
+  // 40B: B1 soft cap + growth 1.35 raises ceiling vs old 15B, still bounded.
+  assert.ok(st.end.totalEarned < 40e9, 'economy stays bounded over a 2h optimal run');
 });

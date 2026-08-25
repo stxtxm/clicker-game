@@ -56,31 +56,35 @@ test('perSecond: auto + crew, scaled by level and strain multiplier', () => {
 
 test('upgradeCost scales with COST_GROWTH (storage has its own steeper growth)', () => {
   const s = Game.defaultState();
-  assert.strictEqual(Game.upgradeCost(s, 'harvest'), 150); // harvest starts at level 1
+  const harvestBase = Game.UPGRADES.find((u) => u.id === 'harvest').cost;
+  const autoBase = Game.UPGRADES.find((u) => u.id === 'auto').cost;
+  assert.strictEqual(Game.upgradeCost(s, 'harvest'), harvestBase); // harvest starts at level 1
   s.levels.harvest = 2;
-  assert.strictEqual(Game.upgradeCost(s, 'harvest'), Math.floor(150 * Math.pow(Game.COST_GROWTH, 1)));
-  assert.strictEqual(Game.upgradeCost(s, 'auto'), 750);   // auto starts at level 0
+  assert.strictEqual(Game.upgradeCost(s, 'harvest'), Math.floor(harvestBase * Math.pow(Game.COST_GROWTH, 1)));
+  assert.strictEqual(Game.upgradeCost(s, 'auto'), autoBase);   // auto starts at level 0
   assert.strictEqual(Game.upgradeCost(s, 'sbox'), 4000);
   s.levels.sbox = 1;
-  assert.strictEqual(Game.upgradeCost(s, 'sbox'), Math.floor(4000 * 3.0)); // storage growth 3.0
+  assert.strictEqual(Game.upgradeCost(s, 'sbox'), Math.floor(4000 * 1.9)); // storage growth 1.9
 });
 
 test('buyUpgrade: insufficient funds does not mutate', () => {
   const s = Game.defaultState();
-  s.money = 149;
+  const cost = Game.upgradeCost(s, 'harvest');
+  s.money = cost - 1;
   const res = Game.buyUpgrade(s, 'harvest');
   assert.strictEqual(res.ok, false);
   assert.strictEqual(res.reason, 'funds');
-  assert.strictEqual(s.money, 149);
+  assert.strictEqual(s.money, cost - 1);
   assert.strictEqual(s.levels.harvest, 1);
 });
 
 test('buyUpgrade: success deducts money and levels up', () => {
   const s = Game.defaultState();
-  s.money = 325;
-  const res = Game.buyUpgrade(s, 'harvest'); // lvl1 -> base cost 150 (exponent 0)
+  const cost = Game.upgradeCost(s, 'harvest');
+  s.money = cost + 175;
+  const res = Game.buyUpgrade(s, 'harvest'); // lvl1 -> base cost (exponent 0)
   assert.strictEqual(res.ok, true);
-  assert.strictEqual(res.cost, 150);
+  assert.strictEqual(res.cost, cost);
   assert.strictEqual(res.name, 'Ciseaux Pro');
   assert.strictEqual(s.money, 175);
   assert.strictEqual(s.levels.harvest, 2);
@@ -352,16 +356,16 @@ test('automation catalog: one hire per product, coherent costs', () => {
     assert.ok(p, 'unknown product ' + a.productId);
     assert.strictEqual(a.kind, 'both');
     assert.ok(a.cost > 0 && Number.isInteger(a.cost));
-    assert.strictEqual(a.cost, Math.round(p.price * 500));
-    assert.strictEqual(a.unlock, p.unlock + 5); // chains arrive after the product
+    assert.strictEqual(a.cost, Math.round(p.price * 400));
+    assert.strictEqual(a.unlock, p.unlock + 4); // chains arrive after the product (B1)
   }
 });
 
 test('buyAutomation: funds check, deducts money and unlocks craft+sell', () => {
   const s = Game.defaultState();
-  s.xp = Game.xpForLevel(6); // auto-joint unlock level
-  const COST = Game.AUTOMATION.find((a) => a.id === 'auto-joint').cost; // 14 * 500 = 7000
-  assert.strictEqual(COST, 7000);
+  s.xp = Game.xpForLevel(5); // auto-joint unlock level (1+4)
+  const COST = Game.AUTOMATION.find((a) => a.id === 'auto-joint').cost; // 14 * 400 = 5600
+  assert.strictEqual(COST, 5600);
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').reason, 'funds');
   s.money = COST - 1;
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').reason, 'funds');
@@ -376,19 +380,19 @@ test('buyAutomation: funds check, deducts money and unlocks craft+sell', () => {
 test('buyAutomation: level gate blocks early purchases even when rich', () => {
   const s = Game.defaultState();
   s.money = 1e9; // rich but level 1
-  // auto-joint unlocks at 6, auto-rosin at 50
+  // auto-joint unlocks at 5, auto-rosin at 49
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').reason, 'level');
   assert.strictEqual(Game.buyAutomation(s, 'auto-rosin').reason, 'level');
   assert.strictEqual(s.money, 1e9); // nothing charged
   assert.deepStrictEqual(s.auto, { craft: {}, sell: {} });
-  s.xp = Game.xpForLevel(6); // exactly level 6
+  s.xp = Game.xpForLevel(5); // exactly level 5
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').ok, true);
-  assert.strictEqual(Game.buyAutomation(s, 'auto-sachet').reason, 'level'); // unlock 9
+  assert.strictEqual(Game.buyAutomation(s, 'auto-sachet').reason, 'level'); // unlock 8
 });
 
 test('buyAutomation: rejects duplicate and unknown hires', () => {
   const s = Game.defaultState();
-  s.xp = Game.xpForLevel(6);
+  s.xp = Game.xpForLevel(5);
   s.money = 100000;
   assert.strictEqual(Game.buyAutomation(s, 'nope').reason, 'unknown');
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').ok, true);
@@ -411,9 +415,9 @@ test('autoTick: no-op without any hire owned', () => {
 
 test('autoTick: dealer sells chain output only — manual stock is sacred', () => {
   const s = Game.defaultState();
-  s.xp = Game.xpForLevel(6);
+  s.xp = Game.xpForLevel(5);
   s.money = 100000;
-  Game.buyAutomation(s, 'auto-joint');    // cost 7000; 2g -> 1 joint
+  Game.buyAutomation(s, 'auto-joint');    // cost 5600; 2g -> 1 joint
   s.stock.joint = 5;                      // hand-made stock
   s.stock.weed = 21;
   const t = Game.autoTick(s, 0, 21);      // 21g entered storage this tick
@@ -421,7 +425,7 @@ test('autoTick: dealer sells chain output only — manual stock is sacred', () =
   assert.strictEqual(t.soldMoney.joint, px(14, 'joint')); // sells the crafted unit only
   assert.strictEqual(s.stock.joint, 5);                   // manual stock untouched!
   assert.strictEqual(s.stock.weed, 19);
-  assert.strictEqual(s.money, 100000 - 7000 + px(14, 'joint'));
+  assert.strictEqual(s.money, 100000 - 5600 + px(14, 'joint'));
 });
 
 test('autoTick: dealer without output sells nothing — no manual dip', () => {
@@ -515,22 +519,22 @@ test('craftProduct: fractional/NaN qty floors to safe values', () => {
 
 test('addWeed: respects cap exactly, returns 0 when full', () => {
   const s = Game.defaultState();
-  assert.strictEqual(Game.addWeed(s, 999999), 1200); // base cap
-  assert.strictEqual(s.stock.weed, 1200);
+  assert.strictEqual(Game.addWeed(s, 999999), 1600); // base cap B1
+  assert.strictEqual(s.stock.weed, 1600);
   assert.strictEqual(Game.addWeed(s, 5), 0);         // full -> nothing
-  assert.strictEqual(s.stock.weedByStrain.green, 1200);
+  assert.strictEqual(s.stock.weedByStrain.green, 1600);
 });
 
 test('maxWeedStorage: missing/negative levels fall back to base', () => {
-  assert.strictEqual(Game.maxWeedStorage({}), 1200);
+  assert.strictEqual(Game.maxWeedStorage({}), 1600);
   // corrupted saves with negative levels must never brick the cap
-  assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: -3, coldroom: undefined } }), 1200);
-  assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: 2, coldroom: 1 } }), 1200 + 1400 + 3500);
-  // passive cap growth per level
+  assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: -3, coldroom: undefined } }), 1600);
+  assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: 2, coldroom: 1 } }), 1600 + 1800 + 4000);
+  // passive cap growth per level (1.2% B1)
   const leveled = Game.defaultState();
   leveled.levels.sbox = 2; leveled.levels.coldroom = 1;
-  leveled.xp = Game.xpForLevel(11); // level 11 -> x1.1
-  assert.strictEqual(Game.maxWeedStorage(leveled), Math.round(6100 * 1.1));
+  leveled.xp = Game.xpForLevel(11); // level 11 -> x1.12
+  assert.strictEqual(Game.maxWeedStorage(leveled), Math.round(7400 * 1.12));
 });
 
 test('priceOf: unknown product is 0, weed uses prices.weed base', () => {
