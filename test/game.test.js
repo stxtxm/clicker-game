@@ -54,7 +54,7 @@ test('perSecond: auto + crew, scaled by level and strain multiplier', () => {
   assert.strictEqual(Game.perSecond(s), 33);     // 31 * 1.08 = 33.48 -> 33
 });
 
-test('upgradeCost scales with COST_GROWTH (storage has its own steeper growth)', () => {
+test('upgradeCost scales with COST_GROWTH (distribution has its own steeper growth)', () => {
   const s = Game.defaultState();
   const harvestBase = Game.UPGRADES.find((u) => u.id === 'harvest').cost;
   const autoBase = Game.UPGRADES.find((u) => u.id === 'auto').cost;
@@ -62,9 +62,9 @@ test('upgradeCost scales with COST_GROWTH (storage has its own steeper growth)',
   s.levels.harvest = 2;
   assert.strictEqual(Game.upgradeCost(s, 'harvest'), Math.floor(harvestBase * Math.pow(Game.COST_GROWTH, 1)));
   assert.strictEqual(Game.upgradeCost(s, 'auto'), autoBase);   // auto starts at level 0
-  assert.strictEqual(Game.upgradeCost(s, 'sbox'), 4000);
-  s.levels.sbox = 1;
-  assert.strictEqual(Game.upgradeCost(s, 'sbox'), Math.floor(4000 * 1.9)); // storage growth 1.9
+  assert.strictEqual(Game.upgradeCost(s, 'dist1'), 4000);
+  s.levels.dist1 = 1;
+  assert.strictEqual(Game.upgradeCost(s, 'dist1'), Math.floor(4000 * 1.9)); // distribution growth 1.9
 });
 
 test('buyUpgrade: insufficient funds does not mutate', () => {
@@ -322,7 +322,7 @@ test('checkMilestones awards only once', () => {
 test('productionMult composes level, strains and milestones', () => {
   const s = Game.defaultState();
   assert.strictEqual(Game.productionMult(s), 1.08);           // level 1 -> +8%
-  s.xp = 1200;                                                // level 3 -> +24%
+  s.xp = Game.xpForLevel(3);                                  // level 3 -> +24%
   assert.ok(Math.abs(Game.productionMult(s) - 1.24) < 1e-9);
 });
 
@@ -525,24 +525,29 @@ test('craftProduct: fractional/NaN qty floors to safe values', () => {
   assert.strictEqual(Game.craftProduct(s, 'unknown-prod', 1).ok, false);
 });
 
-test('addWeed: respects cap exactly, returns 0 when full', () => {
+test('addWeed: no cap — everything is kept', () => {
   const s = Game.defaultState();
-  assert.strictEqual(Game.addWeed(s, 999999), 1600); // base cap B1
-  assert.strictEqual(s.stock.weed, 1600);
-  assert.strictEqual(Game.addWeed(s, 5), 0);         // full -> nothing
-  assert.strictEqual(s.stock.weedByStrain.green, 1600);
+  assert.strictEqual(Game.addWeed(s, 999999), 999999);
+  assert.strictEqual(s.stock.weed, 999999);
+  assert.strictEqual(Game.addWeed(s, 5), 5);         // keeps accumulating
+  assert.strictEqual(s.stock.weed, 1000004);
+  assert.strictEqual(s.stock.weedByStrain.green, 1000004);
 });
 
-test('maxWeedStorage: missing/negative levels fall back to base', () => {
-  assert.strictEqual(Game.maxWeedStorage({}), 1600);
-  // corrupted saves with negative levels must never brick the cap
-  assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: -3, coldroom: undefined } }), 1600);
-  assert.strictEqual(Game.maxWeedStorage({ levels: { sbox: 2, coldroom: 1 } }), 1600 + 1800 + 4000);
-  // passive cap growth per level (1.2% B1)
-  const leveled = Game.defaultState();
-  leveled.levels.sbox = 2; leveled.levels.coldroom = 1;
-  leveled.xp = Game.xpForLevel(11); // level 11 -> x1.12
-  assert.strictEqual(Game.maxWeedStorage(leveled), Math.round(7400 * 1.12));
+test('chainShare: base 15% + distribution paliers, capped at 90%', () => {
+  assert.strictEqual(Game.chainShare({}), 0.15);
+  const s = Game.defaultState();
+  assert.strictEqual(Game.chainShare(s), 0.15);
+  s.levels.dist1 = 2; // +6%
+  assert.ok(Math.abs(Game.chainShare(s) - 0.21) < 1e-9);
+  s.levels.dist2 = 1; // +6%
+  assert.ok(Math.abs(Game.chainShare(s) - 0.27) < 1e-9);
+  s.levels.dist3 = 3; // +30%
+  assert.ok(Math.abs(Game.chainShare(s) - 0.57) < 1e-9);
+  s.levels.dist2 = 20; // way over: clamp 0.9
+  assert.strictEqual(Game.chainShare(s), 0.9);
+  // corrupted negative levels are clamped
+  assert.strictEqual(Game.chainShare({ levels: { dist1: -5 } }), 0.15);
 });
 
 test('priceOf: unknown product is 0, weed uses prices.weed base', () => {
@@ -687,15 +692,32 @@ test('autoTick: flow budget is consumed expensive-first across chains', () => {
 });
 
 
-test('autoTick: at cap nothing new is stored, chains pause (no pile drain)', () => {
+test('autoTick: no flow -> chains pause, pile untouched (no cap needed)', () => {
   const s = Game.defaultState();
   s.xp = Game.xpForLevel(20);
   s.money = 1e9;
   Game.buyAutomation(s, 'auto-hash');
-  const cap = Game.maxWeedStorage(s);
-  s.stock.weed = cap; // full
-  const t = Game.autoTick(s, 0, 0); // flow 0: nothing entered storage this tick
+  s.stock.weed = 5000; // big pile
+  const t = Game.autoTick(s, 0, 0); // flow 0: nothing produced this tick
   assert.deepStrictEqual(t.crafted, {});
-  assert.strictEqual(s.stock.weed, cap); // pile untouched
+  assert.strictEqual(s.stock.weed, 5000); // pile untouched
   assert.deepStrictEqual(t.soldMoney, {});
+});
+
+test('autoTick: chainShare widens throughput with distribution paliers', () => {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(20);
+  s.money = 1e9;
+  Game.buyAutomation(s, 'auto-hash'); // 12g -> 115 €
+  s.stock.weed = 5000;
+  let t = Game.autoTick(s, 0, 240);   // base: max(12, 240*0.15=36) -> 3u
+  assert.strictEqual(t.crafted.hash, 3);
+  s.levels.dist1 = 2;                 // share 21% -> max(12, 50.4) -> 4u
+  s.stock.weed = 5000;
+  t = Game.autoTick(s, 0, 240);
+  assert.strictEqual(t.crafted.hash, 4);
+  s.levels.dist1 = 10; s.levels.dist3 = 5; // clamp 90% -> 216g -> 18u
+  s.stock.weed = 5000;
+  t = Game.autoTick(s, 0, 240);
+  assert.strictEqual(t.crafted.hash, 18);
 });

@@ -52,11 +52,11 @@
     { id: 'turbo',   name: 'Éclairage Turbo',icon: '⚡',   desc: 'x2 production de weed',     cost: 90000 },
     { id: 'uv',      name: 'Chambre UV',     icon: '🔮',   desc: 'x1.4 production globale',   cost: 500000, growth: 1.35 },
     { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: 'x2 production globale',     cost: 750000 },
-    // Storage upgrades: B1 soft cap — growth softened to 1.9 (was 3.0),
-    // larger base but still a sink.
-    { id: 'sbox',    name: 'Boîte Étanche',  icon: '📦',   desc: '+900g capacité weed max',   cost: 4000, growth: 1.9 },
-    { id: 'coldroom',name: 'Chambre Froide', icon: '❄️',   desc: '+4000g capacité weed max',  cost: 240000, growth: 1.9 },
-    { id: 'silo',    name: 'Silo Auto',      icon: '🏭',   desc: '+8000g capacité weed max', cost: 2000000, growth: 1.9 }
+    // Distribution upgrades: PAS de cap de stock — ces paliers élargissent la
+    // part du flux que les chaînes convertissent (le vrai gate late-game).
+    { id: 'dist1',   name: 'Réseau Local',   icon: '📦',   desc: '+3% de flux converti par les chaînes',  cost: 4000, growth: 1.9 },
+    { id: 'dist2',   name: 'Logistique Régionale', icon: '🚚', desc: '+6% de flux converti par les chaînes', cost: 240000, growth: 1.9 },
+    { id: 'dist3',   name: 'Entrepôts Nationaux', icon: '🏭', desc: '+10% de flux converti par les chaînes', cost: 2000000, growth: 1.9 }
   ];
 
   /**
@@ -91,10 +91,10 @@
     { id: 'widow',  name: 'White Widow', icon: '🕷️', cost: 200000000, unlock: 45, yieldMult: 22.0, priceMult: 18.0, desc: 'Blanche de trichomes, le sommet absolu',
       d: ['#4a4a4a', '#202020'], m: ['#707070', '#383838'], l: ['#a8a8a8', '#5a5a5a'], f: ['#e0e0e0', '#888888'],
       vein: '#1f1f1f', stroke: '#121212', pistil: '#ffffff', pistil2: '#ffffff', frost: 3.0 },
-    { id: 'zkittlez', name: 'Zkittlez', icon: '🍬', cost: 800000000, unlock: 52, yieldMult: 26.0, priceMult: 22.0, desc: 'Arc-en-ciel sucré, explosion fruitée',
+    { id: 'zkittlez', name: 'Zkittlez', icon: '🍬', cost: 800000000, unlock: 52, yieldMult: 20.0, priceMult: 18.0, desc: 'Arc-en-ciel sucré, explosion fruitée',
       d: ['#6e2f6e', '#3a153a'], m: ['#8f3f8f', '#4a1f4a'], l: ['#d06fd0', '#8a3f8a'], f: ['#eea8ee', '#c080c0'],
       vein: '#2a0f2a', stroke: '#1c0a1c', pistil: '#ffd700', pistil2: '#ffea00', frost: 3.2 },
-    { id: 'gelato', name: 'Gelato 33', icon: '🍦', cost: 2000000000, unlock: 62, yieldMult: 32.0, priceMult: 28.0, desc: 'Crémeuse et glaciale, le graal moderne',
+    { id: 'gelato', name: 'Gelato 33', icon: '🍦', cost: 2000000000, unlock: 62, yieldMult: 24.0, priceMult: 21.0, desc: 'Crémeuse et glaciale, le graal moderne',
       d: ['#4a6e2f', '#1f2f15'], m: ['#6e8f3f', '#2f4a1f'], l: ['#a8d070', '#5a8f3f'], f: ['#d8e8a8', '#a0c070'],
       vein: '#1a2f10', stroke: '#0f1a08', pistil: '#ff69b4', pistil2: '#ffb6c1', frost: 3.5 }
   ];
@@ -106,11 +106,11 @@
    *  B1 rebalance: 1.35 (was 1.85) — more frequent purchases, less wall. */
   const COST_GROWTH = 1.35;
 
-  /** Growth for storage upgrades (was 3.0, now softened for B1). */
+  /** Growth for distribution upgrades (was storage, same sink role). */
   const STORAGE_GROWTH = 1.9;
 
   /** Default upgrade levels for a brand new game. */
-  const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, thumb: 0, crew: 0, turbo: 0, mega: 0, sbox: 0, coldroom: 0, mist: 0, trim: 0, co2: 0, uv: 0, silo: 0 };
+  const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, thumb: 0, crew: 0, turbo: 0, mega: 0, dist1: 0, dist2: 0, mist: 0, trim: 0, co2: 0, uv: 0, dist3: 0 };
 
   /**
    * Product catalog — everything sellable at the market.
@@ -156,7 +156,7 @@
 
   /* ---- progression curve (lissée, plus longue) ---------------- */
   const XP_BASE = 150;
-  const XP_GROWTH = 1.38;
+  const XP_GROWTH = 1.42;
 
   /** Milestones: permanent production bonuses granted at lifetime-XP thresholds. */
   const MILESTONES = [
@@ -171,8 +171,8 @@
     { id: 'm9', xp: 1000000000,bonus: 100, name: 'Légende Éternelle', icon: '♾️' }
   ];
 
-  /** Tier bonus: every 25 levels of an upgrade → ×2 (Cookie/AdvCap). */
-  const TIER_EVERY = 25;
+  /** Tier bonus: tous les 40 niveaux → ×2 (espacé pour lisser le late-game). */
+  const TIER_EVERY = 40;
   function tierMult(level) {
     const t = Math.floor(Math.max(0, level) / TIER_EVERY);
     return t <= 0 ? 1 : Math.pow(2, t);
@@ -263,13 +263,12 @@
   }
 
   /**
-   * XP granted for a harvest of `produced` grams: stored grams count fully,
-   * grams lost to a full stock count for 60% — B1 soft cap, less punishing.
+   * XP granted for a harvest: PAS de cap — tous les grammes produits comptent
+   * pleinement. La progression n'est plus punie par le stockage.
    */
   function harvestXp(s, produced) {
     const added = addWeed(s, produced);
-    const wasted = produced - added;
-    earnXp(s, added + wasted * 0.6);
+    earnXp(s, added);
     return added;
   }
 
@@ -307,19 +306,19 @@
   }
 
   /**
-   * Maximum weed storage capacity: B1 soft cap — larger base and per-level
-   * growth so storage stays a sink but never a wall. Silo adds late-game cap.
+   * Part du flux que chaque chaîne convertit ce tick. Base 15% + paliers
+   * Distribution (dist1/dist2/dist3). C'est LE gate de progression late-game
+   * depuis la suppression du cap de stock : le joueur paie pour automatiser
+   * plus, jamais pour stocker.
    */
-  function maxWeedStorage(s) {
-    let cap = 1600;
+  function chainShare(s) {
+    let share = CHAIN_FLOW_SHARE;
     if (s && s.levels) {
-      // clamp corrupted/negative save levels — a negative cap bricks the game
-      cap += Math.max(0, s.levels.sbox || 0) * 900;
-      cap += Math.max(0, s.levels.coldroom || 0) * 4000;
-      cap += Math.max(0, s.levels.silo || 0) * 8000;
+      share += Math.max(0, s.levels.dist1 || 0) * 0.03;
+      share += Math.max(0, s.levels.dist2 || 0) * 0.06;
+      share += Math.max(0, s.levels.dist3 || 0) * 0.10;
     }
-    const level = s ? levelFromXp(s.xp) : 1;
-    return Math.round(Math.max(1600, cap) * (1 + 0.012 * (level - 1)));
+    return Math.min(0.9, share);
   }
 
   /**
@@ -425,12 +424,13 @@
     const t = now === undefined ? Date.now() : now;
     const secs = Math.max(0, Math.min(28800, Math.floor(seconds || 0)));
     if (secs <= 0) return { weed: 0, money: 0 };
-    const ps = perSecond(s, t);
+    const ps = perSecond(s);
     const weed = Math.floor(ps * secs * 0.5);
     const added = harvestXp(s, weed);
     // auto-sell a share via chains at 50% rate
     const flow = added;
     const res = autoTick(s, t, flow);
+    applySpoil(s); // le surplus hors-ligne se dégrade aussi
     const money = Object.values(res.soldMoney).reduce((a, b) => a + b, 0);
     return { weed: added, money };
   }
@@ -582,7 +582,7 @@
     return { ok: true, name: a.name };
   }
 
-  /** Share of the tick's produced flow each owned chain converts (15% — kept, B1 soft cap handles cap). */
+  /** Share of the tick's produced flow each owned chain converts (base 15%). */
   const CHAIN_FLOW_SHARE = 0.15;
 
   /**
@@ -611,10 +611,10 @@
     for (const p of [...PRODUCTS].reverse()) {
       if (!hasAuto(s, 'craft', p.id)) continue;
       // chains convert ONLY what actually entered storage this tick:
-      // at least 1u/s when flow allows, up to CHAIN_FLOW_SHARE of the
+      // at least 1u/s when flow allows, up to chainShare(s) of the
       // remaining budget. No flow -> they pause; the pile is never eaten.
       if (budget < p.cost) continue;
-      const grams = Math.min(budget, Math.max(p.cost, budget * CHAIN_FLOW_SHARE));
+      const grams = Math.min(budget, Math.max(p.cost, budget * chainShare(s)));
       const units = Math.floor(grams / p.cost);
       if (units < 1) continue;
       const r = craftProduct(s, p.id, units);
@@ -723,11 +723,9 @@
     return gain;
   }
 
-  /** Add weed to stock (total + per-strain), respecting maxWeedStorage cap. Returns actual added. */
+  /** Add weed to stock (total + per-strain) — PAS de cap, tout est gardé. */
   function addWeed(s, amount) {
-    const cap = maxWeedStorage(s);
-    const canAdd = Math.max(0, cap - (s.stock.weed || 0));
-    const toAdd = Math.min(amount, canAdd);
+    const toAdd = Math.max(0, Math.floor(amount || 0));
     if (toAdd <= 0) return 0;
     s.weed = (s.weed || 0) + toAdd;
     s.stock.weed = (s.stock.weed || 0) + toAdd;
@@ -735,6 +733,25 @@
     if (!s.stock.weedByStrain) s.stock.weedByStrain = {};
     s.stock.weedByStrain[sid] = (s.stock.weedByStrain[sid] || 0) + toAdd;
     return toAdd;
+  }
+
+  /**
+   * Spoilage doux — REMPLACE le cap de stock comme gate de progression.
+   * Au-delà d'un plancher (= max(500g, 60s de production)), la weed brute se
+   * dégrade de 1%/s : thésauriser est possible mais jamais rentable, cliquer
+   * n'est JAMAIS bloqué, et l'économie reste bornée sans mur frustrant.
+   * @param {object} s state (mutated)
+   * @returns {number} grams lost this call
+   */
+  const SPOIL_RATE = 0.01;
+  function applySpoil(s) {
+    const floor = Math.max(500, perSecond(s) * 60);
+    const stock = s.stock.weed || 0;
+    if (stock <= floor) return 0;
+    const loss = Math.min(stock - floor, Math.ceil((stock - floor) * SPOIL_RATE));
+    s.stock.weed = stock - loss;
+    drainByStrain(s, 'weedByStrain', loss);
+    return loss;
   }
 
   /**
@@ -776,6 +793,10 @@
       return d;
     }
      d.levels = { ...DEFAULT_LEVELS, ...(d.levels || {}) };
+     // migration: anciens upgrades de stockage -> paliers Distribution (même rang)
+     if (d.levels.sbox !== undefined) { d.levels.dist1 = Math.max(0, d.levels.sbox | 0); delete d.levels.sbox; }
+     if (d.levels.coldroom !== undefined) { d.levels.dist2 = Math.max(0, d.levels.coldroom | 0); delete d.levels.coldroom; }
+     if (d.levels.silo !== undefined) { d.levels.dist3 = Math.max(0, d.levels.silo | 0); delete d.levels.silo; }
      if (!d.stock || typeof d.stock !== 'object') d.stock = defaultState().stock;
      d.stock.weed = typeof d.stock.weed === 'number' && d.stock.weed >= 0 ? d.stock.weed : 0;
      // per-product stock + per-strain maps (init/migrate)
@@ -847,7 +868,6 @@
     SPIKE_COOLDOWN_MIN,
     SPIKE_COOLDOWN_MAX,
     mulberry32,
-    maxWeedStorage,
     addWeed,
     harvestXp,
     defaultState,
@@ -879,6 +899,10 @@
     isSpikeActive,
     spikeMult,
     maybeTriggerSpike,
+    chainShare,
+    CHAIN_FLOW_SHARE,
+    applySpoil,
+    SPOIL_RATE,
     offlineTick,
     upgradeBulkCost,
     buyUpgradeBulk,
