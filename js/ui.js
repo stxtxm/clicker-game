@@ -26,6 +26,7 @@
     marketGrid: document.getElementById('market-grid'),
     sellAll: document.getElementById('sell-all'),
     qtyRow: document.getElementById('qty-row'),
+    upgQtyRow: document.getElementById('upg-qty-row'),
     bc: document.getElementById('bc'),
     mc: document.getElementById('mc'),
     bs: document.getElementById('bs'),
@@ -48,6 +49,7 @@
 
   /** Quantity preset for market craft/sell actions: 1, 10, 100 or 'max'. */
   let qtyMode = 1;
+  let upgradeQtyMode = 1;
 
   /**
    * Stock-full banner arming: hidden at launch even with a full save — it only
@@ -135,6 +137,8 @@
     } else {
       el.bs.innerHTML = '<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">' + svg + '</svg>';
     }
+    // golden visual pulse
+    if (el.bc) el.bc.classList.toggle('golden', Game.isGoldenActive(state));
   }
 
   function renderUpgrades() {
@@ -143,11 +147,12 @@
       const card = document.createElement('div');
       card.className = 'upgrade';
       card.id = 'ui-' + u.id;
+      const tierInfo = Game.TIER_EVERY ? ' · ×2 tous les ' + Game.TIER_EVERY : '';
       card.innerHTML =
         '<span class="up-icon">' + u.icon + '</span>' +
         '<div class="up-info"><div class="up-name">' + u.name +
           ' <span class="up-level" id="ul-' + u.id + '">Lvl 0</span></div>' +
-          '<div class="up-desc">' + u.desc + '</div></div>' +
+          '<div class="up-desc">' + u.desc + tierInfo + '</div></div>' +
         '<div class="up-buy"><span class="up-cost" id="uc-' + u.id + '">0 €</span>' +
           '<button class="bb" id="ub-' + u.id + '">Acheter</button></div>';
       card.querySelector('.bb').addEventListener('click', () => buyUpgrade(u.id));
@@ -317,8 +322,9 @@
 
   /** Render the progression panel: level/XP bar and milestones. */
   function renderProgress() {
+    const now = Date.now();
     const prog = Game.xpProgress(state.xp);
-    const mult = Game.productionMult(state);
+    const mult = Game.productionMult(state, now);
     if (el.xplv) el.xplv.textContent = 'Niveau ' + prog.level;
     if (el.xpmult) el.xpmult.textContent = 'x' + mult.toFixed(2);
     if (el.xpf) {
@@ -367,17 +373,20 @@
    *  Hidden views are skipped: the per-second tick only writes to the DOM the
    *  player is actually looking at (less style/layout work, smoother on mobile). */
   function refreshStats() {
-    const pc = Game.perClick(state);
-    const ar = Game.perSecond(state);
+    const now = Date.now();
+    const pc = Game.perClick(state, now);
+    const ar = Game.perSecond(state, now);
     const active = (name) => {
       const v = document.getElementById('v-' + name);
       return !v || v.classList.contains('active');
     };
 
-    if (el.m) el.m.textContent = fmt(state.money) + ' €';
-    if (el.ar) el.ar.textContent = '+' + ar;
-    if (el.hl) el.hl.textContent = pc;
+    const golden = Game.isGoldenActive(state, now);
+    if (el.m) el.m.textContent = fmt(state.money) + ' €' + (golden ? ' ✨×7' : '');
+    if (el.ar) el.ar.textContent = '+' + ar + (golden ? ' ✨' : '');
+    if (el.hl) el.hl.textContent = pc + (golden ? ' ✨' : '');
     if (el.lv) el.lv.textContent = Game.levelFromXp(state.xp); // header: always fresh
+    if (el.bc) el.bc.classList.toggle('golden', golden);
 
     const cap = Game.maxWeedStorage(state);
     // 97% threshold (not exact cap): owned chains drain a few g/s continuously,
@@ -396,16 +405,35 @@
     if (active('progress') || active('harvest')) renderProgress();
     if (!active('upgrades')) return;
 
+    // upgrade qty pills
+    if (el.upgQtyRow) {
+      el.upgQtyRow.querySelectorAll('.qty-pill').forEach((b) => {
+        b.classList.toggle('active', String(b.dataset.q) === String(upgradeQtyMode));
+      });
+    }
     for (const u of Game.UPGRADES) {
-      const lv = document.getElementById('ul-' + u.id);
-      if (lv) lv.textContent = 'Lvl ' + state.levels[u.id];
-      const cost = document.getElementById('uc-' + u.id);
-      if (cost) cost.textContent = fmt(Game.upgradeCost(state, u.id)) + ' €';
+      const lv = state.levels[u.id] || 0;
+      const tier = Game.tierMult ? Game.tierMult(lv) : 1;
+      const nextTier = Game.TIER_EVERY ? Game.TIER_EVERY - (lv % Game.TIER_EVERY) : 0;
+      const tierLabel = tier > 1 ? ' ×' + tier : '';
+      const lvEl = document.getElementById('ul-' + u.id);
+      if (lvEl) lvEl.textContent = 'Lvl ' + lv + tierLabel + (nextTier && nextTier <= 5 ? ' (' + nextTier + '→×' + (tier*2) + ')' : '');
+      const bulk = upgradeQtyMode > 1 && Game.upgradeBulkCost ? Game.upgradeBulkCost(state, u.id, upgradeQtyMode) : Game.upgradeCost(state, u.id);
+      const costEl = document.getElementById('uc-' + u.id);
+      if (costEl) {
+        const time = Game.timeToAfford ? Game.timeToAfford(state, u.id, upgradeQtyMode > 1 ? upgradeQtyMode : undefined) : 0;
+        const timeLabel = time > 0 && time < 3600 ? ' (' + (time < 60 ? time + 's' : Math.ceil(time/60) + 'm') + ')' : '';
+        costEl.textContent = fmt(bulk) + ' €' + timeLabel;
+      }
       const btn = document.getElementById('ub-' + u.id);
       const card = document.getElementById('ui-' + u.id);
-      const affordable = state.money >= Game.upgradeCost(state, u.id);
-      if (btn) btn.disabled = !affordable;
+      const affordable = state.money >= bulk;
+      if (btn) {
+        btn.disabled = !affordable;
+        btn.textContent = upgradeQtyMode > 1 ? 'Acheter x' + upgradeQtyMode : 'Acheter';
+      }
       if (card) card.classList.toggle('affordable', affordable);
+      if (card) card.classList.toggle('tier-ready', nextTier === 1 && affordable);
     }
     // automation hires: one-time purchase; legacy saves may hold a single
     // craft/sell flag — show ✓ Actif as soon as one is set, allow completing
@@ -444,6 +472,13 @@
   function onHarvest(ev) {
     if (ev && ev.preventDefault) { ev.preventDefault(); ev.stopPropagation(); }
     fullBannerArmed = true; // from now on the banner may show (first interaction)
+    // golden click: if active, harvest is already ×7 via perClick
+    if (Game.isGoldenActive(state)) {
+      // extra juice during frenzy
+      if (el.bc && el.bc.animate) {
+        el.bc.animate([{ filter: 'brightness(1.4)' }, { filter: 'brightness(1)' }], { duration: 180 });
+      }
+    }
     const ac = Game.perClick(state);
     const added = Game.harvestXp(state, ac);
     clickFlow += added; // chains only process grams that actually entered storage
@@ -554,12 +589,14 @@
   }
 
   function buyUpgrade(id) {
-    const res = Game.buyUpgrade(state, id);
+    const res = upgradeQtyMode > 1 && Game.buyUpgradeBulk ? Game.buyUpgradeBulk(state, id, upgradeQtyMode) : Game.buyUpgrade(state, id);
     if (res.ok) {
-      toast(res.name + ' acheté !');
+      const label = res.count ? ' x' + res.count : '';
+      toast(res.name + label + ' acheté !');
       popNum(el.m);
     } else {
-      toast("Pas assez d'argent");
+      if (res.cost) toast('Manque ' + fmt(res.cost - state.money) + ' €');
+      else toast("Pas assez d'argent");
     }
     refreshStats();
     save();
@@ -603,19 +640,33 @@
 
   /** One auto-production tick (every second): weed growth, then automation. */
   function autoProduce() {
-    const ar = Game.perSecond(state);
+    const now = Date.now();
+    // Golden Bud trigger (Cookie-like burst)
+    if (Game.maybeTriggerGolden && Game.maybeTriggerGolden(state, now)) {
+      toast('✨ Golden Bud ! ×7 pendant 13s !');
+      if (el.bc) {
+        el.bc.animate && el.bc.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: 400, easing: 'cubic-bezier(.34,1.56,.64,1)' });
+      }
+      spawnParticle('✨ FRENZY ×7 !');
+    }
+    const ar = Game.perSecond(state, now);
     let addedAuto = 0;
     if (ar > 0) addedAuto = Game.harvestXp(state, ar);
     // automation hires (Ouvriers/Dealers) craft & sell owned products,
     // proportionally to what actually entered storage this tick — at cap
     // they pause instead of draining the player's pile
-    const tick = Game.autoTick(state, undefined, addedAuto + clickFlow);
+    const tick = Game.autoTick(state, now, addedAuto + clickFlow);
     clickFlow = 0;
     // idle income visibility: what the dealers just paid, shown as €/s
     if (el.mps) {
       const earned = Object.values(tick.soldMoney || {}).reduce((a, b) => a + b, 0);
       el.mps.textContent = earned > 0 ? '+' + fmt(earned) + ' €/s' : '';
     }
+    // golden expiry toast
+    if (state.goldenUntil && now >= state.goldenUntil && state._wasGolden) {
+      toast('Golden Bud terminé');
+    }
+    state._wasGolden = Game.isGoldenActive(state, now);
     refreshStats();
     save();
   }
@@ -623,6 +674,7 @@
   // --- persistence -----------------------------------------------------------
   function save() {
     try {
+      state.lastSeen = Date.now();
       localStorage.setItem(SAVE_KEY, Game.serialize(state));
     } catch (e) { /* quota / private mode: ignore */ }
   }
@@ -630,6 +682,16 @@
   function load() {
     try {
       state = Game.deserialize(localStorage.getItem(SAVE_KEY));
+      // offline earnings (AdvCap 50%, 8h cap)
+      if (state.lastSeen) {
+        const secs = Math.floor((Date.now() - state.lastSeen) / 1000);
+        if (secs > 30 && secs < 28800) {
+          const off = Game.offlineTick ? Game.offlineTick(state, secs) : { weed: 0, money: 0 };
+          if (off.weed > 0 || off.money > 0) {
+            setTimeout(() => toast('💤 Hors-ligne ' + Math.floor(secs/60) + 'min : +' + fmt(off.weed) + 'g +' + fmt(off.money) + '€'), 600);
+          }
+        }
+      }
     } catch (e) {
       state = Game.defaultState();
     }
@@ -665,6 +727,14 @@
         const q = b.dataset.q;
         qtyMode = q === 'max' ? 'max' : Math.max(1, Math.floor(Number(q) || 1));
         renderMarket();
+      });
+    });
+  }
+  if (el.upgQtyRow) {
+    el.upgQtyRow.querySelectorAll('.qty-pill').forEach((b) => {
+      b.addEventListener('click', () => {
+        upgradeQtyMode = Math.max(1, Math.floor(Number(b.dataset.q) || 1));
+        refreshStats();
       });
     });
   }

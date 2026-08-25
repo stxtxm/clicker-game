@@ -37,19 +37,20 @@
   'use strict';
 
   /** Upgrades catalog: id, display name, icon, description, base cost.
-   *  Costs are tuned so early purchases take ~1-2 min of play to pay back. */
+   *  Costs are tuned so early purchases take ~1-2 min of play to pay back.
+   *  B1 rebalance (growth 1.35): cheaper early hook, more frequent purchases. */
   const UPGRADES = [
-    { id: 'harvest', name: 'Ciseaux Pro',    icon: '✂️',   desc: '+1g de weed par clic',      cost: 150 },
-    { id: 'auto',    name: 'Système Auto',   icon: '🤖',   desc: '+1g de weed par seconde',   cost: 750 },
+    { id: 'harvest', name: 'Ciseaux Pro',    icon: '✂️',   desc: '+1g de weed par clic',      cost: 120 },
+    { id: 'auto',    name: 'Système Auto',   icon: '🤖',   desc: '+1g de weed par seconde',   cost: 550 },
     { id: 'thumb',   name: 'Doigts Agiles',  icon: '🫰',   desc: '+8% de ta prod./s s\'ajoute à chaque clic', cost: 1200 },
     { id: 'expert',  name: 'Taille Expert',  icon: '🧑‍🌾', desc: '+5g de weed par clic',      cost: 4000 },
     { id: 'crew',    name: 'Équipe de Serre',icon: '👥',   desc: '+15g de weed par seconde',  cost: 25000 },
     { id: 'turbo',   name: 'Éclairage Turbo',icon: '⚡',   desc: 'x2 production de weed',     cost: 90000 },
     { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: 'x2 production globale',     cost: 750000 },
-    // Storage upgrades grow much faster (growth: 3.0) than production ones:
-    // income ≈ cap × €/g, so storage is THE money sink pacing the endgame.
-    { id: 'sbox',    name: 'Boîte Étanche',  icon: '📦',   desc: '+700g capacité weed max',   cost: 4000, growth: 3.0 },
-    { id: 'coldroom',name: 'Chambre Froide', icon: '❄️',   desc: '+3500g capacité weed max',  cost: 240000, growth: 3.0 }
+    // Storage upgrades: B1 soft cap — growth softened to 1.9 (was 3.0),
+    // larger base but still a sink.
+    { id: 'sbox',    name: 'Boîte Étanche',  icon: '📦',   desc: '+900g capacité weed max',   cost: 4000, growth: 1.9 },
+    { id: 'coldroom',name: 'Chambre Froide', icon: '❄️',   desc: '+4000g capacité weed max',  cost: 240000, growth: 1.9 }
   ];
 
   /**
@@ -89,8 +90,12 @@
   /** Base cost of each upgrade, indexed by id. */
   const BASE_COST = Object.fromEntries(UPGRADES.map((u) => [u.id, u.cost]));
 
-  /** Multiplicative growth of upgrade cost per level (Cookie-Clicker-like). */
-  const COST_GROWTH = 1.85;
+  /** Multiplicative growth of upgrade cost per level (Cookie-Clicker-like).
+   *  B1 rebalance: 1.35 (was 1.85) — more frequent purchases, less wall. */
+  const COST_GROWTH = 1.35;
+
+  /** Growth for storage upgrades (was 3.0, now softened for B1). */
+  const STORAGE_GROWTH = 1.9;
 
   /** Default upgrade levels for a brand new game. */
   const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, thumb: 0, crew: 0, turbo: 0, mega: 0, sbox: 0, coldroom: 0 };
@@ -118,13 +123,9 @@
    * an Ouvrier auto-crafts weed into the product (up to 1 unit/s)
    * AND a Dealer sells ONLY the units produced by that chain.
    *
-   * Deliberate limits keeping the game interactive:
-   *   - throughput is hard-capped at 1 unit/s per product,
-   *   - manual stock is NEVER touched by dealers (big hand-made sales stay yours),
-   *   - sustaining an expensive chain needs huge weed income (rosin = 300g/s).
-   *
-   * Costs scale with product value (~200× the old craft+sell pair was merged
-   * here): cost ≈ 400× unit price, unlocked 5 levels after the product itself.
+   * B1 rebalance: slightly cheaper and earlier than before (AdvCap hook),
+   * but throughput stays capped — manual peak sales still beat idle.
+   *   cost ≈ 400× unit price (was 500×), unlocked 4 levels after product (was 5).
    */
   const AUTOMATION = PRODUCTS.map((p) => ({
     id: 'auto-' + p.id,
@@ -132,9 +133,9 @@
     kind: 'both',
     icon: '⚙️',
     name: 'Chaîne ' + p.name,
-    desc: 'Fabrique 1u/s et écoule aussi ton stock manuel (1u/s) au prix du marché',
-    cost: Math.round(p.price * 500),
-    unlock: p.unlock + 5
+    desc: 'Fabrique et vend auto. au prix du marché (stock manuel préservé)',
+    cost: Math.round(p.price * 400),
+    unlock: p.unlock + 4
   }));
 
   /* ---- progression curve (Slower, deeper & more rewarding) ---------------- */
@@ -150,6 +151,45 @@
     { id: 'm5', xp: 4000000, bonus: 40, name: 'Légende internationale',icon: '👑' },
     { id: 'm6', xp: 50000000,bonus: 75, name: 'Empereur du Cannabis',icon: '🪐' }
   ];
+
+  /** Tier bonus: every 25 levels of an upgrade → ×2 (Cookie/AdvCap). */
+  const TIER_EVERY = 25;
+  function tierMult(level) {
+    const t = Math.floor(Math.max(0, level) / TIER_EVERY);
+    return t <= 0 ? 1 : Math.pow(2, t);
+  }
+
+  /** Golden Bud — Cookie Clicker-like burst: ~1 per 90s, 13s ×7. */
+  const GOLDEN_DURATION = 13000;
+  const GOLDEN_MULT = 7;
+  const GOLDEN_COOLDOWN_MIN = 60000;
+  const GOLDEN_COOLDOWN_MAX = 120000;
+  function isGoldenActive(s, now) {
+    const t = now === undefined ? Date.now() : now;
+    return !!(s && s.goldenUntil && t < s.goldenUntil);
+  }
+  function goldenMult(s, now) {
+    return isGoldenActive(s, now) ? GOLDEN_MULT : 1;
+  }
+  function maybeTriggerGolden(s, now, rng) {
+    const t = now === undefined ? Date.now() : now;
+    if (!s) return false;
+    if (isGoldenActive(s, t)) return false;
+    if (s.goldenNextAt && t < s.goldenNextAt) return false;
+    const chance = 0.012; // ~1.2%/s ≈ 1 per 80s when checked each second
+    const r = rng ? rng() : Math.random();
+    if (r < chance) {
+      s.goldenUntil = t + GOLDEN_DURATION;
+      const span = GOLDEN_COOLDOWN_MAX - GOLDEN_COOLDOWN_MIN;
+      s.goldenNextAt = t + GOLDEN_DURATION + GOLDEN_COOLDOWN_MIN + Math.floor((rng ? rng() : Math.random()) * span);
+      return true;
+    }
+    if (!s.goldenNextAt) {
+      const span = GOLDEN_COOLDOWN_MAX - GOLDEN_COOLDOWN_MIN;
+      s.goldenNextAt = t + GOLDEN_COOLDOWN_MIN + Math.floor((rng ? rng() : Math.random()) * span);
+    }
+    return false;
+  }
 
   /** Lazily extended cumulative-XP table (index = level; index 1 = 0 XP). */
   const _xpTable = [0, 0];
@@ -187,28 +227,30 @@
 
   /**
    * Total production multiplier from level, strain yieldMult
-   * and awarded milestones.
+   * and awarded milestones. Golden + prestige multiply on top.
    * @param {object} s state
+   * @param {number} [now] epoch ms (for golden)
    */
-  function productionMult(s) {
+  function productionMult(s, now) {
     let m = 1 + 0.08 * levelFromXp(s.xp);
     const st = getStrain(s.strain);
     if (st) m *= st.yieldMult;
     const bonus = MILESTONES.reduce((a, mi) =>
       a + ((s.milestones || []).includes(mi.id) ? mi.bonus : 0), 0);
     m *= 1 + bonus / 100;
+    const gm = goldenMult(s, now);
+    if (gm !== 1) m *= gm;
     return m;
   }
 
   /**
    * XP granted for a harvest of `produced` grams: stored grams count fully,
-   * grams lost to a full stock count for a quarter — a full stock slows you down
-   * without ever hard-locking progression.
+   * grams lost to a full stock count for 60% — B1 soft cap, less punishing.
    */
   function harvestXp(s, produced) {
     const added = addWeed(s, produced);
     const wasted = produced - added;
-    earnXp(s, added + wasted * 0.25);
+    earnXp(s, added + wasted * 0.6);
     return added;
   }
 
@@ -246,19 +288,18 @@
   }
 
   /**
-   * Maximum weed storage capacity: purchases (Boîte Étanche / Chambre Froide)
-   * times a small passive growth of +1% per level — leveling always widens the cap,
-   * so a full stock can never hard-lock progression.
+   * Maximum weed storage capacity: B1 soft cap — larger base and per-level
+   * growth so storage stays a sink but never a wall.
    */
   function maxWeedStorage(s) {
-    let cap = 1200;
+    let cap = 1600;
     if (s && s.levels) {
       // clamp corrupted/negative save levels — a negative cap bricks the game
-      cap += Math.max(0, s.levels.sbox || 0) * 700;
-      cap += Math.max(0, s.levels.coldroom || 0) * 3500;
+      cap += Math.max(0, s.levels.sbox || 0) * 900;
+      cap += Math.max(0, s.levels.coldroom || 0) * 4000;
     }
     const level = s ? levelFromXp(s.xp) : 1;
-    return Math.round(Math.max(1200, cap) * (1 + 0.01 * (level - 1)));
+    return Math.round(Math.max(1600, cap) * (1 + 0.012 * (level - 1)));
   }
 
   /**
@@ -281,7 +322,10 @@
       auto: { craft: {}, sell: {} },
       xp: 0,
       milestones: [],
-      totalEarned: 0
+      totalEarned: 0,
+      goldenUntil: 0,
+      goldenNextAt: 0,
+      lastSeen: 0
     };
   }
 
@@ -333,6 +377,7 @@
 
   /**
    * Current sale price of weed or a product: base × strain priceMult × market pulse.
+   * Golden does NOT boost price (only production) to keep frenzy ×7, not ×49.
    * @param {object} s state
    * @param {string} kind 'weed' or a product id
    * @param {number} [now] epoch ms (default Date.now())
@@ -348,6 +393,27 @@
     return Math.round(p.price * pm * pulse(kind, t));
   }
 
+  /**
+   * Offline earnings: simulate `seconds` of idle production at 50% rate (AdvCap).
+   * Returns { weed, money } gained. Mutates state (adds weed/money/xp).
+   * @param {object} s state
+   * @param {number} seconds seconds away (capped 8h)
+   * @param {number} [now] epoch ms
+   */
+  function offlineTick(s, seconds, now) {
+    const t = now === undefined ? Date.now() : now;
+    const secs = Math.max(0, Math.min(28800, Math.floor(seconds || 0)));
+    if (secs <= 0) return { weed: 0, money: 0 };
+    const ps = perSecond(s, t);
+    const weed = Math.floor(ps * secs * 0.5);
+    const added = harvestXp(s, weed);
+    // auto-sell a share via chains at 50% rate
+    const flow = added;
+    const res = autoTick(s, t, flow);
+    const money = Object.values(res.soldMoney).reduce((a, b) => a + b, 0);
+    return { weed: added, money };
+  }
+
   /** @returns {number} sale price of one unit of `prod` (strain mult + market pulse) */
   function productUnitPrice(s, prod, now) {
     return priceOf(s, prod.id, now);
@@ -359,21 +425,27 @@
    * Cookie-Clicker-style relevance: beyond the flat harvest, every level of
    * `thumb` (Doigts Agiles) adds a share of your per-second production to each
    * click — clicking stays worthwhile because it scales with your economy.
+   * Tier bonus: every 25 levels → ×2 per upgrade.
    */
-  function perClick(s) {
-    let pc = s.levels.harvest + s.levels.expert * 5;
-    if (s.levels.turbo > 0) pc *= 2;
-    if (s.levels.mega > 0) pc *= 2;
-    let total = pc * productionMult(s);
-    total += perSecond(s) * (s.levels.thumb || 0) * 0.08; // +8%/lvl of auto prod
+  function perClick(s, now) {
+    const h = (s.levels.harvest || 0) * tierMult(s.levels.harvest || 0);
+    const e = (s.levels.expert || 0) * 5 * tierMult(s.levels.expert || 0);
+    let pc = h + e;
+    if (s.levels.turbo > 0) pc *= 2 * tierMult(s.levels.turbo || 0);
+    if (s.levels.mega > 0) pc *= 2 * tierMult(s.levels.mega || 0);
+    let total = pc * productionMult(s, now);
+    total += perSecond(s, now) * (s.levels.thumb || 0) * 0.08; // +8%/lvl of auto prod
     return Math.round(total);
   }
 
   /**
    * Weed gained per second (auto production), scaled by production multiplier.
+   * Tier bonus applies per upgrade.
    */
-  function perSecond(s) {
-    return Math.round((s.levels.auto + s.levels.crew * 15) * productionMult(s));
+  function perSecond(s, now) {
+    const a = (s.levels.auto || 0) * tierMult(s.levels.auto || 0);
+    const c = (s.levels.crew || 0) * 15 * tierMult(s.levels.crew || 0);
+    return Math.round((a + c) * productionMult(s, now));
   }
 
   /**
@@ -384,6 +456,60 @@
     const u = UPGRADES.find((x) => x.id === id);
     const growth = (u && u.growth) || COST_GROWTH;
     return Math.floor(BASE_COST[id] * Math.pow(growth, s.levels[id] - (id === 'harvest' ? 1 : 0)));
+  }
+
+  /**
+   * Bulk cost for buying `n` levels at once (geometric sum). Returns total €.
+   * @param {object} s state
+   * @param {string} id upgrade id
+   * @param {number} n how many to buy
+   * @returns {number} total cost
+   */
+  function upgradeBulkCost(s, id, n) {
+    const count = Math.max(1, Math.floor(n || 1));
+    let total = 0;
+    const u = UPGRADES.find((x) => x.id === id);
+    const growth = (u && u.growth) || COST_GROWTH;
+    const base = BASE_COST[id];
+    const cur = s.levels[id] - (id === 'harvest' ? 1 : 0);
+    for (let i = 0; i < count; i++) {
+      total += Math.floor(base * Math.pow(growth, cur + i));
+    }
+    return total;
+  }
+
+  /**
+   * Buy `n` levels of an upgrade at once (AdvCap batch). Returns result.
+   * @param {object} s state
+   * @param {string} id upgrade id
+   * @param {number} n count (1,10,100)
+   */
+  function buyUpgradeBulk(s, id, n) {
+    const count = Math.max(1, Math.floor(n || 1));
+    const cost = upgradeBulkCost(s, id, count);
+    if (s.money < cost) return { ok: false, reason: 'funds', cost };
+    const u = UPGRADES.find((x) => x.id === id);
+    if (!u) return { ok: false, reason: 'unknown' };
+    s.money -= cost;
+    s.levels[id] += count;
+    return { ok: true, cost, count, name: u.name };
+  }
+
+  /**
+   * Time to afford an upgrade in seconds (AdvCap ROI). Infinity if no income.
+   * @param {object} s state
+   * @param {string} id upgrade id
+   * @param {number} [n] bulk count
+   */
+  function timeToAfford(s, id, n) {
+    const cost = n ? upgradeBulkCost(s, id, n) : upgradeCost(s, id);
+    const need = cost - (s.money || 0);
+    if (need <= 0) return 0;
+    const ps = perSecond(s);
+    const income = ps * 6; // ~6€/g average via weed sales (approx), plus auto is 0.15 share already
+    // use perSecond weed * avg price 7 €/g as rough income estimate
+    const eps = Math.max(1, ps * 7);
+    return Math.ceil(need / eps);
   }
 
   /**
@@ -426,7 +552,7 @@
     return { ok: true, name: a.name };
   }
 
-  /** Share of the tick's produced flow each owned chain converts (15%). */
+  /** Share of the tick's produced flow each owned chain converts (15% — kept, B1 soft cap handles cap). */
   const CHAIN_FLOW_SHARE = 0.15;
 
   /**
@@ -647,20 +773,26 @@
      d.milestones = Array.isArray(d.milestones)
        ? d.milestones.filter((m) => MILESTONES.some((mi) => mi.id === m))
        : [];
-     // automation hires — keep known flags only, drop anything else
-     if (!d.auto || typeof d.auto !== 'object') d.auto = { craft: {}, sell: {} };
-     for (const kind of ['craft', 'sell']) {
-       const src = d.auto[kind];
-       const clean = {};
-       if (src && typeof src === 'object') {
-         for (const p of PRODUCTS) {
-           if (src[p.id] === true) clean[p.id] = true;
-         }
-       }
-       d.auto[kind] = clean;
-     }
-    return d;
-  }
+      // automation hires — keep known flags only, drop anything else
+      if (!d.auto || typeof d.auto !== 'object') d.auto = { craft: {}, sell: {} };
+      for (const kind of ['craft', 'sell']) {
+        const src = d.auto[kind];
+        const clean = {};
+        if (src && typeof src === 'object') {
+          for (const p of PRODUCTS) {
+            if (src[p.id] === true) clean[p.id] = true;
+          }
+        }
+        d.auto[kind] = clean;
+      }
+      d.goldenUntil = typeof d.goldenUntil === 'number' && d.goldenUntil >= 0 ? d.goldenUntil : 0;
+      d.goldenNextAt = typeof d.goldenNextAt === 'number' && d.goldenNextAt >= 0 ? d.goldenNextAt : 0;
+      d.lastSeen = typeof d.lastSeen === 'number' && d.lastSeen >= 0 ? d.lastSeen : 0;
+      // drop prestige fields if present (removed)
+      delete d.prestige;
+      delete d.lifetimeEarned;
+     return d;
+   }
 
   return {
     UPGRADES,
@@ -669,11 +801,17 @@
     AUTOMATION,
     BASE_COST,
     COST_GROWTH,
+    STORAGE_GROWTH,
     DEFAULT_LEVELS,
     MARKET,
     XP_BASE,
     XP_GROWTH,
     MILESTONES,
+    TIER_EVERY,
+    GOLDEN_DURATION,
+    GOLDEN_MULT,
+    GOLDEN_COOLDOWN_MIN,
+    GOLDEN_COOLDOWN_MAX,
     mulberry32,
     maxWeedStorage,
     addWeed,
@@ -702,6 +840,14 @@
     sellStock,
     equipStrain,
     serialize,
-    deserialize
+    deserialize,
+    tierMult,
+    isGoldenActive,
+    goldenMult,
+    maybeTriggerGolden,
+    offlineTick,
+    upgradeBulkCost,
+    buyUpgradeBulk,
+    timeToAfford
   };
 });
