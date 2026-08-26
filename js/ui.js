@@ -109,8 +109,10 @@
   }
 
   function renderUpgrades() {
+    // Matériel trié par coût croissant — la lecture suit la progression
     el.ug.innerHTML = '';
-    for (const u of Game.UPGRADES) {
+    const sorted = [...Game.UPGRADES].sort((a, b) => a.cost - b.cost);
+    for (const u of sorted) {
       const card = document.createElement('div');
       card.className = 'upgrade';
       card.id = 'ui-' + u.id;
@@ -125,7 +127,7 @@
       card.querySelector('.bb').addEventListener('click', () => buyUpgrade(u.id));
       el.ug.appendChild(card);
     }
-    // Automation hires — onglet Chaînes, même format de carte (achat unique)
+    // Chaînes — onglet dédié, multi-niveaux (embauche puis améliorations)
     if (!el.chainUg) return;
     el.chainUg.innerHTML = '';
     for (const a of Game.AUTOMATION) {
@@ -136,8 +138,8 @@
       card.innerHTML =
         '<span class="up-icon">' + (p ? p.icon : a.icon) + '</span>' +
         '<div class="up-info"><div class="up-name">' + a.name +
-          ' <span class="up-level" id="ul-' + a.id + '">Unique</span></div>' +
-          '<div class="up-desc">' + a.desc + '</div></div>' +
+          ' <span class="up-level" id="ul-' + a.id + '">Niv 0</span></div>' +
+          '<div class="up-desc">' + a.desc + ' · +' + Math.round(Game.CHAIN_FLOW_SHARE * 100) + '% flux/niveau</div></div>' +
         '<div class="up-buy"><span class="up-cost" id="uc-' + a.id + '">' + fmt(a.cost) + ' €</span>' +
           '<button class="bb" id="ub-' + a.id + '">Acheter</button></div>';
       card.querySelector('.bb').addEventListener('click', () => buyAuto(a.id));
@@ -394,10 +396,13 @@
       const tierLabel = tier > 1 ? ' ×' + tier : '';
       const lvEl = document.getElementById('ul-' + u.id);
       if (lvEl) lvEl.textContent = 'Lvl ' + lv + tierLabel + (nextTier && nextTier <= 5 ? ' (' + nextTier + '→×' + (tier*2) + ')' : '');
-      const bulk = upgradeQtyMode > 1 && Game.upgradeBulkCost ? Game.upgradeBulkCost(state, u.id, upgradeQtyMode) : Game.upgradeCost(state, u.id);
+      // quantité : 1 / 10 / MAX (max = niveaux payables d'un coup)
+      let count = upgradeQtyMode;
+      if (count === 'max') count = Math.max(1, Game.maxAffordableLevels(state, u.id));
+      const bulk = count > 1 && Game.upgradeBulkCost ? Game.upgradeBulkCost(state, u.id, count) : Game.upgradeCost(state, u.id);
       const costEl = document.getElementById('uc-' + u.id);
       if (costEl) {
-        const time = Game.timeToAfford ? Game.timeToAfford(state, u.id, upgradeQtyMode > 1 ? upgradeQtyMode : undefined) : 0;
+        const time = Game.timeToAfford ? Game.timeToAfford(state, u.id, count > 1 ? count : undefined) : 0;
         const timeLabel = time > 0 && time < 3600 ? ' (' + (time < 60 ? time + 's' : Math.ceil(time/60) + 'm') + ')' : '';
         costEl.textContent = fmt(bulk) + ' €' + timeLabel;
       }
@@ -406,7 +411,7 @@
       const affordable = state.money >= bulk;
       if (btn) {
         btn.disabled = !affordable;
-        btn.textContent = upgradeQtyMode > 1 ? 'Acheter x' + upgradeQtyMode : 'Acheter';
+        btn.textContent = count > 1 ? 'Acheter x' + count : 'Acheter';
       }
       if (card) card.classList.toggle('affordable', affordable);
       if (card) card.classList.toggle('tier-ready', nextTier === 1 && affordable);
@@ -421,23 +426,33 @@
     renderProgress();
   }
 
-  /** Chaînes (onglet dédié) : achat unique, gate niveau, ✓ Actif si possédée. */
+  /** Chaînes (onglet dédié) : multi-niveaux — embauche puis améliorations. */
   function updateChainCards() {
     for (const a of Game.AUTOMATION) {
-      const hasCraft = Game.hasAuto(state, 'craft', a.productId);
-      const hasSell = Game.hasAuto(state, 'sell', a.productId);
-      const anyOwned = hasCraft || hasSell;
-      const levelOk = Game.levelFromXp(state.xp) >= a.unlock;
+      const lvl = Game.chainLvl(state, a.productId);
+      const levelOk = lvl > 0 || Game.levelFromXp(state.xp) >= a.unlock;
+      let count = upgradeQtyMode;
+      if (count === 'max') count = Math.max(1, Game.maxAutomationLevels(state, a.productId));
+      const cost = Game.automationCost(state, a.productId, count);
       const lv = document.getElementById('ul-' + a.id);
       if (lv) {
-        lv.textContent = anyOwned ? '✓ Actif' : (!levelOk ? '🔒 Niv. ' + a.unlock : 'Unique');
-        lv.classList.toggle('owned', anyOwned);
+        lv.textContent = lvl > 0
+          ? 'Niv ' + lvl + (lvl >= 4 ? ' · +' + Math.round(Game.CHAIN_FLOW_SHARE * lvl * 100) + '% flux' : '')
+          : (!levelOk ? '🔒 Niv. ' + a.unlock : 'Niv 0');
+        lv.classList.toggle('owned', lvl > 0);
       }
       const btn = document.getElementById('ub-' + a.id);
-      if (btn) btn.disabled = (hasCraft && hasSell) || !levelOk || state.money < a.cost;
+      if (btn) {
+        btn.disabled = !levelOk || state.money < cost;
+        btn.textContent = lvl > 0 ? (count > 1 ? 'Améliorer x' + count : 'Améliorer') : 'Acheter';
+      }
       const card = document.getElementById('ui-' + a.id);
-      if (card) card.classList.toggle('affordable', !(hasCraft && hasSell) && levelOk && state.money >= a.cost);
-      if (card) card.classList.toggle('owned', anyOwned);
+      if (card) {
+        card.classList.toggle('affordable', levelOk && state.money >= cost);
+        card.classList.toggle('owned', lvl > 0);
+      }
+      const costEl = document.getElementById('uc-' + a.id);
+      if (costEl) costEl.textContent = fmt(cost) + ' €';
     }
   }
 
@@ -546,7 +561,10 @@
   }
 
   function buyUpgrade(id) {
-    const res = upgradeQtyMode > 1 && Game.buyUpgradeBulk ? Game.buyUpgradeBulk(state, id, upgradeQtyMode) : Game.buyUpgrade(state, id);
+    // qty : 1 | 10 | 'max' (résolu en niveaux payables au moment du clic)
+    let count = upgradeQtyMode;
+    if (count === 'max') count = Math.max(1, Game.maxAffordableLevels(state, id));
+    const res = count > 1 && Game.buyUpgradeBulk ? Game.buyUpgradeBulk(state, id, count) : Game.buyUpgrade(state, id);
     if (res.ok) {
       const label = res.count ? ' x' + res.count : '';
       toast(res.name + label + ' acheté !');
@@ -559,14 +577,21 @@
     save();
   }
 
-  /** Buy a one-time automation hire (Ouvrier/Dealer). */
+  /** Embauche ou améliore une chaîne (niveau +1, ou bulk/MAX). */
   function buyAuto(id) {
-    const res = Game.buyAutomation(state, id);
+    let count = upgradeQtyMode;
+    if (count === 'max') {
+      const a = Game.AUTOMATION.find((x) => x.id === id);
+      count = a ? Math.max(1, Game.maxAutomationLevels(state, a.productId)) : 1;
+    }
+    const res = Game.buyAutomation(state, id, count);
     if (res.ok) {
-      toast(res.name + ' embauché ! 🛠️');
+      toast(res.lvl > res.bought
+        ? res.name + ' → Niv ' + res.lvl + ' !'
+        : res.name + ' embauchée ! 🛠️');
       popNum(el.m);
     } else if (res.reason === 'funds') {
-      toast("Pas assez d'argent");
+      toast('Manque ' + fmt((res.cost || 0) - state.money) + ' €');
     } else if (res.reason === 'level') {
       const a = Game.AUTOMATION.find((x) => x.id === id);
       toast('Niveau ' + (a ? a.unlock : '?') + ' requis');
@@ -684,7 +709,8 @@
   if (el.upgQtyRow) {
     el.upgQtyRow.querySelectorAll('.qty-pill').forEach((b) => {
       b.addEventListener('click', () => {
-        upgradeQtyMode = Math.max(1, Math.floor(Number(b.dataset.q) || 1));
+        const q = b.dataset.q;
+        upgradeQtyMode = q === 'max' ? 'max' : Math.max(1, Math.floor(Number(q) || 1));
         refreshStats();
       });
     });

@@ -369,7 +369,7 @@ test('automation catalog: one hire per product, coherent costs', () => {
   }
 });
 
-test('buyAutomation: funds check, deducts money and unlocks craft+sell', () => {
+test('buyAutomation: funds check, deducts money and sets chain level 1', () => {
   const s = Game.defaultState();
   s.xp = Game.xpForLevel(5); // auto-joint unlock level (1+4)
   const COST = Game.AUTOMATION.find((a) => a.id === 'auto-joint').cost; // 14 * 400 = 5600
@@ -379,10 +379,37 @@ test('buyAutomation: funds check, deducts money and unlocks craft+sell', () => {
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').reason, 'funds');
   s.money = COST;
   const r = Game.buyAutomation(s, 'auto-joint');
-  assert.deepStrictEqual(r, { ok: true, name: 'Chaîne Joint Roulé' });
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.lvl, 1);
+  assert.strictEqual(r.bought, 1);
+  assert.strictEqual(r.cost, COST);
   assert.strictEqual(s.money, 0);
+  assert.strictEqual(Game.chainLvl(s, 'joint'), 1);
   assert.strictEqual(Game.hasAuto(s, 'craft', 'joint'), true);
   assert.strictEqual(Game.hasAuto(s, 'sell', 'joint'), true);
+});
+
+test('buyAutomation: upgrade path — levels stack, cost grows ×1.5', () => {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(5);
+  s.money = 1e7;
+  assert.strictEqual(Game.buyAutomation(s, 'auto-joint', 1).lvl, 1); // 5 600
+  const cost2 = Game.automationCost(s, 'joint', 1);
+  assert.strictEqual(cost2, Math.floor(5600 * Game.AUTOMATION_GROWTH)); // 8400
+  const r = Game.buyAutomation(s, 'auto-joint', 1);
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.lvl, 2);
+  assert.strictEqual(Game.chainLvl(s, 'joint'), 2);
+  // bulk x2 depuis lvl2 → niveaux 3 et 4
+  const bulk4 = Game.automationCost(s, 'joint', 2);
+  assert.ok(bulk4 > cost2);
+  const rb = Game.buyAutomation(s, 'auto-joint', 2);
+  assert.strictEqual(rb.lvl, 4);
+  assert.strictEqual(Game.chainLvl(s, 'joint'), 4);
+  // MAX : assez d'argent pour quelques niveaux de plus
+  s.money = 1e9;
+  const maxN = Game.maxAutomationLevels(s, 'joint');
+  assert.ok(maxN >= 5, 'max levels affordable: ' + maxN);
 });
 
 test('buyAutomation: level gate blocks early purchases even when rich', () => {
@@ -392,21 +419,24 @@ test('buyAutomation: level gate blocks early purchases even when rich', () => {
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').reason, 'level');
   assert.strictEqual(Game.buyAutomation(s, 'auto-rosin').reason, 'level');
   assert.strictEqual(s.money, 1e9); // nothing charged
-  assert.deepStrictEqual(s.auto, { craft: {}, sell: {} });
+  for (const p of Game.PRODUCTS) assert.strictEqual(Game.chainLvl(s, p.id), 0);
   s.xp = Game.xpForLevel(5); // exactly level 5
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').ok, true);
   assert.strictEqual(Game.buyAutomation(s, 'auto-sachet').reason, 'level'); // unlock 8
 });
 
-test('buyAutomation: rejects duplicate and unknown hires', () => {
+test('buyAutomation: unknown id rejected, upgrades need no re-unlock', () => {
   const s = Game.defaultState();
   s.xp = Game.xpForLevel(5);
-  s.money = 100000;
+  s.money = 1e7;
   assert.strictEqual(Game.buyAutomation(s, 'nope').reason, 'unknown');
   assert.strictEqual(Game.buyAutomation(s, 'auto-joint').ok, true);
   const before = s.money;
-  assert.strictEqual(Game.buyAutomation(s, 'auto-joint').reason, 'owned');
-  assert.strictEqual(s.money, before); // no double charge
+  // déjà embauchée : on peut améliorer (pas d'erreur 'owned'), gate niveau ignorée
+  const r = Game.buyAutomation(s, 'auto-joint');
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.lvl, 2);
+  assert.ok(s.money < before);
 });
 
 test('autoTick: no-op without any hire owned', () => {
@@ -457,9 +487,10 @@ test('autoTick: scarce weed goes to the most expensive product first', () => {
   }
   s.stock.weed = 350;
   const t = Game.autoTick(s, 0, 350);
-  // expensive-first with the flow budget: rosin 300g, hash 12g, joint 5.7g -> 2u
-  assert.deepStrictEqual(t.crafted, { rosin: 1, hash: 1, joint: 2 });
-  assert.strictEqual(s.stock.weed, 350 - 300 - 12 - 4);
+  // chaque chaîne lvl1 vise 15% du flux (52.5g) : rosin max(300,52.5)=300 → 1u ;
+  // hash max(12,52.5)=52.5 → 4u ; joint budget restant 2g → 1u
+  assert.deepStrictEqual(t.crafted, { rosin: 1, hash: 4, joint: 1 });
+  assert.strictEqual(s.stock.weed, 350 - 300 - 48 - 2);
 });
 
 test('automation flags survive serialize/deserialize roundtrip', () => {
@@ -534,20 +565,18 @@ test('addWeed: no cap — everything is kept', () => {
   assert.strictEqual(s.stock.weedByStrain.green, 1000004);
 });
 
-test('chainShare: base 15% + distribution paliers, capped at 90%', () => {
-  assert.strictEqual(Game.chainShare({}), 0.15);
+test('distShare: bonus global de Distribution, négatifs clampés', () => {
+  assert.strictEqual(Game.distShare({}), 0);
   const s = Game.defaultState();
-  assert.strictEqual(Game.chainShare(s), 0.15);
+  assert.strictEqual(Game.distShare(s), 0);
   s.levels.dist1 = 2; // +6%
-  assert.ok(Math.abs(Game.chainShare(s) - 0.21) < 1e-9);
+  assert.ok(Math.abs(Game.distShare(s) - 0.06) < 1e-9);
   s.levels.dist2 = 1; // +6%
-  assert.ok(Math.abs(Game.chainShare(s) - 0.27) < 1e-9);
+  assert.ok(Math.abs(Game.distShare(s) - 0.12) < 1e-9);
   s.levels.dist3 = 3; // +30%
-  assert.ok(Math.abs(Game.chainShare(s) - 0.57) < 1e-9);
-  s.levels.dist2 = 20; // way over: clamp 0.9
-  assert.strictEqual(Game.chainShare(s), 0.9);
+  assert.ok(Math.abs(Game.distShare(s) - 0.42) < 1e-9);
   // corrupted negative levels are clamped
-  assert.strictEqual(Game.chainShare({ levels: { dist1: -5 } }), 0.15);
+  assert.strictEqual(Game.distShare({ levels: { dist1: -5 } }), 0);
 });
 
 test('priceOf: unknown product is 0, weed uses prices.weed base', () => {
@@ -639,10 +668,10 @@ test('autoTick: multiple chains drain weed expensive-first, dealers sell each ou
   s.money = 1e9;
   for (const id of ['auto-cake', 'auto-joint']) assert.strictEqual(Game.buyAutomation(s, id).ok, true);
   s.stock.weed = 30;
-  const t = Game.autoTick(s, 0, 30); // cake 25g, joint the last 5g -> 2u? min(5, max(2,.75))=2 -> 1u
-  assert.deepStrictEqual(t.crafted, { cake: 1, joint: 1 });
+  const t = Game.autoTick(s, 0, 30); // cake vise 4.5g→max(25,4.5)=25 →1u ; joint budget 5g→2u
+  assert.deepStrictEqual(t.crafted, { cake: 1, joint: 2 });
   assert.strictEqual(t.soldMoney.cake, px(290, 'cake'));
-  assert.strictEqual(t.soldMoney.joint, px(14, 'joint'));
+  assert.strictEqual(t.soldMoney.joint, px(14, 'joint') * 2);
 });
 
 test('autoTick: chains never consume beyond the flow (pile untouched)', () => {
@@ -686,9 +715,9 @@ test('autoTick: flow budget is consumed expensive-first across chains', () => {
   Game.buyAutomation(s, 'auto-joint');  // 2g  -> 14 €
   s.stock.weed = 500;
   const t = Game.autoTick(s, 0, 120);
-  // cake: max(25, 36) = 36g -> 1 unit, budget 120-25 = 95
-  // joint: max(2, 14.25) = 14.25g -> 7 units
-  assert.deepStrictEqual(t.crafted, { cake: 1, joint: 7 });
+  // chaque chaîne lvl1 vise 15% du flux (18g) : cake max(25,18)=25 → 1u ;
+  // joint max(2,18)=18 → 9u
+  assert.deepStrictEqual(t.crafted, { cake: 1, joint: 9 });
 });
 
 
@@ -704,22 +733,34 @@ test('autoTick: no flow -> chains pause, pile untouched (no cap needed)', () => 
   assert.deepStrictEqual(t.soldMoney, {});
 });
 
-test('autoTick: chainShare widens throughput with distribution paliers', () => {
+test('autoTick: chain level widens throughput (idle money scale)', () => {
   const s = Game.defaultState();
   s.xp = Game.xpForLevel(20);
   s.money = 1e9;
-  Game.buyAutomation(s, 'auto-hash'); // 12g -> 115 €
+  Game.buyAutomation(s, 'auto-hash'); // lvl1
   s.stock.weed = 5000;
-  let t = Game.autoTick(s, 0, 240);   // base: max(12, 240*0.15=36) -> 3u
+  let t = Game.autoTick(s, 0, 240);   // lvl1: max(12, 240*0.15=36) -> 3u
   assert.strictEqual(t.crafted.hash, 3);
-  s.levels.dist1 = 2;                 // share 21% -> max(12, 50.4) -> 4u
+  Game.buyAutomation(s, 'auto-hash');          // -> lvl2
   s.stock.weed = 5000;
-  t = Game.autoTick(s, 0, 240);
-  assert.strictEqual(t.crafted.hash, 4);
-  s.levels.dist1 = 10; s.levels.dist3 = 5; // clamp 90% -> 216g -> 18u
-  s.stock.weed = 5000;
-  t = Game.autoTick(s, 0, 240);
-  assert.strictEqual(t.crafted.hash, 18);
+  t = Game.autoTick(s, 0, 240);                // lvl2: max(12, 72) -> 6u
+  assert.strictEqual(t.crafted.hash, 6);
+  // clamp par chaîne : CHAIN_SHARE_MAX=60% même à haut niveau
+  for (let i = 0; i < 5; i++) Game.buyAutomation(s, 'auto-hash'); // lvl7
+  s.stock.weed = 50000;
+  t = Game.autoTick(s, 0, 240);                // min(60%,144g) -> 12u
+  assert.strictEqual(t.crafted.hash, 12);
+});
+
+test('chainShareOf: base × niveau + bonus Distribution, clamp 60%', () => {
+  const s = Game.defaultState();
+  assert.ok(Math.abs(Game.chainShareOf(s, 'joint') - 0) < 1e-9);      // lvl 0
+  s.chainLvl.joint = 1;
+  assert.ok(Math.abs(Game.chainShareOf(s, 'joint') - 0.15) < 1e-9);
+  s.levels.dist1 = 2;                                                  // +6%
+  assert.ok(Math.abs(Game.chainShareOf(s, 'joint') - 0.21) < 1e-9);
+  s.chainLvl.joint = 10;                                               // 150+6% -> clamp
+  assert.strictEqual(Game.chainShareOf(s, 'joint'), Game.CHAIN_SHARE_MAX);
 });
 
 // --- ruées (spikes) -------------------------------------------------------------

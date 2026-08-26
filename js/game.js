@@ -133,15 +133,16 @@
   ];
 
   /**
-   * Automation catalog — Adventure-Capitalist-style one-time purchases ("managers").
+   * Automation catalog — managers AdvCap MULTI-NIVEAUX.
    *
-   * One hire per market product unlocks its full chain at once:
-   * an Ouvrier auto-crafts weed into the product (up to 1 unit/s)
-   * AND a Dealer sells ONLY the units produced by that chain.
+   * Chaque chaîne (une par produit) se débloque puis s'améliore :
+   *   - Niveau 1 (embauche) : ouvre la chaîne, convertit CHAIN_FLOW_SHARE du flux ;
+   *   - Chaque niveau suivant : +CHAIN_FLOW_SHARE de part (argent idle ↑ linéairement),
+   *     plafonnée par chaîne à CHAIN_SHARE_MAX ;
+   *   - Le Dealer vend uniquement la production fraîche de SA chaîne.
    *
-   * B1 rebalance: slightly cheaper and earlier than before (AdvCap hook),
-   * but throughput stays capped — manual peak sales still beat idle.
-   *   cost ≈ 400× unit price (was 500×), unlocked 4 levels after product (was 5).
+   * Coût du niveau L = base × AUTOMATION_GROWTH^(L-1), base ≈ 400× prix unitaire,
+   * débloquée 4 niveaux après le produit.
    */
   const AUTOMATION = PRODUCTS.map((p) => ({
     id: 'auto-' + p.id,
@@ -149,10 +150,16 @@
     kind: 'both',
     icon: '⚙️',
     name: 'Chaîne ' + p.name,
-    desc: 'Fabrique et vend auto. au prix du marché (stock manuel préservé)',
+    desc: 'Fabrique et vend auto. au prix du marché — chaque niveau convertit plus de flux',
     cost: Math.round(p.price * 400),
+    growth: 1.5,
     unlock: p.unlock + 4
   }));
+
+  /** Croissance du coût par niveau de chaîne. */
+  const AUTOMATION_GROWTH = 1.5;
+  /** Part max convertible par UNE chaîne (clamp anti-tout-manger). */
+  const CHAIN_SHARE_MAX = 0.6;
 
   /* ---- progression curve (lissée, plus longue) ---------------- */
   const XP_BASE = 150;
@@ -309,19 +316,20 @@
   }
 
   /**
-   * Part du flux que chaque chaîne convertit ce tick. Base 15% + paliers
-   * Distribution (dist1/dist2/dist3). C'est LE gate de progression late-game
-   * depuis la suppression du cap de stock : le joueur paie pour automatiser
-   * plus, jamais pour stocker.
+   * Bonus global de Distribution ajouté à CHAQUE chaîne (dist1/2/3).
+   * Chaque chaîne convertit min(CHAIN_SHARE_MAX, CHAIN_FLOW_SHARE × niveau
+   * + distShare) du flux produit — le gate late-game est l'automatisation.
    */
-  function chainShare(s) {
-    let share = CHAIN_FLOW_SHARE;
-    if (s && s.levels) {
-      share += Math.max(0, s.levels.dist1 || 0) * 0.03;
-      share += Math.max(0, s.levels.dist2 || 0) * 0.06;
-      share += Math.max(0, s.levels.dist3 || 0) * 0.10;
-    }
-    return Math.min(0.9, share);
+  function distShare(s) {
+    if (!s || !s.levels) return 0;
+    return Math.max(0, s.levels.dist1 || 0) * 0.03
+      + Math.max(0, s.levels.dist2 || 0) * 0.06
+      + Math.max(0, s.levels.dist3 || 0) * 0.10;
+  }
+
+  /** Part effective d'UNE chaîne (clampée à CHAIN_SHARE_MAX). */
+  function chainShareOf(s, productId) {
+    return Math.min(CHAIN_SHARE_MAX, CHAIN_FLOW_SHARE * chainLvl(s, productId) + distShare(s));
   }
 
   /**
@@ -334,6 +342,8 @@
       stock[p.id] = 0;
       stock[p.id + 'ByStrain'] = {};
     }
+    const chainLvl = {};
+    for (const p of PRODUCTS) chainLvl[p.id] = 0;
     return {
       weed: 0,
       money: 0,
@@ -342,6 +352,7 @@
       prices: { weed: 6 },
       levels: { ...DEFAULT_LEVELS },
       auto: { craft: {}, sell: {} },
+      chainLvl,
       xp: 0,
       milestones: [],
       totalEarned: 0,
@@ -558,31 +569,79 @@
     return { ok: true, cost, name: u.name };
   }
 
-  /** @returns {boolean} true if the given automation hire is owned */
-  function hasAuto(s, kind, productId) {
-    return !!(s.auto && s.auto[kind] && s.auto[kind][productId]);
+  /**
+   * Combien de niveaux du upgrade `id` peut-on payer avec l'argent courant ?
+   * (pour le bouton MAX — capé à 500 pour éviter les boucles folles)
+   */
+  function maxAffordableLevels(s, id) {
+    let n = 0;
+    while (n < 500) {
+      if (upgradeBulkCost(s, id, n + 1) > s.money) break;
+      n++;
+    }
+    return n;
+  }
+
+  /** Niveau actuel d'une chaîne (0 = non embauchée). */
+  function chainLvl(s, productId) {
+    return Math.max(0, Math.floor((s.chainLvl && s.chainLvl[productId]) || 0));
   }
 
   /**
-   * Buy a one-time automation hire. Mutates state on success only.
-   * A single purchase enables BOTH auto-craft and auto-sell for the product
-   * (flags stored per kind so partial legacy states keep working).
-   * @param {object} s state
-   * @param {string} id automation id from AUTOMATION (e.g. 'auto-joint')
-   * @returns {{ok:boolean, reason?:'level'|'funds'|'unknown'|'owned', name?:string}}
+   * Coût TOTAL pour acheter `n` niveaux de la chaîne à partir de son niveau
+   * courant : somme géométrique base × AUTOMATION_GROWTH^(cur+i).
    */
-  function buyAutomation(s, id) {
+  function automationCost(s, productId, n) {
+    const a = AUTOMATION.find((x) => x.productId === productId);
+    if (!a) return NaN;
+    const count = Math.max(1, Math.floor(n || 1));
+    const cur = chainLvl(s, productId);
+    let total = 0;
+    for (let i = 0; i < count; i++) {
+      total += Math.floor(a.cost * Math.pow(AUTOMATION_GROWTH, cur + i));
+    }
+    return total;
+  }
+
+  /** Combien de niveaux de chaîne payables avec l'argent courant (bouton MAX). */
+  function maxAutomationLevels(s, productId) {
+    let n = 0;
+    while (n < 500) {
+      if (automationCost(s, productId, n + 1) > s.money) break;
+      n++;
+    }
+    return n;
+  }
+
+  /**
+   * Embauche ou améliore une chaîne. Le gate de niveau ne s'applique qu'à la
+   * PREMIÈRE embauche (lvl 0 → 1) ; ensuite on paie le niveau suivant.
+   * @returns {{ok:boolean, reason?:'level'|'funds'|'unknown', name?:string, lvl?:number, bought?:number}}
+   */
+  function buyAutomation(s, id, n) {
     const a = AUTOMATION.find((x) => x.id === id);
     if (!a) return { ok: false, reason: 'unknown' };
-    if (levelFromXp(s.xp) < a.unlock) return { ok: false, reason: 'level' };
+    const cur = chainLvl(s, a.productId);
+    if (cur === 0 && levelFromXp(s.xp) < a.unlock) return { ok: false, reason: 'level' };
+    const want = Math.max(1, Math.floor(n || 1));
+    const cost = automationCost(s, a.productId, want);
+    if (s.money < cost) return { ok: false, reason: 'funds', cost };
+    s.money -= cost;
+    if (!s.chainLvl || typeof s.chainLvl !== 'object') s.chainLvl = {};
+    s.chainLvl[a.productId] = cur + want;
+    // flags legacy maintenus pour compat (autoTick/serialize)
     if (!s.auto || typeof s.auto !== 'object') s.auto = { craft: {}, sell: {} };
-    if (!s.auto[a.kind] || typeof s.auto[a.kind] !== 'object') s.auto[a.kind] = {};
-    if (s.auto.craft[a.productId] && s.auto.sell[a.productId]) return { ok: false, reason: 'owned' };
-    if (s.money < a.cost) return { ok: false, reason: 'funds' };
-    s.money -= a.cost;
+    if (!s.auto.craft || typeof s.auto.craft !== 'object') s.auto.craft = {};
+    if (!s.auto.sell || typeof s.auto.sell !== 'object') s.auto.sell = {};
     s.auto.craft[a.productId] = true;
     s.auto.sell[a.productId] = true;
-    return { ok: true, name: a.name };
+    return { ok: true, name: a.name, lvl: cur + want, bought: want, cost };
+  }
+
+  /** @returns {boolean} true si la chaîne est active (niveau ≥ 1 ou flags legacy). */
+  function hasAuto(s, kind, productId) {
+    if (chainLvl(s, productId) > 0) return true;
+    return !!(s.auto && s.auto[kind] && s.auto[kind][productId]);
   }
 
   /** Share of the tick's produced flow each owned chain converts (base 15%). */
@@ -614,10 +673,10 @@
     for (const p of [...PRODUCTS].reverse()) {
       if (!hasAuto(s, 'craft', p.id)) continue;
       // chains convert ONLY what actually entered storage this tick:
-      // at least 1u/s when flow allows, up to chainShare(s) of the
-      // remaining budget. No flow -> they pause; the pile is never eaten.
+      // at least 1u/s when flow allows, up to this chain's share of the
+      // remaining budget (niveau de chaîne + bonus Distribution, clampé).
       if (budget < p.cost) continue;
-      const grams = Math.min(budget, Math.max(p.cost, budget * chainShare(s)));
+      const grams = Math.min(budget, Math.max(p.cost, flow * chainShareOf(s, p.id)));
       const units = Math.floor(grams / p.cost);
       if (units < 1) continue;
       const r = craftProduct(s, p.id, units);
@@ -828,17 +887,29 @@
      d.milestones = Array.isArray(d.milestones)
        ? d.milestones.filter((m) => MILESTONES.some((mi) => mi.id === m))
        : [];
-      // automation hires — keep known flags only, drop anything else
-      if (!d.auto || typeof d.auto !== 'object') d.auto = { craft: {}, sell: {} };
-      for (const kind of ['craft', 'sell']) {
-        const src = d.auto[kind];
+       // automation hires — keep known flags only, drop anything else
+       if (!d.auto || typeof d.auto !== 'object') d.auto = { craft: {}, sell: {} };
+       for (const kind of ['craft', 'sell']) {
+         const src = d.auto[kind];
+         const clean = {};
+         if (src && typeof src === 'object') {
+           for (const p of PRODUCTS) {
+             if (src[p.id] === true) clean[p.id] = true;
+           }
+         }
+         d.auto[kind] = clean;
+       }
+      // niveaux de chaînes : entiers ≥ 0, produits connus uniquement ;
+      // migration des vieilles saves (chaîne possédée sans niveau → 1)
+      if (!d.chainLvl || typeof d.chainLvl !== 'object') d.chainLvl = {};
+      {
         const clean = {};
-        if (src && typeof src === 'object') {
-          for (const p of PRODUCTS) {
-            if (src[p.id] === true) clean[p.id] = true;
-          }
+        for (const p of PRODUCTS) {
+          const v = d.chainLvl[p.id];
+          clean[p.id] = typeof v === 'number' && v > 0 ? Math.min(999, Math.floor(v)) : 0;
+          if (!clean[p.id] && d.auto.craft[p.id]) clean[p.id] = 1;
         }
-        d.auto[kind] = clean;
+        d.chainLvl = clean;
       }
       d.lastSeen = typeof d.lastSeen === 'number' && d.lastSeen >= 0 ? d.lastSeen : 0;
       d.spikeUntil = typeof d.spikeUntil === 'number' && d.spikeUntil >= 0 ? d.spikeUntil : 0;
@@ -902,8 +973,15 @@
     isSpikeActive,
     spikeMult,
     maybeTriggerSpike,
-    chainShare,
+    chainLvl,
+    chainShareOf,
+    distShare,
     CHAIN_FLOW_SHARE,
+    CHAIN_SHARE_MAX,
+    AUTOMATION_GROWTH,
+    automationCost,
+    maxAutomationLevels,
+    maxAffordableLevels,
     applySpoil,
     SPOIL_RATE,
     offlineTick,
