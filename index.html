@@ -159,6 +159,10 @@
     @media (prefers-reduced-motion: reduce) { #bs { animation: none; } }
 
     .upgrade.tier-ready { border-color: var(--gold) !important; box-shadow: 0 0 12px rgba(251,191,36,0.25); }
+    .upgrade.popping { animation: upgradePop .35s cubic-bezier(.34,1.56,.64,1); }
+    @keyframes upgradePop { 0% { transform: scale(1); } 30% { transform: scale(1.03); } 100% { transform: scale(1); } }
+    .chain-bar { height: 6px; background: #0a0e0a; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; margin-top: 6px; }
+    .chain-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-soft)); border-radius: 999px; transition: width .3s; }
     .bud-container::before {
       content: '';
       position: absolute;
@@ -492,8 +496,10 @@
         <button class="qty-pill active" data-q="1">x1</button>
         <button class="qty-pill" data-q="10">x10</button>
         <button class="qty-pill" data-q="max">MAX</button>
-        <span style="margin-left:auto;font-size:.72rem;color:var(--muted);">Paliers ×2 tous les 40</span>
+        <span id="upg-qty-info" style="margin-left:auto;font-size:.72rem;color:var(--muted);">Paliers ×2 tous les 40</span>
       </div>
+
+      <div id="chain-summary" style="display:none; background: linear-gradient(135deg, rgba(251,191,36,0.10), var(--panel2)); border: 1px solid rgba(251,191,36,0.25); border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; font-size: .78rem; color: var(--muted);"></div>
 
       <div class="upgrades" id="ug"></div>
       <div class="upgrades" id="ug-chains" hidden></div>

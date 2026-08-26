@@ -27,8 +27,10 @@
     sellAll: document.getElementById('sell-all'),
     qtyRow: document.getElementById('qty-row'),
     upgQtyRow: document.getElementById('upg-qty-row'),
+    upgQtyInfo: document.getElementById('upg-qty-info'),
     upgTabs: document.getElementById('upg-tabs'),
     chainUg: document.getElementById('ug-chains'),
+    chainSummary: document.getElementById('chain-summary'),
     bc: document.getElementById('bc'),
     mc: document.getElementById('mc'),
     bs: document.getElementById('bs'),
@@ -139,7 +141,9 @@
         '<span class="up-icon">' + (p ? p.icon : a.icon) + '</span>' +
         '<div class="up-info"><div class="up-name">' + a.name +
           ' <span class="up-level" id="ul-' + a.id + '">Niv 0</span></div>' +
-          '<div class="up-desc">' + a.desc + ' · +' + Math.round(Game.CHAIN_FLOW_SHARE * 100) + '% flux/niveau</div></div>' +
+          '<div class="up-desc">' + a.desc + ' · +' + Math.round(Game.CHAIN_FLOW_SHARE * 100) + '% flux/niveau</div>' +
+          '<div class="chain-bar"><div class="chain-fill" id="chain-bar-' + a.id + '" style="width:0%"></div></div>' +
+          '<div id="chain-idle-' + a.id + '" style="font-size:.68rem;color:var(--muted);margin-top:3px"></div></div>' +
         '<div class="up-buy"><span class="up-cost" id="uc-' + a.id + '">' + fmt(a.cost) + ' €</span>' +
           '<button class="bb" id="ub-' + a.id + '">Acheter</button></div>';
       card.querySelector('.bb').addEventListener('click', () => buyAuto(a.id));
@@ -377,17 +381,28 @@
     const showHw = upgTab === 'hw';
     if (el.ug) el.ug.hidden = !showHw;
     if (el.chainUg) el.chainUg.hidden = showHw;
-    if (el.upgQtyRow) el.upgQtyRow.style.display = showHw ? '' : 'none';
-    if (!showHw) {
-      updateChainCards();
-      return;
-    }
-
-    // upgrade qty pills
+    // qty pills x1/x10/MAX visibles sur les deux onglets
     if (el.upgQtyRow) {
       el.upgQtyRow.querySelectorAll('.qty-pill').forEach((b) => {
         b.classList.toggle('active', String(b.dataset.q) === String(upgradeQtyMode));
       });
+    }
+    if (el.upgQtyInfo) el.upgQtyInfo.textContent = showHw ? 'Paliers ×2 tous les 40' : 'Chaînes +15%/niveau · MAX = max payable';
+    if (el.chainSummary) {
+      if (!showHw) {
+        const active = Game.AUTOMATION.filter((a) => Game.chainLvl(state, a.productId) > 0).length;
+        const totalLvl = Game.PRODUCTS.reduce((s, p) => s + Game.chainLvl(state, p.id), 0);
+        const totalShare = Game.distShare ? Game.distShare(state) : 0;
+        const idleEst = active ? '+' + fmt(Game.AUTOMATION.reduce((sum, a) => sum + Game.chainLvl(state, a.productId) * Game.getProduct(a.productId).price * 0.15, 0)) + ' €/s idle' : '';
+        el.chainSummary.style.display = 'block';
+        el.chainSummary.innerHTML = '<b>⚙️ ' + active + '/' + Game.AUTOMATION.length + ' chaînes</b> · Niv total ' + totalLvl + (totalShare ? ' · +' + Math.round(totalShare*100) + '% dist' : '') + (idleEst ? ' · ' + idleEst : '') + ' <span style="float:right;color:var(--gold);font-weight:800;">' + fmt(state.money) + ' €</span>';
+      } else {
+        el.chainSummary.style.display = 'none';
+      }
+    }
+    if (!showHw) {
+      updateChainCards();
+      return;
     }
     for (const u of Game.UPGRADES) {
       const lv = state.levels[u.id] || 0;
@@ -453,6 +468,22 @@
       }
       const costEl = document.getElementById('uc-' + a.id);
       if (costEl) costEl.textContent = fmt(cost) + ' €';
+      const bar = document.getElementById('chain-bar-' + a.id);
+      if (bar) {
+        const share = Game.chainShareOf ? Game.chainShareOf(state, a.productId) : 0;
+        const pct = lvl > 0 ? Math.round(share / Game.CHAIN_SHARE_MAX * 100) : 0;
+        bar.style.width = pct + '%';
+      }
+      const idleEl = document.getElementById('chain-idle-' + a.id);
+      if (idleEl) {
+        if (lvl > 0) {
+          const share = Game.chainShareOf(state, a.productId);
+          const est = Math.round(share * Game.perSecond(state) * 7);
+          idleEl.textContent = '≈ ' + fmt(est) + ' €/s · ' + Math.round(share*100) + '% flux';
+        } else {
+          idleEl.textContent = levelOk ? 'Prête à embaucher — idle dès le niveau 1' : '🔒 Niveau ' + a.unlock;
+        }
+      }
     }
   }
 
@@ -569,6 +600,13 @@
       const label = res.count ? ' x' + res.count : '';
       toast(res.name + label + ' acheté !');
       popNum(el.m);
+      const card = document.getElementById('ui-' + id);
+      if (card) {
+        card.classList.add('popping');
+        card.animate && card.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.03)' }, { transform: 'scale(1)' }], { duration: 300, easing: 'cubic-bezier(.34,1.56,.64,1)' });
+        setTimeout(() => card.classList.remove('popping'), 380);
+        for (let i = 0; i < Math.min(3, res.count || 1); i++) setTimeout(() => spawnParticle('✨ Niv +' + (res.count || 1) + ' !'), i * 90);
+      }
     } else {
       if (res.cost) toast('Manque ' + fmt(res.cost - state.money) + ' €');
       else toast("Pas assez d'argent");
@@ -590,6 +628,13 @@
         ? res.name + ' → Niv ' + res.lvl + ' !'
         : res.name + ' embauchée ! 🛠️');
       popNum(el.m);
+      const card = document.getElementById('ui-' + id);
+      if (card) {
+        card.classList.add('popping');
+        card.animate && card.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.04)' }, { transform: 'scale(1)' }], { duration: 350, easing: 'cubic-bezier(.34,1.56,.64,1)' });
+        setTimeout(() => card.classList.remove('popping'), 400);
+        for (let i = 0; i < Math.min(3, res.bought || 1); i++) setTimeout(() => spawnParticle('⚙️ +' + (res.bought || 1) + ' Niv !'), i * 90);
+      }
     } else if (res.reason === 'funds') {
       toast('Manque ' + fmt((res.cost || 0) - state.money) + ' €');
     } else if (res.reason === 'level') {
