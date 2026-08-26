@@ -90,7 +90,7 @@ Cost = `BASE_COST * growth^(level - (harvest?1:0))`. Hardware grows ×1.35/level
 
 All prices (weed included) oscillate between **-30% and +30%** of their base on independent ~2 min sine cycles (`MARKET` in `js/game.js`, deterministic in time — no state). The Marché shows each price with its trend (↗ rising / ↘ falling / → peak or trough). Selling a MAX stock at +30% instead of -30% is a 1.86× difference: timing matters more than volume.
 
-**Ruées (spikes)** — ~1 fois/70s, un produit aléatoire (weed inclus) passe `×1.6` pendant 15s (`SPIKE_*` dans `js/game.js`, état `spikeUntil/spikeProduct/spikeNextAt`, `isSpikeActive/spikeMult/maybeTriggerSpike`). Déclenché dans `autoProduce` (1.4%/s), toast `🔥 Ruée sur X !` + carte dorée `spike` + prix `🔥`. Remplace le Golden Bud : spike marché, pas prod — moins intrusif, plus stratégique (vendre au pic).
+**Ruées (spikes)** — ~1 fois/70s, un marché **débloqué** aléatoire (weed inclus) passe `×1.6` pendant 15s (`SPIKE_*` dans `js/game.js`, état `spikeUntil/spikeProduct/spikeNextAt`, `isSpikeActive/spikeMult/maybeTriggerSpike`). Déclenché dans `autoProduce` (1.4%/s), toast `🔥 Ruée sur X !` + carte dorée `spike` + prix `🔥`. Jamais sur un produit encore verrouillé par le niveau.
 
 ## Market Products
 
@@ -214,7 +214,7 @@ clicker-game/
 
 - **Récolte** — bud, stats, strain badge. Pas de cap, pas de bannière.
 - **Marché** — quantity pills, 💸 Tout vendre, the 9 product cards. Nothing else.
-- **Upgrades** — hardware + automation (8 product chains), same card format.
+- **Upgrades** — deux sous-onglets : 🔧 **Matériel** (14 upgrades, bulk x1/x10, paliers ×2) et ⚙️ **Chaînes** (12 automatisations, achat unique). Une seule liste mise à jour par tick (celle visible).
 - **Variétés** — buy/equip strains.
 - **Progression** — XP, milestones, hard-reset.
 

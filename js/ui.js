@@ -27,6 +27,8 @@
     sellAll: document.getElementById('sell-all'),
     qtyRow: document.getElementById('qty-row'),
     upgQtyRow: document.getElementById('upg-qty-row'),
+    upgTabs: document.getElementById('upg-tabs'),
+    chainUg: document.getElementById('ug-chains'),
     bc: document.getElementById('bc'),
     mc: document.getElementById('mc'),
     bs: document.getElementById('bs'),
@@ -49,6 +51,8 @@
   /** Quantity preset for market craft/sell actions: 1, 10, 100 or 'max'. */
   let qtyMode = 1;
   let upgradeQtyMode = 1;
+  /** Active sub-tab in the Upgrades view: 'hw' (matériel) | 'chains'. */
+  let upgTab = 'hw';
 
   // --- helpers ---------------------------------------------------------------
   /** Format a number for display: 1.2K / 3.45M / floor below 1000. */
@@ -121,7 +125,9 @@
       card.querySelector('.bb').addEventListener('click', () => buyUpgrade(u.id));
       el.ug.appendChild(card);
     }
-    // Automation hires — same .upgrade card format, one-time purchase
+    // Automation hires — onglet Chaînes, même format de carte (achat unique)
+    if (!el.chainUg) return;
+    el.chainUg.innerHTML = '';
     for (const a of Game.AUTOMATION) {
       const p = Game.getProduct(a.productId);
       const card = document.createElement('div');
@@ -135,7 +141,7 @@
         '<div class="up-buy"><span class="up-cost" id="uc-' + a.id + '">' + fmt(a.cost) + ' €</span>' +
           '<button class="bb" id="ub-' + a.id + '">Acheter</button></div>';
       card.querySelector('.bb').addEventListener('click', () => buyAuto(a.id));
-      el.ug.appendChild(card);
+      el.chainUg.appendChild(card);
     }
   }
 
@@ -360,6 +366,21 @@
     if (active('progress') || active('harvest')) renderProgress();
     if (!active('upgrades')) return;
 
+    // sub-tab Matériel / Chaînes : on ne met à jour que la liste visible
+    if (el.upgTabs) {
+      el.upgTabs.querySelectorAll('.qty-pill').forEach((b) => {
+        b.classList.toggle('active', b.dataset.utab === upgTab);
+      });
+    }
+    const showHw = upgTab === 'hw';
+    if (el.ug) el.ug.hidden = !showHw;
+    if (el.chainUg) el.chainUg.hidden = showHw;
+    if (el.upgQtyRow) el.upgQtyRow.style.display = showHw ? '' : 'none';
+    if (!showHw) {
+      updateChainCards();
+      return;
+    }
+
     // upgrade qty pills
     if (el.upgQtyRow) {
       el.upgQtyRow.querySelectorAll('.qty-pill').forEach((b) => {
@@ -390,8 +411,18 @@
       if (card) card.classList.toggle('affordable', affordable);
       if (card) card.classList.toggle('tier-ready', nextTier === 1 && affordable);
     }
-    // automation hires: one-time purchase; legacy saves may hold a single
-    // craft/sell flag — show ✓ Actif as soon as one is set, allow completing
+    document.querySelectorAll('[id^="sb-"]').forEach((b) => {
+      const id = b.id.slice(3);
+      const stDef = Game.getStrain(id);
+      if (stDef && !state.stock.strains.includes(id)) {
+        b.disabled = Game.levelFromXp(state.xp) < stDef.unlock || state.money < stDef.cost;
+      }
+    });
+    renderProgress();
+  }
+
+  /** Chaînes (onglet dédié) : achat unique, gate niveau, ✓ Actif si possédée. */
+  function updateChainCards() {
     for (const a of Game.AUTOMATION) {
       const hasCraft = Game.hasAuto(state, 'craft', a.productId);
       const hasSell = Game.hasAuto(state, 'sell', a.productId);
@@ -408,14 +439,6 @@
       if (card) card.classList.toggle('affordable', !(hasCraft && hasSell) && levelOk && state.money >= a.cost);
       if (card) card.classList.toggle('owned', anyOwned);
     }
-    document.querySelectorAll('[id^="sb-"]').forEach((b) => {
-      const id = b.id.slice(3);
-      const stDef = Game.getStrain(id);
-      if (stDef && !state.stock.strains.includes(id)) {
-        b.disabled = Game.levelFromXp(state.xp) < stDef.unlock || state.money < stDef.cost;
-      }
-    });
-    renderProgress();
   }
 
   // --- game actions ----------------------------------------------------------
@@ -662,6 +685,14 @@
     el.upgQtyRow.querySelectorAll('.qty-pill').forEach((b) => {
       b.addEventListener('click', () => {
         upgradeQtyMode = Math.max(1, Math.floor(Number(b.dataset.q) || 1));
+        refreshStats();
+      });
+    });
+  }
+  if (el.upgTabs) {
+    el.upgTabs.querySelectorAll('.qty-pill').forEach((b) => {
+      b.addEventListener('click', () => {
+        upgTab = b.dataset.utab === 'chains' ? 'chains' : 'hw';
         refreshStats();
       });
     });

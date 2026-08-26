@@ -481,12 +481,20 @@
     <!-- Upgrades -->
     <section class="view view-upgrades" id="v-upgrades">
       <div class="panel-head"><h2>Upgrades</h2><p>Matériel de culture et automatisation de la chaîne</p></div>
+
+      <div class="qty-row" id="upg-tabs" style="margin-bottom:10px;">
+        <button class="qty-pill active" data-utab="hw">🔧 Matériel</button>
+        <button class="qty-pill" data-utab="chains">⚙️ Chaînes</button>
+      </div>
+
       <div class="qty-row" id="upg-qty-row" style="margin-bottom:10px;">
         <button class="qty-pill active" data-q="1">x1</button>
         <button class="qty-pill" data-q="10">x10</button>
         <span style="margin-left:auto;font-size:.72rem;color:var(--muted);">Paliers ×2 tous les 40</span>
       </div>
+
       <div class="upgrades" id="ug"></div>
+      <div class="upgrades" id="ug-chains" hidden></div>
     </section>
 
     <!-- Strains -->

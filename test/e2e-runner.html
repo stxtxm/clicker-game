@@ -105,10 +105,15 @@ async function scenario() {
     await sleep(120);
     report('upgrade-level', q('#ul-harvest').textContent.includes('Lvl 2'), q('#ul-harvest').textContent);
 
-    // 10. automation locked below level: auto-rosin (lvl 50) must be disabled
+    // 10. automation locked below level: auto-rosin (lvl 49) must be disabled
+    // (onglet Chaînes : les cartes ne sont mises à jour que lorsque visible)
+    q('[data-utab="chains"]').click();
+    await sleep(150);
     const rosinBtn = q('#ub-auto-rosin');
     const rosinBadge = q('#ul-auto-rosin');
     report('auto-locked', rosinBtn.disabled && rosinBadge.textContent.includes('🔒'), rosinBadge.textContent);
+    q('[data-utab="hw"]').click();
+    await sleep(100);
 
     // 11. no storage cap: big stock accumulates freely, no banner, no pulse
     w.localStorage.setItem('budClicker', JSON.stringify({ weed: 0, money: 5000, strain: 'green', stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 }));
