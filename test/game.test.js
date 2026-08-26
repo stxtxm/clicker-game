@@ -721,3 +721,31 @@ test('autoTick: chainShare widens throughput with distribution paliers', () => {
   t = Game.autoTick(s, 0, 240);
   assert.strictEqual(t.crafted.hash, 18);
 });
+
+// --- ruées (spikes) -------------------------------------------------------------
+
+test('maybeTriggerSpike: only unlocked markets can spike', () => {
+  // rng alterné : 1er appel < chance (déclenche), 2e appel choisit l'index
+  const mkRng = (seq) => { let flip = false; return () => { flip = !flip; return flip ? 0.001 : seq; }; };
+  const collect = (xp) => {
+    const s = Game.defaultState();
+    s.xp = xp;
+    const picks = new Set();
+    for (let i = 0; i < 60; i++) {
+      const p = Game.maybeTriggerSpike(s, i * 100000, mkRng((i % 10) / 10));
+      if (p) picks.add(p);
+      s.spikeNextAt = 0;
+      s.spikeUntil = 0;
+    }
+    return picks;
+  };
+  // niveau 1 : weed + joint uniquement
+  for (const p of collect(Game.xpForLevel(1))) {
+    if (p === 'weed') continue;
+    const prod = Game.getProduct(p);
+    assert.ok(prod && prod.unlock <= 1, 'spike niveau 1 sur produit verrouillé: ' + p);
+  }
+  // niveau 62 : tout peut spiker, y compris weed
+  const late = collect(Game.xpForLevel(62));
+  assert.ok(late.size >= 5, 'late game spike pool large: ' + [...late].join(','));
+});

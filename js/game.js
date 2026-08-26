@@ -198,7 +198,10 @@
     const chance = 0.014; // ~1.4%/s ≈ 1 per 70s
     const r = rng ? rng() : Math.random();
     if (r < chance) {
-      const pool = ['weed'].concat(PRODUCTS.map((p) => p.id));
+      // Ruées UNIQUEMENT sur les marchés débloqués (weed toujours dispo) :
+      // pas de spike sur un produit encore verrouillé par le niveau.
+      const level = levelFromXp(s.xp);
+      const pool = ['weed'].concat(PRODUCTS.filter((p) => level >= p.unlock).map((p) => p.id));
       const pick = pool[Math.floor((rng ? rng() : Math.random()) * pool.length)];
       s.spikeProduct = pick;
       s.spikeUntil = t + SPIKE_DURATION;
