@@ -80,7 +80,7 @@ All bonuses multiply (`level × strain × milestones × tier`).
 
 Cost = `BASE_COST * growth^(level - (harvest?1:0))`. Hardware grows ×1.35/level ; distribution grows ×1.9/level — le sink late-game élargit l'automatisation au lieu d'un cap artificiel.
 
-**Bulk & ROI (AdvCap)** — `x1 / x10` toggle dans Upgrades, `upgradeBulkCost` (somme géométrique), `buyUpgradeBulk`, `timeToAfford` affiché `(12s / 3m)` à côté du coût. Le joueur voit instantanément le prochain palier rentable.
+**Bulk & ROI (AdvCap)** — `x1 / x10 / MAX` dans Upgrades (Matériel **et** Chaînes) : `upgradeBulkCost`/`automationCost` (sommes géométriques), `buyUpgradeBulk`, `maxAffordableLevels`/`maxAutomationLevels` (MAX = niveaux payables d'un coup), `timeToAfford` affiché `(12s / 3m)` à côté du coût. Le Matériel est trié par coût croissant.
 
 **Paliers (Cookie/AdvCap)** — tous les **40** niveaux d'un même upgrade → `×2` permanent (stack : 40→×2, 80→×4). Affiché sur la carte avec compte à rebours ; bordure dorée quand proche. Espacés pour lisser le late-game ; cliquer reste utile via `Doigts Agiles`.
 
@@ -115,39 +115,35 @@ Market actions support quantity presets **x1 / x10 / x100 / MAX** (craft & sell)
 
 ## Automation (Chaînes)
 
-Adventure-Capitalist-style managers in `AUTOMATION` (`js/game.js`), listed in the **Upgrades** tab with the same card format as hardware: for every product there is **one** one-time hire (`auto-<productId>`) that unlocks the full chain at once:
+Managers AdvCap **multi-niveaux** dans `AUTOMATION` (`js/game.js`), dans l'onglet **⚙️ Chaînes** des Upgrades. Une chaîne par produit :
 
-- ⚙️ **Ouvrier** — converts up to **15% of the grams that actually entered storage** this tick (`CHAIN_FLOW_SHARE`). When your stock is full the chains pause — they never drain your pile or your hand-made stock.
-- 💰 **Dealer** — sells **exactly the chain's fresh output** at the current market price (pulse included). Your hoarded stock stays yours.
+- **Embauche (Niv 1)** — gate de niveau (`unlock = produit + 4`), convertit `CHAIN_FLOW_SHARE` (15%) du flux produit ;
+- **Améliorations (Niv 2+)** — chaque niveau ajoute **+15% de flux converti** pour CETTE chaîne : `share_p = min(60%, 15% × niveau + distShare)` — l'argent idle scale avec l'investissement ;
+- 💰 Le Dealer vend uniquement la production fraîche de SA chaîne (ton stock manuel reste sacré) au prix du marché (pulse + ruée inclus).
 
-The trade-off — idle comfort vs strategic leak:
+Coût du niveau L = `base × AUTOMATION_GROWTH^(L-1)` (growth **1.5**), base ≈ `400× prix unitaire`. Boutons **x1 / x10 / MAX** actifs aussi sur les chaînes.
 
-1. Money flows proportionally to production even while AFK, but hoarded stock slowly leaks, sometimes at a -30% pulse: craft-and-hoard forever is not free.
-2. Hand-made bulk sales (craft x100/MAX + sell at a +30% peak) still beat the continuous conversion — timing your big sale is the challenge.
-3. With 3 chains ~45% of the flow is auto-converted; the rest accumulates, keeping storage and manual peak-sales relevant.
-4. Costs ≈ `400× unit price` (B1, was 500×), unlocked 4 levels after the product itself (was 5):
+| Chaîne | Coût départ | Unlock | Part max (60% flux) |
+|--------|-------------|--------|---------------------|
+| Joint Roulé | 5 600 € | 5 | ~84 €/s |
+| Sachet Scellé | 18 400 € | 8 | ~276 €/s |
+| Hash Conditionné | 46 000 € | 12 | ~690 €/s |
+| Space Cake | 116 000 € | 17 | ~1 740 €/s |
+| Résine Supérieure | 220 000 € | 23 | ~3 300 €/s |
+| Huile Verte | 480 000 € | 30 | ~7 200 €/s |
+| Shatter Pur | 1 040 000 € | 38 | ~15 600 €/s |
+| Live Rosin | 2 320 000 € | 49 | ~34 800 €/s |
+| Vape Cart | 5 000 000 € | 56 | ~75 000 €/s |
+| THC Diamonds | 10 400 000 € | 64 | ~156 000 €/s |
+| Moonrock | 22 000 000 € | 72 | ~330 000 €/s |
+| Soda THC | 46 000 000 € | 79 | ~690 000 €/s |
 
-| Chaîne | Cost | Unlock | Passive max |
-|--------|------|--------|-------------|
-| Joint Roulé | 5 600 € | 5 | 14 €/s (2g/s) |
-| Sachet Scellé | 18 400 € | 8 | 46 €/s (6g/s) |
-| Hash Conditionné | 46 000 € | 12 | 115 €/s (12g/s) |
-| Space Cake | 116 000 € | 17 | 290 €/s (25g/s) |
-| Résine Supérieure | 220 000 € | 23 | 550 €/s (40g/s) |
-| Huile Verte | 480 000 € | 30 | 1 200 €/s (80g/s) |
-| Shatter Pur | 1 040 000 € | 38 | 2 600 €/s (150g/s) |
-| Live Rosin | 2 320 000 € | 49 | 5 800 €/s (300g/s) |
-| Vape Cart | 5 000 000 € | 56 | 12 500 €/s (600g/s) |
-| THC Diamonds | 10 400 000 € | 64 | 26 000 €/s (1200g/s) |
-| Moonrock | 22 000 000 € | 72 | 55 000 €/s (2500g/s) |
-| Soda THC | 46 000 000 € | 79 | 115 000 €/s (5000g/s) |
+`autoTick()` (chaque seconde, après la production) :
 
-ROI is uniform (~400 s at full speed); the gating factor is weed supply. Owned cards show `✓ Actif`; higher tiers show their level gate.
+1. Chaînes du **produit le plus cher d'abord** ; chacune prélève sa part du flux (budget restant en plafond) — le tas manuel n'est jamais touché.
+2. Les Dealers vendent la sortie fraîche de leur chaîne au prix courant.
 
-`autoTick()` runs every second after weed production with deliberate ordering:
-
-1. Crafters work **most expensive product first** — when weed is scarce, the best €/g conversion wins.
-2. Dealers then empty their product's stock (freshly crafted units included), so a craft+sell pair is fully idle income.
+État : `state.chainLvl[productId]` (niveaux), `state.auto.craft/sell` (flags legacy conservés). Migration auto : une vieille save avec chaîne possédée mais sans niveau → Niv 1. Distribution (`dist1/2/3`) ajoute un bonus global à toutes les chaînes (+3/+6/+10% chacune).
 
 Automation grants no XP (consistent with manual craft/sell). Owned flags live in `state.auto = { craft: {<productId>: true}, sell: {…} }` and are sanitized on load. Full chain example at endgame: Ouvrier+Dealer Live Rosin ≈ 8 500 €/s before strain multipliers.
 
@@ -206,7 +202,7 @@ clicker-game/
 
 ### Modules
 
-- **`js/game.js`** — no DOM. Exports `UPGRADES`, `STRAINS`, `PRODUCTS`, `AUTOMATION`, `BASE_COST`, `COST_GROWTH`, `STORAGE_GROWTH`, `DEFAULT_LEVELS`, `XP_BASE`, `XP_GROWTH`, `MILESTONES`, `TIER_EVERY`, `mulberry32`, `addWeed`, `defaultState`, `getStrain`, `getProduct`, `productUnitPrice`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `checkMilestones`, `perClick`, `perSecond`, `upgradeCost`, `buyUpgrade`, `hasAuto`, `buyAutomation`, `autoTick`, `craftProduct`, `sellStock`, `equipStrain`, `serialize`, `deserialize`, `tierMult`, `isSpikeActive`, `spikeMult`, `maybeTriggerSpike`, `chainShare`, `CHAIN_FLOW_SHARE`, `applySpoil`, `SPOIL_RATE`, `offlineTick`, `upgradeBulkCost`, `buyUpgradeBulk`, `timeToAfford`. State under localStorage `budClicker` (+ `lastSeen`, `spike*`).
+- **`js/game.js`** — no DOM. Exports `UPGRADES`, `STRAINS`, `PRODUCTS`, `AUTOMATION`, `AUTOMATION_GROWTH`, `CHAIN_SHARE_MAX`, `BASE_COST`, `COST_GROWTH`, `STORAGE_GROWTH`, `DEFAULT_LEVELS`, `XP_BASE`, `XP_GROWTH`, `MILESTONES`, `TIER_EVERY`, `mulberry32`, `addWeed`, `defaultState`, `getStrain`, `getProduct`, `productUnitPrice`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `checkMilestones`, `perClick`, `perSecond`, `upgradeCost`, `buyUpgrade`, `hasAuto`, `chainLvl`, `automationCost`, `maxAutomationLevels`, `maxAffordableLevels`, `buyAutomation`, `autoTick`, `craftProduct`, `sellStock`, `equipStrain`, `serialize`, `deserialize`, `tierMult`, `isSpikeActive`, `spikeMult`, `maybeTriggerSpike`, `chainShareOf`, `distShare`, `CHAIN_FLOW_SHARE`, `applySpoil`, `SPOIL_RATE`, `offlineTick`, `upgradeBulkCost`, `buyUpgradeBulk`, `timeToAfford`. State under localStorage `budClicker` (+ `chainLvl`, `lastSeen`, `spike*`).
 - **`js/bud.js`** — `renderBudSvg(strainId)` deterministic (seeds: calyxes 2024, pistils 99, trichomes 777).
 - **`js/ui.js`** — wiring, market rendering (`renderMarket` qty pills), automation hires rendered in the Upgrades view (`renderAutomation`), `autoProduce` 1s (weed growth + `autoTick` + `applySpoil`), autosave 10s, Space-to-harvest, tabs.
 
@@ -214,7 +210,7 @@ clicker-game/
 
 - **Récolte** — bud, stats, strain badge. Pas de cap, pas de bannière.
 - **Marché** — quantity pills, 💸 Tout vendre, the 9 product cards. Nothing else.
-- **Upgrades** — deux sous-onglets : 🔧 **Matériel** (14 upgrades, bulk x1/x10, paliers ×2) et ⚙️ **Chaînes** (12 automatisations, achat unique). Une seule liste mise à jour par tick (celle visible).
+- **Upgrades** — deux sous-onglets : 🔧 **Matériel** (14 upgrades triés par coût, bulk x1/x10/MAX, paliers ×2) et ⚙️ **Chaînes** (12 automatisations multi-niveaux, bulk x1/x10/MAX). Une seule liste mise à jour par tick (celle visible).
 - **Variétés** — buy/equip strains.
 - **Progression** — XP, milestones, hard-reset.
 

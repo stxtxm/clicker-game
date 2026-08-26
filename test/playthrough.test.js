@@ -98,6 +98,12 @@ function simulate(minutes) {
     for (const sid of ['dist1', 'dist2', 'dist3']) {
       if (s.money >= Game.upgradeCost(s, sid)) Game.buyUpgrade(s, sid);
     }
+    // 3bis) améliore les chaînes possédées (argent idle ↑ par niveau)
+    for (const a of Game.AUTOMATION) {
+      if (Game.chainLvl(s, a.productId) > 0 && s.money >= Game.automationCost(s, a.productId, 1)) {
+        Game.buyAutomation(s, a.id, 1);
+      }
+    }
     // 4) cheapest hardware upgrade
     const hw = Game.UPGRADES.filter((u) => !['dist1', 'dist2', 'dist3'].includes(u.id));
     const affordable = hw
@@ -118,13 +124,14 @@ function simulate(minutes) {
     if (!stats.firstUpgrade && Object.values(s.levels).some((v, i) => v > (i === 0 ? 1 : 0))) stats.firstUpgrade = min;
   }
 
+  const totalChainLvl = Game.PRODUCTS.reduce((a, p) => a + Game.chainLvl(s, p.id), 0);
   stats.end = {
     level: Game.levelFromXp(s.xp),
     money: Math.floor(s.money),
     totalEarned: Math.floor(s.totalEarned || 0),
     chains: Game.AUTOMATION.filter((a) => Game.hasAuto(s, 'craft', a.productId)).length,
+    totalChainLvl,
     strain: s.strain,
-    share: Game.chainShare(s),
     perSec: Game.perSecond(s),
     perClick: Game.perClick(s)
   };
@@ -147,7 +154,7 @@ const fmtStats = (st) => JSON.stringify({
   '100K_min': st.earned[100000] && +st.earned[100000].toFixed(1),
   '1M_min': st.earned[1000000] && +st.earned[1000000].toFixed(1),
   '10M_min': st.earned[10000000] && +st.earned[10000000].toFixed(1),
-  share_end: st.end && st.end.share
+  chainLvl_total: st.end && st.end.totalChainLvl
 });
 
 test('playthrough 2h: pacing targets + stats', () => {
@@ -155,7 +162,7 @@ test('playthrough 2h: pacing targets + stats', () => {
   console.log('SIM2H ' + fmtStats(st));
   console.log('SIM2H end ' + JSON.stringify(st.end));
   // Pacing targets for an OPTIMAL player (real players are 2-4x slower).
-  // SANS cap de stock : la progression est gated par chainShare (dist1/2/3).
+  // Chaînes multi-niveaux : l'argent idle se scale via les améliorations.
   assert.ok(st.firstUpgrade !== null && st.firstUpgrade <= 1, 'first upgrade within a minute');
   assert.ok(st.levels[10] >= 5 && st.levels[10] <= 20, 'level 10 around 10 min of optimal play');
   assert.ok(st.levels[20] >= 9 && st.levels[20] <= 60, 'level 20 is a ~15-25 min milestone (plus de frein stock)');
@@ -163,9 +170,8 @@ test('playthrough 2h: pacing targets + stats', () => {
   assert.ok(st.firstChain >= 2 && st.firstChain <= 15, 'first chain is an early mid-game goal');
   assert.ok(st.earned[1000000] >= 4 && st.earned[1000000] <= 20, '1M lifetime around 10 min of optimal play');
   assert.ok(st.earned[10000000] >= 9, '10M not before ~13 min even when perfect');
-  assert.ok(st.end.level >= 30, 'progression keeps flowing (no wall) — vise 34+ avec nouveau contenu');
-  assert.ok(st.end.share > 0.15, 'distribution upgrades widen chain share (progression gate)');
-  assert.ok(st.end.share <= 0.9, 'chain share stays bounded');
+  assert.ok(st.end.level >= 30, 'progression keeps flowing (no wall)');
+  assert.ok(st.end.totalChainLvl > st.end.chains, 'chains get upgraded beyond hire (idle scaling works)');
   // Anti-explosion (bugs type NaN/négatif) : l'exponentielle saine du genre est
   // assumée, on garde juste un ordre de grandeur max sur 2h optimales.
   assert.ok(st.end.totalEarned < 5e15, 'no runaway explosion over a 2h optimal run');

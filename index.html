@@ -267,6 +267,7 @@
     .market-card.locked { opacity: .55; }
 
     /* ===== Upgrades view ===== */
+    [hidden] { display: none !important; }
     .upgrades { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 100%; }
     .upgrade {
       background: linear-gradient(135deg, var(--panel), var(--panel2));
@@ -490,6 +491,7 @@
       <div class="qty-row" id="upg-qty-row" style="margin-bottom:10px;">
         <button class="qty-pill active" data-q="1">x1</button>
         <button class="qty-pill" data-q="10">x10</button>
+        <button class="qty-pill" data-q="max">MAX</button>
         <span style="margin-left:auto;font-size:.72rem;color:var(--muted);">Paliers ×2 tous les 40</span>
       </div>
 
