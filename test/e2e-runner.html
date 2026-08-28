@@ -23,6 +23,41 @@ function weedStock() {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** Décode un fmt court (1.2K / 3.45M / 1234) en nombre, pour comparer des stats. */
+function fmtNum(s) {
+  const m = String(s || '').match(/([\d.]+)([KM]?)/);
+  if (!m) return 0;
+  const v = parseFloat(m[1]);
+  return m[2] === 'K' ? v * 1000 : m[2] === 'M' ? v * 1e6 : v;
+}
+
+/** Attend qu'un sélecteur existe (le reload d'iframe n'est pas instantané).
+    Retourne le nœud, ou null si absent après `ms`. */
+async function waitFor(sel, ms = 3000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    const n = q(sel);
+    if (n) return n;
+    await sleep(50);
+  }
+  return q(sel);
+}
+
+/** Recharge le jeu depuis zéro et attend que le nouveau document ait fini de
+    charger (événement `load` de l'iframe) PUIS que ui.js ait booté — le
+    `waitFor('#m')` seul ne suffit pas : l'élément statique existe déjà dans
+    l'ANCIEN document pendant la transition, ce qui faisait cliquer trop tôt. */
+function reloadGame() {
+  const game = document.getElementById('game');
+  return new Promise((resolve) => {
+    game.addEventListener('load', () => {
+      // un micro-délai laisse ui.js finir de rendre les upgrade cards (boot)
+      setTimeout(async () => { await waitFor('#ul-auto-joint'); resolve(); }, 120);
+    }, { once: true });
+    game.src = '../index.html';
+  });
+}
+
 async function scenario() {
   const w = gameWin();
   await sleep(800); // boot + first toast
@@ -127,8 +162,7 @@ async function scenario() {
 
     // 12. save persistence: reload keeps money
     const moneyPersist = money();
-    document.getElementById('game').src = '../index.html';
-    await sleep(900);
+    await reloadGame();
     report('persistence', money() === moneyPersist, moneyPersist + ' vs ' + money());
 
     // 13. milestones: built once, updated in place (node identity survives ticks)
@@ -143,15 +177,71 @@ async function scenario() {
 
     // 14. toast dedup: spamming a broke buy shows ONE toast, not a stack
     w.localStorage.setItem('budClicker', JSON.stringify({ weed: 0, money: 0, strain: 'green', stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 }));
-    document.getElementById('game').src = '../index.html';
-    await sleep(900);
+    await reloadGame();
     q('.tab-btn[data-tab="upgrades"]').click();
     await sleep(100);
     const brokeBtn = q('#ub-harvest');
-    brokeBtn.click(); brokeBtn.click(); brokeBtn.click();
+    // dispatchEvent plutôt que .click() : avec money=0 le bouton est disabled et
+    // chromium avale .click() — on vérifie la DEDUP de toasts, pas l'état disabled.
+    brokeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    brokeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    brokeBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     await sleep(150);
     const toasts = gameDoc().querySelectorAll('#mc .ms').length;
     report('toast-dedup', toasts === 1, 'toasts=' + toasts);
+
+    // 14b. chain spec tree: built ONCE, updated in place — node identity
+    // survives ticks (regression: innerHTML rebuild per tick detached the
+    // spec buttons mid-tap and killed bar transitions)
+    w.localStorage.setItem('budClicker', JSON.stringify({
+      weed: 0, money: 1000000000, strain: 'green',
+      stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 },
+      levels: { harvest: 1, auto: 0 }, xp: 2300000000, totalEarned: 0,
+      chainLvl: { joint: 5 }, chainSpecs: { joint: { speed: 0, yield: 0, volume: 0 } }
+    }));
+    await reloadGame();
+    q('.tab-btn[data-tab="upgrades"]').click();
+    await sleep(100);
+    q('[data-utab="chains"]').click();
+    const specFill = await waitFor('#cs-joint-speed-fill');
+    const specBuy = await waitFor('#cs-joint-speed-buy');
+    const specBuilt = !!specFill && !!specBuy;
+    await sleep(1300); // > 1 autoProduce tick: un rebuild échangerait les nœuds
+    const sameSpecNode = q('#cs-joint-speed-fill') === specFill;
+    if (specBuy) specBuy.click(); // réf capturée AVANT le tick : doit toujours acheter
+    await sleep(200);
+    const specCount = (q('#cs-joint-speed-count') || {}).textContent || '';
+    report('spec-bars-stable', specBuilt && sameSpecNode && specCount.indexOf('1/') === 0,
+      'built=' + specBuilt + ' sameNode=' + sameSpecNode + ' count=' + specCount);
+
+    // 14c. stats idle justes & réactives : le header €/s est DÉRIVÉ de state
+    // (chainEarnRate) — un achat de spé (plus de flux transformé) doit le faire
+    // croître immédiatement, pas après 10s d'historique. (une chaîne active :
+    // flux auto + craft/sell dispos)
+    w.localStorage.setItem('budClicker', JSON.stringify({
+      weed: 0, money: 1000000000, strain: 'green',
+      stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 },
+      levels: { harvest: 1, auto: 200 }, xp: 2300000000, totalEarned: 0,
+      chainLvl: { joint: 1 }, chainSpecs: { joint: { speed: 0, yield: 0, volume: 0 } },
+      auto: { craft: { joint: true }, sell: { joint: true } }
+    }));
+    await reloadGame();
+    q('.tab-btn[data-tab="upgrades"]').click();
+    await sleep(200);
+    q('[data-utab="chains"]').click();
+    const specBtn = await waitFor('#cs-joint-speed-buy');
+    await sleep(100); // laisse le header €/s idle se poser sur ce seed
+    const mpsBefore = fmtNum(q('#mps').textContent);
+    const wasEnabled = !!specBtn && !specBtn.disabled;
+    if (specBtn) specBtn.click();
+    await sleep(200);
+    const mpsAfter = fmtNum(q('#mps').textContent);
+    const toastDiamond = [...gameDoc().querySelectorAll('#mc .ms')]
+      .some((t) => t.textContent.includes('💎'));
+    const specCnt = (q('#cs-joint-speed-count') || {}).textContent || '';
+    report('idle-stats-reactive', wasEnabled && mpsBefore > 0 && mpsAfter >= mpsBefore &&
+      toastDiamond && specCnt.indexOf('1/') === 0,
+      'mps ' + mpsBefore + '->' + mpsAfter + ' 💎=' + toastDiamond + ' count=' + specCnt);
 
     // 15. reset dialog: first click arms (animated state), second confirms
     q('.tab-btn[data-tab="progress"]').click();
@@ -164,7 +254,7 @@ async function scenario() {
     report('reset-dialog', armed && money() === 0 && q('#sb').textContent.includes('Green Dream'),
       'armed=' + armed + ' money=' + money());
   } catch (e) {
-    report('scenario-crash', false, String(e));
+    report('scenario-crash', false, String((e && e.stack) || e));
   }
 
   document.getElementById('results').textContent = results.join('\n');

@@ -1065,3 +1065,120 @@ test('roundtrip late-game: nouveaux catalogues + jalons survivent à la save', (
   assert.deepStrictEqual(old.chainSpecs.caviar, { speed: 0, yield: 0, volume: 0 });
 });
 
+// ---- stats dérivées : chainEarnRate / chainSpecImpact (juice + stats justes) ----
+
+/** État riche : une ou plusieurs chaînes embauchées + flux idle, prêt à gagner. */
+function richChainState() {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(30); // toutes les chaînes ubiquitairement déblocables ici
+  s.money = 1e12;
+  for (const a of Game.AUTOMATION) {
+    if (Game.chainLvl(s, a.productId) === 0 && Game.levelFromXp(s.xp) >= a.unlock) {
+      const r = Game.buyAutomation(s, a.id, 1);
+      assert.ok(r.ok);
+    }
+  }
+  s.levels.auto = 300;
+  return s;
+}
+
+test('chainEarnRate: zéro sans flux ni chaîne, > 0 dès qu\'une chaîne tourne', () => {
+  const s = Game.defaultState();
+  assert.strictEqual(Game.chainEarnRate(s).total, 0);
+  assert.deepStrictEqual(Game.chainEarnRate(s).per, {});
+  s.levels.auto = 20; // flux idle mais aucune chaîne → toujours 0
+  assert.strictEqual(Game.chainEarnRate(s).total, 0);
+  s.xp = Game.xpForLevel(10);
+  s.money = 1e9;
+  assert.ok(Game.buyAutomation(s, 'auto-joint', 1).ok);
+  const rate = Game.chainEarnRate(s, 1000000);
+  assert.ok(rate.per.joint > 0, 'chaîne joint + flux → €/s > 0');
+  assert.strictEqual(rate.total, rate.per.joint);
+  assert.deepStrictEqual(Object.keys(rate.per), ['joint']);
+});
+
+test('chainEarnRate: les chaînes ne transforment jamais plus que le flux produit', () => {
+  const s = richChainState(); // plusieurs chaînes embauchées, part clampée
+  for (const p of Game.PRODUCTS) {
+    assert.ok(Game.chainShareOf(s, p.id) <= Game.CHAIN_SHARE_MAX + 1e-9,
+      'part de ' + p.id + ' clampée à CHAIN_SHARE_MAX');
+  }
+  const now = 1500000000000;
+  const F = Game.perSecond(s); // flux idle constant (pas de leveling ici)
+  const sim = JSON.parse(JSON.stringify(s));
+  let gramsCrafted = 0;
+  for (let i = 0; i < 5; i++) {
+    sim.stock.weed = (sim.stock.weed || 0) + F; // reprovisionne le tas (le flux POUR ce tick)
+    const tick = Game.autoTick(sim, now, F);
+    for (const [pid, units] of Object.entries(tick.crafted)) {
+      gramsCrafted += units * Game.getProduct(pid).cost;
+    }
+  }
+  assert.ok(gramsCrafted > 0, 'au moins une chaîne a transformé');
+  assert.ok(gramsCrafted <= F * 5, 'jamais plus que le flux produit (le tas est sacré)');
+});
+
+test('chainEarnRate: réagit instantanément à un point de spé', () => {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(10);
+  s.money = 1e9;
+  assert.ok(Game.buyAutomation(s, 'auto-joint', 1).ok);
+  s.levels.auto = 300;
+  const now = 999;
+  const piece = Game.CHAIN_SPECS.joint.speed.per;
+  const r0 = Game.chainEarnRate(s, now).per.joint;
+  s.chainSpecs.joint.speed += 1; // SANS achat simulé long : la stat dérive de state
+  assert.ok(Game.chainEarnRate(s, now).per.joint >= r0, 'speed +1 ne baisse pas');
+  const r2 = Game.chainEarnRate(s, now).per.joint;
+  s.chainSpecs.joint.yield += 1;
+  assert.ok(Game.chainEarnRate(s, now).per.joint >= r2, 'yield +1 ne baisse pas');
+  const r3 = Game.chainEarnRate(s, now).per.joint;
+  s.chainSpecs.joint.volume += 1;
+  assert.ok(Game.chainEarnRate(s, now).per.joint >= r3, 'volume ne casse jamais le gain');
+  assert.ok(piece > 0);
+});
+
+test('chainEarnRate affiché = gain réel mesuré par autoTick (horloge fixe)', () => {
+  const s = richChainState();
+  const now = 1234567890000;
+  const F = Game.perSecond(s); // flux idle constant
+  const eps = Game.chainEarnRate(s, now).total;
+  assert.ok(eps > 0);
+  // mesuré : même state, même flux F, même `now` (pulse constant) → reproduire
+  // un tick par seconde comme l'UI, sans leveling qui fausserait le flux.
+  const N = 20;
+  const sim = JSON.parse(JSON.stringify(s));
+  let measured = 0;
+  for (let i = 0; i < N; i++) {
+    sim.stock.weed = (sim.stock.weed || 0) + F; // le flux de CE tick
+    const tick = Game.autoTick(sim, now, F);
+    measured += Object.values(tick.soldMoney || {}).reduce((a, b) => a + b, 0);
+  }
+  measured /= N;
+  assert.ok(Math.abs(measured - eps) <= Math.max(1, Math.abs(eps) * 0.01),
+    'mesuré=' + measured + ' estimé=' + eps);
+});
+
+test('chainSpecImpact: texte par branche conforme au catalogue + delta €/s du bon signe', () => {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(10);
+  s.money = 1e9;
+  assert.ok(Game.buyAutomation(s, 'auto-joint', 1).ok);
+  s.levels.auto = 300;
+  const speed = Game.chainSpecImpact(s, 'joint', 'speed');
+  assert.strictEqual(speed.pctText, '+5% flux');
+  assert.ok(speed.epsDelta > 0, 'speed → plus de €/s');
+  const y = Game.chainSpecImpact(s, 'joint', 'yield');
+  assert.strictEqual(y.pctText, '+4% prix');
+  assert.ok(y.epsDelta > 0);
+  const v = Game.chainSpecImpact(s, 'joint', 'volume');
+  assert.strictEqual(v.pctText, '+15% max');
+  assert.ok(v.epsDelta > 0);
+  // maxée / inconnue
+  s.chainSpecs.joint.speed = Game.CHAIN_SPECS.joint.speed.max;
+  assert.deepStrictEqual(Game.chainSpecImpact(s, 'joint', 'speed'), { maxed: true });
+  assert.strictEqual(Game.chainSpecImpact(s, 'inconnu', 'speed'), null);
+  assert.strictEqual(Game.chainSpecImpact(s, 'joint', 'branche'), null);
+});
+
+
