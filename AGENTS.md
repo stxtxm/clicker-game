@@ -28,7 +28,7 @@ js/bud.js             Rendu SVG procédural du bud (déterministe, seeds fixés)
 sw.js                 Service worker PWA (network-first code, cache-first images)
 manifest.json         Manifest PWA + raccourcis d'app
 icon-*.{svg,png}      Icônes (SVG = source de vérité, PNG régénérés depuis le SVG)
-test/game.test.js     ~75 tests unitaires (économie, catalogues, contrats, paliers, limites, saves)
+test/game.test.js     ~81 tests unitaires (économie, catalogues, contrats, paliers, limites, saves)
 test/playthrough.test.js  Simulateur de joueur optimal — asserte la courbe de pacing
 test/e2e.test.js      E2E chromium : pilote le vrai jeu dans une iframe (13 scénarios)
 test/e2e-runner.html  Page harnais e2e (scénarios décrits en JS, sortie "E2E x: PASS|FAIL")
@@ -138,14 +138,17 @@ L'économie est pilotée par les données, pas au doigt mouillé :
      stocké dans la save).
    - **Coûts des variétés** — chaque variété est un saut exponentiel
      (`yieldMult × priceMult`) ; leurs coûts espacent les sauts.
-   - `XP_GROWTH` (1.42) — les niveaux gate produits/chaînes/variétés.
+   - `XP_GROWTH` (1.42, **1.28 au-delà du niveau 45** via `XP_GROWTH_LATE` /
+     `XP_LATE_FROM`) — les niveaux gate produits/chaînes/variétés ; le
+     late-game (produits 82/88, variétés 70/78, paliers de chaîne 650-1000,
+     contrats 60-86) doit rester atteignable en quelques sessions.
    - Échelle de produits (`PRODUCTS`) et `MARKET` (pulse ±30 %).
 2. Lance `node --test test/playthrough.test.js` et lis la ligne `SIM2H` :
    c'est un joueur **optimal** (2.5 clics/s, vente aux pics, sessions AFK,
    achats parfaits). Un joueur réel est 2-4× plus lent.
 3. Ajuste jusqu'à tenir les cibles gravées dans le test (niveau 10 à 5-20 min,
    1 M€ à 4-20 min, gains totaux < 5 P€ en 2h optimale, etc.).
-4. `npm test` — les assertions de pacing + les 75 tests unitaires doivent rester
+4. `npm test` — les assertions de pacing + les 81 tests unitaires doivent rester
    verts. Toute valeur de prix/coût du README doit suivre (tables à jour).
 
 ## PWA / cache — règle de versioning
@@ -168,7 +171,7 @@ pertinente. L'e2e doit rester **sans dépendance** (pas de puppeteer/playwright)
 
 ## Checklist de PR
 
-- [ ] `npm test` vert en local (75 unit + playthrough + e2e)
+- [ ] `npm test` vert en local (81 unit + playthrough + e2e)
 - [ ] `node --check` sur chaque fichier JS touché
 - [ ] Nouvelles données de jeu → sanitisation `deserialize` + test roundtrip
 - [ ] Changement d'économie → sim playthrough relancée, README à jour
