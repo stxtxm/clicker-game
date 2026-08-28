@@ -45,7 +45,8 @@
     xpcur: document.getElementById('xpcur'),
     xpnext: document.getElementById('xpnext'),
     ms: document.getElementById('ms'),
-    rb: document.getElementById('rb')
+    rb: document.getElementById('rb'),
+    cv: document.getElementById('cv')
   };
 
   let state = Game.defaultState();
@@ -55,6 +56,10 @@
   let upgradeQtyMode = 1;
   /** Active sub-tab in the Upgrades view: 'hw' (matériel) | 'chains'. */
   let upgTab = 'hw';
+
+  /** Rolling average of chain earnings per product (last 10 ticks). */
+  const chainEarnHistory = {};
+  const CHAIN_HISTORY_MAX = 10;
 
   // --- helpers ---------------------------------------------------------------
   /** Format a number for display: 1.2K / 3.45M / floor below 1000. */
@@ -143,7 +148,8 @@
           ' <span class="up-level" id="ul-' + a.id + '">Niv 0</span></div>' +
           '<div class="up-desc">' + a.desc + ' · +' + Math.round(Game.CHAIN_FLOW_SHARE * 100) + '% flux/niveau</div>' +
           '<div class="chain-bar"><div class="chain-fill" id="chain-bar-' + a.id + '" style="width:0%"></div></div>' +
-          '<div id="chain-idle-' + a.id + '" style="font-size:.68rem;color:var(--muted);margin-top:3px"></div></div>' +
+          '<div id="chain-idle-' + a.id + '" style="font-size:.68rem;color:var(--muted);margin-top:3px"></div>' +
+          '<div class="chain-specs" id="chain-specs-' + a.id + '" style="display:none;margin-top:6px;"></div></div>' +
         '<div class="up-buy"><span class="up-cost" id="uc-' + a.id + '">' + fmt(a.cost) + ' €</span>' +
           '<button class="bb" id="ub-' + a.id + '">Acheter</button></div>';
       card.querySelector('.bb').addEventListener('click', () => buyAuto(a.id));
@@ -349,6 +355,118 @@
     }
   }
 
+  /** Render contracts panel. */
+  function buildContracts() {
+    if (!el.cv) return;
+    el.cv.innerHTML = '';
+    for (const ct of Game.CONTRACTS) {
+      const card = document.createElement('div');
+      card.className = 'ct-card';
+      card.id = 'ct-' + ct.id;
+      card.innerHTML =
+        '<div class="ct-head">' +
+          '<span class="ct-icon">' + ct.icon + '</span>' +
+          '<div class="ct-info">' +
+            '<div class="ct-name">' + ct.name + '</div>' +
+            '<div class="ct-desc">' + ct.desc + '</div>' +
+          '</div>' +
+          '<span class="ct-target">Niv ' + ct.unlockLevel + '+</span>' +
+        '</div>' +
+        '<div class="ct-progress">' +
+          '<div class="ct-bar"><div class="ct-fill" id="ctf-' + ct.id + '"></div></div>' +
+          '<span class="ct-pct" id="ctp-' + ct.id + '">0%</span>' +
+        '</div>' +
+        '<div class="ct-reward" id="ctr-' + ct.id + '"></div>' +
+        '<button class="ct-btn" id="ctb-' + ct.id + '" disabled></button>';
+      el.cv.appendChild(card);
+    }
+  }
+
+  function updateContracts() {
+    if (!el.cv) return;
+    if (el.cv.children.length !== Game.CONTRACTS.length) buildContracts();
+    const level = Game.levelFromXp(state.xp);
+    const completed = state.contracts ? state.contracts.completed : [];
+    const offered = state.contracts ? state.contracts.offered : [];
+    const claimed = state.contracts ? state.contracts.claimed : [];
+    for (const ct of Game.CONTRACTS) {
+      const card = document.getElementById('ct-' + ct.id);
+      const fill = document.getElementById('ctf-' + ct.id);
+      const pctEl = document.getElementById('ctp-' + ct.id);
+      const rewardEl = document.getElementById('ctr-' + ct.id);
+      const btn = document.getElementById('ctb-' + ct.id);
+      if (!card) continue;
+
+      let progress = 0;
+      if (ct.type === 'crafted' && ct.productId) {
+        progress = state.chainStats && state.chainStats[ct.productId] ? state.chainStats[ct.productId].crafted : 0;
+      } else if (ct.type === 'chain_money') {
+        progress = state.contracts ? (state.contracts.chainMoneyEarned || 0) : 0;
+      } else if (ct.type === 'chain_grams') {
+        progress = state.contracts ? (state.contracts.chainGramsConverted || 0) : 0;
+      }
+      const pct = ct.target > 0 ? Math.min(100, Math.round((progress / ct.target) * 100)) : 0;
+      const isCompleted = completed.includes(ct.id);
+      const isOffered = offered.includes(ct.id) || isCompleted;
+      const isClaimed = claimed.includes(ct.id);
+      const canUnlock = level >= ct.unlockLevel;
+
+      card.classList.toggle('locked', !canUnlock);
+      card.classList.toggle('offered', isOffered && !isCompleted && !isClaimed);
+      card.classList.toggle('completed', isCompleted && !isClaimed);
+      if (fill) fill.style.width = pct + '%';
+      if (pctEl) pctEl.textContent = pct + '%';
+
+      if (rewardEl) {
+        if (isClaimed) {
+          rewardEl.textContent = '✓ Récompense récupérée : ' + ct.reward.desc;
+          rewardEl.style.borderLeftColor = 'var(--gold)';
+        } else if (isCompleted) {
+          rewardEl.textContent = '✨ Récompense : ' + ct.reward.desc + ' — Clique pour récupérer !';
+          rewardEl.style.borderLeftColor = 'var(--green)';
+        } else if (isOffered) {
+          rewardEl.textContent = '🎯 Objectif : ' + ct.reward.desc + ' (à ' + fmt(ct.target) + (ct.type === 'chain_money' ? ' €' : ct.type === 'chain_grams' ? 'g' : ' unités') + ')';
+          rewardEl.style.borderLeftColor = 'var(--gold)';
+        } else {
+          rewardEl.textContent = '🔒 Se débloque au niveau ' + ct.unlockLevel;
+          rewardEl.style.borderLeftColor = 'var(--border)';
+        }
+      }
+
+      if (btn) {
+        if (isClaimed) {
+          btn.textContent = '✓ Terminé';
+          btn.disabled = true;
+          btn.className = 'ct-btn locked';
+        } else if (isCompleted) {
+          btn.textContent = '🎁 Récupérer';
+          btn.disabled = false;
+          btn.className = 'ct-btn claim';
+          btn.onclick = () => {
+            const res = Game.claimContract(state, ct.id);
+            if (res.ok) {
+              toast(res.contract.icon + ' Contrat accompli : ' + res.contract.reward.desc);
+            }
+            refreshStats();
+            save();
+          };
+        } else if (!canUnlock) {
+          btn.textContent = '🔒 Niveau ' + ct.unlockLevel + ' requis';
+          btn.disabled = true;
+          btn.className = 'ct-btn locked';
+        } else if (!isOffered) {
+          btn.textContent = 'Non disponible';
+          btn.disabled = true;
+          btn.className = 'ct-btn locked';
+        } else {
+          btn.textContent = 'En cours... ' + fmt(progress) + ' / ' + fmt(ct.target);
+          btn.disabled = true;
+          btn.className = 'ct-btn locked';
+        }
+      }
+    }
+  }
+
   /** Sync every dynamic text / disabled state with `state`.
    *  Hidden views are skipped: the per-second tick only writes to the DOM the
    *  player is actually looking at (less style/layout work, smoother on mobile). */
@@ -369,6 +487,7 @@
     if (el.stw) el.stw.textContent = fmt(state.stock.weed) + 'g dispo';
 
     if (active('sell')) renderMarket();
+    if (active('contracts')) updateContracts();
     if (active('progress') || active('harvest')) renderProgress();
     if (!active('upgrades')) return;
 
@@ -393,7 +512,11 @@
         const active = Game.AUTOMATION.filter((a) => Game.chainLvl(state, a.productId) > 0).length;
         const totalLvl = Game.PRODUCTS.reduce((s, p) => s + Game.chainLvl(state, p.id), 0);
         const totalShare = Game.distShare ? Game.distShare(state) : 0;
-        const idleEst = active ? '+' + fmt(Game.AUTOMATION.reduce((sum, a) => sum + Game.chainLvl(state, a.productId) * Game.getProduct(a.productId).price * 0.15, 0)) + ' €/s idle' : '';
+        let totalAvg = 0;
+        for (const arr of Object.values(chainEarnHistory)) {
+          if (arr.length) totalAvg += arr.reduce((a, b) => a + b, 0) / arr.length;
+        }
+        const idleEst = totalAvg > 0 ? '+' + fmt(totalAvg) + ' €/s réel (moy. 10s)' : '';
         el.chainSummary.style.display = 'block';
         el.chainSummary.innerHTML = '<b>⚙️ ' + active + '/' + Game.AUTOMATION.length + ' chaînes</b> · Niv total ' + totalLvl + (totalShare ? ' · +' + Math.round(totalShare*100) + '% dist' : '') + (idleEst ? ' · ' + idleEst : '') + ' <span style="float:right;color:var(--gold);font-weight:800;">' + fmt(state.money) + ' €</span>';
       } else {
@@ -478,13 +601,81 @@
       if (idleEl) {
         if (lvl > 0) {
           const share = Game.chainShareOf(state, a.productId);
-          const est = Math.round(share * Game.perSecond(state) * 7);
-          idleEl.textContent = '≈ ' + fmt(est) + ' €/s · ' + Math.round(share*100) + '% flux';
+          const hist = chainEarnHistory[a.productId] || [];
+          const avg = hist.length ? Math.round(hist.reduce((a, b) => a + b, 0) / hist.length) : 0;
+          idleEl.textContent = avg > 0
+            ? '≈ ' + fmt(avg) + ' €/s réel · ' + Math.round(share*100) + '% flux'
+            : 'Démarrage... · ' + Math.round(share*100) + '% flux';
         } else {
           idleEl.textContent = levelOk ? 'Prête à embaucher — idle dès le niveau 1' : '🔒 Niveau ' + a.unlock;
         }
       }
+      // render specialization tree
+      const specsEl = document.getElementById('chain-specs-' + a.id);
+      if (specsEl) {
+        if (lvl > 0) {
+          specsEl.style.display = 'block';
+          specsEl.innerHTML = renderChainSpecs(a.productId);
+          specsEl.querySelectorAll('button[data-spec]').forEach((btn) => {
+            btn.addEventListener('click', (ev) => {
+              ev.stopPropagation();
+              const branch = btn.dataset.spec;
+              const pid = btn.dataset.pid;
+              const res = Game.buyChainSpec(state, pid, branch, 1);
+              if (res.ok) {
+                toast('+' + res.bought + ' ' + branch + ' (' + res.lvl + '/' + Game.CHAIN_SPECS[pid][branch].max + ')');
+                popNum(btn);
+              } else if (res.reason === 'funds') {
+                toast('Pas assez d\'argent');
+              } else if (res.reason === 'maxed') {
+                toast('Branche maxée');
+              } else if (res.reason === 'locked') {
+                toast(res.message);
+              }
+              refreshStats();
+              save();
+            });
+          });
+        } else {
+          specsEl.style.display = 'none';
+        }
+      }
     }
+  }
+
+  /** Render specialization tree for a chain. */
+  function renderChainSpecs(productId) {
+    const specs = Game.CHAIN_SPECS && Game.CHAIN_SPECS[productId];
+    if (!specs) return '';
+    const stateSpecs = state.chainSpecs && state.chainSpecs[productId] ? state.chainSpecs[productId] : { speed: 0, yield: 0, volume: 0 };
+    const lvl = Game.chainLvl(state, productId);
+    if (lvl < 1) return '';
+    let html = '<div style="font-size:.7rem;line-height:1.6;">';
+    // palier de chaîne (AdCap) : multiplicateur courant + prochain objectif
+    const curMult = Game.chainMilestoneMult ? Game.chainMilestoneMult(state, productId) : 1;
+    const nextMs = Game.nextChainMilestone ? Game.nextChainMilestone(state, productId) : null;
+    html += '<div style="color:var(--gold);font-weight:700;margin-bottom:2px;">' +
+      '🏁 Rendement ×' + curMult +
+      (nextMs ? ' — prochain ×' + nextMs.mult + ' au niveau ' + nextMs.at + ' (' + (nextMs.at - lvl) + ' restants)' : ' — tous paliers maxés') +
+      '</div>';
+    for (const [branch, def] of Object.entries(specs)) {
+      const cur = stateSpecs[branch] || 0;
+      const cost = Game.chainSpecCost(state, productId, branch, 1);
+      const maxed = cur >= def.max;
+      const affordable = state.money >= cost;
+      const icon = branch === 'speed' ? '⚡' : branch === 'yield' ? '💎' : '📦';
+      html += '<div style="display:flex;align-items:center;gap:4px;margin:2px 0;">' +
+        '<span style="min-width:2.5rem;">' + icon + ' ' + def.name + '</span>' +
+        '<span style="color:var(--gold);font-weight:700;min-width:2rem;">' + cur + '/' + def.max + '</span>' +
+        '<div style="flex:1;height:4px;background:var(--bg);border-radius:2px;overflow:hidden;">' +
+          '<div style="width:' + (cur/def.max*100) + '%;height:100%;background:' + (maxed ? 'var(--gold)' : 'var(--accent)') + ';transition:width .2s"></div>' +
+        '</div>' +
+        (maxed ? '<span style="color:var(--gold);font-size:.65rem;">MAX</span>' :
+          '<button class="bb" data-spec="' + branch + '" data-pid="' + productId + '" style="font-size:.6rem;padding:1px 6px;"' + (affordable ? '' : ' disabled') + '>' + fmt(cost) + ' €</button>') +
+      '</div>';
+    }
+    html += '</div>';
+    return html;
   }
 
   // --- game actions ----------------------------------------------------------
@@ -678,16 +869,31 @@
     const ar = Game.perSecond(state);
     let addedAuto = 0;
     if (ar > 0) addedAuto = Game.harvestXp(state, ar);
+    const awarded = Game.checkAchievements ? Game.checkAchievements(state) : [];
     // automation hires (Ouvriers/Dealers) craft & sell owned products,
     // proportionally to what was actually produced this tick
     const tick = Game.autoTick(state, now, addedAuto + clickFlow);
     clickFlow = 0;
+    // contrats : offre / complétion selon la progression des chaînes
+    const doneContracts = Game.checkContracts ? Game.checkContracts(state) : [];
+    for (const ct of doneContracts) {
+      toast('📋 ' + ct.name + ' accompli — récupère ta récompense !');
+    }
+    // track per-product chain earnings for rolling average
+    for (const [pid, money] of Object.entries(tick.soldMoney || {})) {
+      if (!chainEarnHistory[pid]) chainEarnHistory[pid] = [];
+      chainEarnHistory[pid].push(money);
+      if (chainEarnHistory[pid].length > CHAIN_HISTORY_MAX) chainEarnHistory[pid].shift();
+    }
     // spoilage doux (remplace le cap) : le surplus au-dessus du plancher se dégrade
     const spoiled = Game.applySpoil ? Game.applySpoil(state) : 0;
-    // idle income visibility: what the dealers just paid, shown as €/s
+    // idle income visibility: rolling average of what dealers actually earned
     if (el.mps) {
-      const earned = Object.values(tick.soldMoney || {}).reduce((a, b) => a + b, 0);
-      el.mps.textContent = earned > 0 ? '+' + fmt(earned) + ' €/s' : '';
+      let totalAvg = 0;
+      for (const arr of Object.values(chainEarnHistory)) {
+        if (arr.length) totalAvg += arr.reduce((a, b) => a + b, 0) / arr.length;
+      }
+      el.mps.textContent = totalAvg > 0 ? '+' + fmt(totalAvg) + ' €/s (moy. 10s)' : '';
     }
     refreshStats();
     save();
@@ -815,6 +1021,7 @@
   // --- boot --------------------------------------------------------------------
   renderUpgrades();
   load();
+  Game.checkAchievements ? Game.checkAchievements(state) : null;
   renderStrains();
   renderBud();
   setInterval(autoProduce, 1000);

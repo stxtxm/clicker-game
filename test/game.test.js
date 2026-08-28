@@ -790,3 +790,183 @@ test('maybeTriggerSpike: only unlocked markets can spike', () => {
   const late = collect(Game.xpForLevel(62));
   assert.ok(late.size >= 5, 'late game spike pool large: ' + [...late].join(','));
 });
+
+// --- contrats, spécialisation de chaînes & paliers -----------------------------
+
+test('CONTRACTS: données cohérentes — ids uniques, exclusives valides, produits connus', () => {
+  const ids = Game.CONTRACTS.map((c) => c.id);
+  assert.strictEqual(new Set(ids).size, ids.length, 'ids uniques');
+  for (const ct of Game.CONTRACTS) {
+    assert.ok(ct.target > 0, ct.id + ': target > 0');
+    assert.ok(Number.isInteger(ct.unlockLevel) && ct.unlockLevel > 0, ct.id + ': unlockLevel entier');
+    assert.ok(ct.reward && typeof ct.reward.desc === 'string', ct.id + ': reward desc');
+    for (const ex of ct.exclusive || []) {
+      assert.ok(ids.includes(ex), ct.id + ': exclusive ' + ex + ' existe');
+    }
+    if (ct.type === 'crafted') {
+      assert.ok(Game.getProduct(ct.productId), ct.id + ': productId connu');
+    } else {
+      assert.strictEqual(ct.productId, null, ct.id + ': pas de productId sur un contrat global');
+    }
+  }
+});
+
+test('chainMilestoneMult: paliers ×2 cumulatifs façon AdCap', () => {
+  const s = Game.defaultState();
+  s.chainLvl.joint = 24;
+  assert.strictEqual(Game.chainMilestoneMult(s, 'joint'), 1);
+  s.chainLvl.joint = 25;
+  assert.strictEqual(Game.chainMilestoneMult(s, 'joint'), 2);
+  s.chainLvl.joint = 49;
+  assert.strictEqual(Game.chainMilestoneMult(s, 'joint'), 2);
+  s.chainLvl.joint = 50;
+  assert.strictEqual(Game.chainMilestoneMult(s, 'joint'), 4);
+  s.chainLvl.joint = 200; // 2*2*2*2*2*3 = 96
+  assert.strictEqual(Game.chainMilestoneMult(s, 'joint'), 96);
+  assert.deepStrictEqual(Game.nextChainMilestone(s, 'joint'), { at: 300, mult: 3 });
+  s.chainLvl.joint = 999;
+  assert.strictEqual(Game.nextChainMilestone(s, 'joint'), null);
+  // les autres chaînes ne bougent pas
+  assert.strictEqual(Game.chainMilestoneMult(s, 'sachet'), 1);
+});
+
+test('chainYieldMult inclut le palier de chaîne', () => {
+  const s = Game.defaultState();
+  s.chainLvl.joint = 24;
+  const before = Game.chainYieldMult(s, 'joint');
+  s.chainLvl.joint = 25;
+  const after = Game.chainYieldMult(s, 'joint');
+  assert.strictEqual(Math.round((after / before) * 100) / 100, 2);
+});
+
+test('chainSpecCost: formule exponentielle, NaN/Infinity aux bornes', () => {
+  const s = Game.defaultState();
+  const def = Game.CHAIN_SPECS.joint.speed;
+  assert.strictEqual(Game.chainSpecCost(s, 'joint', 'speed', 1), def.baseCost);
+  assert.strictEqual(Game.chainSpecCost(s, 'joint', 'speed', 2), def.baseCost + Math.floor(def.baseCost * def.growth));
+  assert.ok(Number.isNaN(Game.chainSpecCost(s, 'inconnu', 'speed', 1)));
+  assert.ok(Number.isNaN(Game.chainSpecCost(s, 'joint', 'branche', 1)));
+  s.chainSpecs.joint.speed = def.max;
+  assert.strictEqual(Game.chainSpecCost(s, 'joint', 'speed', 1), Infinity);
+});
+
+test('buyChainSpec: refus si chaîne non embauchée, hors budget ou maxée', () => {
+  const s = Game.defaultState();
+  assert.strictEqual(Game.buyChainSpec(s, 'joint', 'speed', 1).reason, 'locked');
+  s.chainLvl.joint = 1;
+  assert.strictEqual(Game.buyChainSpec(s, 'joint', 'speed', 1).reason, 'funds');
+  s.money = Game.chainSpecCost(s, 'joint', 'speed', 3);
+  const r = Game.buyChainSpec(s, 'joint', 'speed', 3);
+  assert.ok(r.ok);
+  assert.strictEqual(r.lvl, 3);
+  assert.strictEqual(r.bought, 3);
+  assert.strictEqual(s.chainSpecs.joint.speed, 3);
+  assert.strictEqual(s.money, 0);
+  assert.strictEqual(Game.buyChainSpec(s, 'joint', 'speed', 2).reason, 'funds');
+  s.chainSpecs.joint.speed = Game.CHAIN_SPECS.joint.speed.max;
+  assert.strictEqual(Game.buyChainSpec(s, 'joint', 'speed', 1).reason, 'maxed');
+  assert.strictEqual(Game.buyChainSpec(s, 'joint', 'branche', 1).reason, 'unknown');
+});
+
+
+test('checkContracts: offre au bon niveau, complète au target, claim débloque la reward', () => {
+  const s = Game.defaultState();
+  const ct = Game.CONTRACTS.find((c) => c.id === 'c_joint_king');
+  // sous le niveau requis : ni offert ni complété
+  s.xp = Game.xpForLevel(ct.unlockLevel - 1);
+  s.chainStats = { joint: { crafted: ct.target, sold: 0, money: 0 } };
+  assert.deepStrictEqual(Game.checkContracts(s), []);
+  assert.strictEqual(s.contracts.offered.length, 0);
+  // au niveau requis sans target atteinte : offert, pas complété
+  s.xp = Game.xpForLevel(ct.unlockLevel);
+  s.chainStats.joint.crafted = ct.target - 1;
+  assert.deepStrictEqual(Game.checkContracts(s), []);
+  assert.ok(s.contracts.offered.includes(ct.id));
+  assert.ok(!s.contracts.completed.includes(ct.id));
+  // target atteinte : complété
+  s.chainStats.joint.crafted = ct.target;
+  assert.deepStrictEqual(Game.checkContracts(s).map((c) => c.id), [ct.id]);
+  assert.ok(s.contracts.completed.includes(ct.id));
+  // claim : reward dérivée de claimed
+  assert.ok(Game.claimContract(s, ct.id).ok);
+  assert.ok(s.contracts.claimed.includes(ct.id));
+  assert.ok(!s.contracts.completed.includes(ct.id));
+  assert.strictEqual(Game.getContractRewards(s, 'joint').yieldMult, ct.reward.yieldMult);
+  assert.strictEqual(Game.getContractRewards(s, 'sachet').yieldMult, 1, 'la reward ne fuit pas sur les autres produits');
+  // refus propres
+  s.contracts.completed.push(ct.id); // claim d'un contrat déjà réclamé
+  assert.strictEqual(Game.claimContract(s, ct.id).reason, 'already_claimed');
+  assert.strictEqual(Game.claimContract(s, 'c_sachet_king').reason, 'not_completed');
+  assert.strictEqual(Game.claimContract(s, 'inconnu').reason, 'unknown');
+  // re-check après claim : pas de re-complétion
+  assert.deepStrictEqual(Game.checkContracts(s), []);
+});
+
+test('getContractRewards: globalYield et flowBoost s’appliquent à toutes les chaînes', () => {
+  const s = Game.defaultState();
+  s.contracts.completed = ['c_money_maker', 'c_volume_king'];
+  Game.claimContract(s, 'c_money_maker');
+  Game.claimContract(s, 'c_volume_king');
+  for (const p of Game.PRODUCTS) {
+    const r = Game.getContractRewards(s, p.id);
+    assert.strictEqual(r.globalYield, 1.15, p.id);
+    assert.strictEqual(r.flowBoost, 1.2, p.id);
+  }
+  assert.strictEqual(Game.getContractRewards(s, 'joint').yieldMult, 1);
+});
+
+test('autoTick alimente les compteurs de contrats (chainStats + totaux globaux)', () => {
+  const s = Game.defaultState();
+  s.chainLvl.joint = 1;
+  s.stock.weed = 100;
+  const r = Game.autoTick(s, Date.now(), 20);
+  assert.ok(r.crafted.joint >= 1, 'au moins 1 unité fabriquée');
+  assert.ok(s.chainStats.joint.crafted >= 1);
+  assert.ok(s.chainStats.joint.sold >= 1);
+  assert.ok(s.chainStats.joint.money > 0);
+  assert.ok(s.contracts.chainMoneyEarned > 0);
+  assert.ok(s.contracts.chainGramsConverted > 0);
+});
+
+test('deserialize: sanitisation chainStats / compteurs de contrats / chainSpecs / drop legacy', () => {
+  const s = Game.defaultState();
+  s.chainStats = {
+    joint: { crafted: -5, sold: 'boom', money: 1.9 },
+    bogus: { crafted: 9, sold: 0, money: 0 }
+  };
+  s.chainSpecs.joint.speed = 99;           // clamp au max (10)
+  s.chainSpecs.joint.yield = -3;           // clamp à 0
+  s.contracts.claimed = ['c_joint_king', 'ct_inconnu'];
+  s.contracts.completed = 'nonsense';
+  s.contracts.chainMoneyEarned = -50;
+  s.contracts.chainGramsConverted = 'x';
+  s.contractRewards = { globalYield: 999 }; // champ legacy supprimé
+  const d = Game.deserialize(Game.serialize(s));
+  assert.deepStrictEqual(d.chainStats.joint, { crafted: 0, sold: 0, money: 1 });
+  assert.strictEqual(d.chainStats.bogus, undefined);
+  assert.strictEqual(d.chainSpecs.joint.speed, 10);
+  assert.strictEqual(d.chainSpecs.joint.yield, 0);
+  assert.deepStrictEqual(d.contracts.claimed, ['c_joint_king']);
+  assert.deepStrictEqual(d.contracts.completed, []);
+  assert.strictEqual(d.contracts.chainMoneyEarned, 0);
+  assert.strictEqual(d.contracts.chainGramsConverted, 0);
+  assert.strictEqual(d.contractRewards, undefined);
+  // les rewards dérivées survivent au chargement via claimed
+  assert.strictEqual(Game.getContractRewards(d, 'joint').yieldMult, 1.25);
+});
+
+test('roundtrip contrats/paliers: claimed + chainStats + chainSpecs préservés', () => {
+  const s = Game.defaultState();
+  s.chainLvl.joint = 50;
+  s.chainSpecs.joint.speed = 4;
+  s.chainStats.joint = { crafted: 123, sold: 100, money: 4567 };
+  s.contracts.claimed = ['c_joint_king'];
+  const d = Game.deserialize(Game.serialize(s));
+  assert.strictEqual(d.chainLvl.joint, 50);
+  assert.strictEqual(d.chainSpecs.joint.speed, 4);
+  assert.deepStrictEqual(d.chainStats.joint, { crafted: 123, sold: 100, money: 4567 });
+  assert.deepStrictEqual(d.contracts.claimed, ['c_joint_king']);
+  assert.strictEqual(Game.chainMilestoneMult(d, 'joint'), 4);
+  assert.strictEqual(Game.getContractRewards(d, 'joint').yieldMult, 1.25);
+});
+

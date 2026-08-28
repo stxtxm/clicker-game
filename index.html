@@ -386,6 +386,29 @@
     .ms-fill { height: 100%; background: var(--green); border-radius: 999px; transition: width .3s; }
     .ms-xp { font-size: .7rem; color: var(--muted); flex-shrink: 0; }
 
+    /* ===== Contracts view ===== */
+    .contracts { display: flex; flex-direction: column; gap: 10px; }
+    .ct-card { background: linear-gradient(135deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 14px; padding: 14px; transition: border-color .3s, box-shadow .3s; }
+    .ct-card.locked { opacity: .55; border-color: #444; }
+    .ct-card.offered { border-color: var(--gold); box-shadow: 0 0 12px rgba(255,196,0,.15); }
+    .ct-card.completed { border-color: var(--green); box-shadow: 0 0 12px rgba(46,204,113,.2); }
+    .ct-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .ct-icon { font-size: 1.5rem; flex-shrink: 0; }
+    .ct-info { flex: 1; min-width: 0; }
+    .ct-name { font-size: .95rem; font-weight: 800; }
+    .ct-desc { font-size: .75rem; color: var(--muted); margin-top: 2px; }
+    .ct-target { font-size: .7rem; color: var(--gold); background: rgba(255,196,0,.1); padding: 2px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap; }
+    .ct-progress { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+    .ct-bar { flex: 1; height: 8px; background: #0a0e0a; border-radius: 999px; overflow: hidden; min-width: 0; }
+    .ct-fill { height: 100%; background: linear-gradient(90deg, var(--gold-dim), var(--gold)); border-radius: 999px; transition: width .3s; }
+    .ct-pct { font-size: .7rem; font-weight: 800; color: var(--gold); min-width: 45px; text-align: right; }
+    .ct-reward { font-size: .72rem; color: var(--green-soft); margin-top: 8px; padding: 8px; background: rgba(46,204,113,.1); border-radius: 8px; border-left: 3px solid var(--green); }
+    .ct-btn { width: 100%; margin-top: 10px; padding: 12px; font-size: .85rem; font-weight: 800; border-radius: 12px; cursor: pointer; transition: all .2s; }
+    .ct-btn:disabled { opacity: .5; cursor: not-allowed; }
+    .ct-btn.claim { background: linear-gradient(135deg, var(--green-dim), var(--green)); color: #0a0e0a; border: 1px solid var(--green); }
+    .ct-btn.claim:hover:not(:disabled) { box-shadow: 0 0 16px rgba(46,204,113,.4); }
+    .ct-btn.locked { background: #1a1a1a; color: var(--muted); border: 1px solid #333; }
+
     /* ===== Toasts ===== */
     .mc { position: fixed; top: calc(8px + var(--sat)); left: 0; right: 0; pointer-events: none; z-index: 1000; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 20px; }
     .ms { background: rgba(0,0,0,.92); color: var(--green-soft); padding: 11px 20px; border-radius: 12px; font-size: .9rem; font-weight: 800; border: 1px solid var(--border); box-shadow: var(--sh); animation: mi .28s cubic-bezier(.34,1.56,.64,1),mo .25s cubic-bezier(.4,0,.2,1) 1.8s forwards; text-align: center; }
@@ -536,6 +559,12 @@
         <button class="sell-all danger-btn" id="rb">Recommencer la progression</button>
       </div>
     </section>
+
+    <!-- Contrats -->
+    <section class="view view-contracts" id="v-contracts">
+      <div class="panel-head"><h2>Contrats Exclusifs</h2><p>Objectifs de fin de jeu — choisis ton chemin, les récompenses sont permanentes</p></div>
+      <div class="contracts" id="cv"></div>
+    </section>
   </main>
 
   <nav class="bottom-nav">
@@ -544,6 +573,7 @@
     <button class="tab-btn" data-tab="upgrades"><span>🚀</span><span>Upgrades</span></button>
     <button class="tab-btn" data-tab="strains"><span>🌱</span><span>Variétés</span></button>
     <button class="tab-btn" data-tab="progress"><span>📈</span><span>Progression</span></button>
+    <button class="tab-btn" data-tab="contracts"><span>📜</span><span>Contrats</span></button>
   </nav>
 </div>
 
