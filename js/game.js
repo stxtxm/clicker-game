@@ -161,6 +161,256 @@
   /** Part max convertible par UNE chaîne (clamp anti-tout-manger). */
   const CHAIN_SHARE_MAX = 0.6;
 
+  /** Chain specialization trees — each product gets its own branching upgrades.
+   *  `per` = effet par point (donnée pilotante, pas de parsing de desc). */
+  const CHAIN_SPECS = {
+    joint: {
+      speed:  { name: 'Cadence',       max: 10, per: 0.05,  desc: 'Flux converti +5%/pt',   baseCost: 5000,        growth: 1.6 },
+      yield:  { name: 'Rendement',     max: 10, per: 0.04,  desc: 'Prix de vente +4%/pt',   baseCost: 8000,        growth: 1.65 },
+      volume: { name: 'Volume',        max: 8,  per: 0.15,  desc: 'Max g/tick +15%/pt',     baseCost: 12000,       growth: 1.7 },
+    },
+    sachet: {
+      speed:  { name: 'Cadence',       max: 10, per: 0.05,  desc: 'Flux converti +5%/pt',   baseCost: 20000,       growth: 1.6 },
+      yield:  { name: 'Qualité',       max: 10, per: 0.05,  desc: 'Prix de vente +5%/pt',   baseCost: 30000,       growth: 1.65 },
+      volume: { name: 'Conditionnement',max: 8, per: 0.15,  desc: 'Max g/tick +15%/pt',     baseCost: 45000,       growth: 1.7 },
+    },
+    hash: {
+      speed:  { name: 'Pression',      max: 10, per: 0.04,  desc: 'Flux converti +4%/pt',   baseCost: 60000,       growth: 1.6 },
+      yield:  { name: 'Pureté',        max: 10, per: 0.06,  desc: 'Prix de vente +6%/pt',   baseCost: 90000,       growth: 1.65 },
+      volume: { name: 'Blocs',         max: 8,  per: 0.12,  desc: 'Max g/tick +12%/pt',     baseCost: 130000,      growth: 1.7 },
+    },
+    cake: {
+      speed:  { name: 'Four',          max: 10, per: 0.04,  desc: 'Flux converti +4%/pt',   baseCost: 200000,      growth: 1.6 },
+      yield:  { name: 'Recette',       max: 10, per: 0.07,  desc: 'Prix de vente +7%/pt',   baseCost: 300000,      growth: 1.65 },
+      volume: { name: 'Parts',         max: 8,  per: 0.10,  desc: 'Max g/tick +10%/pt',     baseCost: 450000,      growth: 1.7 },
+    },
+    resin: {
+      speed:  { name: 'Extraction',    max: 10, per: 0.03,  desc: 'Flux converti +3%/pt',   baseCost: 600000,      growth: 1.6 },
+      yield:  { name: 'Terpènes',      max: 10, per: 0.08,  desc: 'Prix de vente +8%/pt',   baseCost: 900000,      growth: 1.65 },
+      volume: { name: 'Filtration',    max: 8,  per: 0.08,  desc: 'Max g/tick +8%/pt',      baseCost: 1300000,     growth: 1.7 },
+    },
+    huile: {
+      speed:  { name: 'Distillation',  max: 10, per: 0.03,  desc: 'Flux converti +3%/pt',   baseCost: 2000000,     growth: 1.6 },
+      yield:  { name: 'Concentration', max: 10, per: 0.09,  desc: 'Prix de vente +9%/pt',   baseCost: 3000000,     growth: 1.65 },
+      volume: { name: 'Cartouches',    max: 8,  per: 0.07,  desc: 'Max g/tick +7%/pt',      baseCost: 4500000,     growth: 1.7 },
+    },
+    shatter: {
+      speed:  { name: 'Purge',         max: 10, per: 0.02,  desc: 'Flux converti +2%/pt',   baseCost: 6000000,     growth: 1.6 },
+      yield:  { name: 'Clarté',        max: 10, per: 0.10,  desc: 'Prix de vente +10%/pt',  baseCost: 9000000,     growth: 1.65 },
+      volume: { name: 'Cassure',       max: 8,  per: 0.06,  desc: 'Max g/tick +6%/pt',      baseCost: 13000000,    growth: 1.7 },
+    },
+    rosin: {
+      speed:  { name: 'Presse',        max: 10, per: 0.02,  desc: 'Flux converti +2%/pt',   baseCost: 20000000,    growth: 1.6 },
+      yield:  { name: 'Live',          max: 10, per: 0.12,  desc: 'Prix de vente +12%/pt',  baseCost: 30000000,    growth: 1.65 },
+      volume: { name: 'Rendement',     max: 8,  per: 0.05,  desc: 'Max g/tick +5%/pt',      baseCost: 45000000,    growth: 1.7 },
+    },
+    vape: {
+      speed:  { name: 'Remplissage',   max: 10, per: 0.02,  desc: 'Flux converti +2%/pt',   baseCost: 60000000,    growth: 1.6 },
+      yield:  { name: 'Hardware',      max: 10, per: 0.12,  desc: 'Prix de vente +12%/pt',  baseCost: 90000000,    growth: 1.65 },
+      volume: { name: 'Batteries',     max: 8,  per: 0.05,  desc: 'Max g/tick +5%/pt',      baseCost: 130000000,   growth: 1.7 },
+    },
+    diamonds: {
+      speed:  { name: 'Cristallisation',max: 10, per: 0.015, desc: 'Flux converti +1.5%/pt', baseCost: 200000000,   growth: 1.6 },
+      yield:  { name: 'Pureté 99%',    max: 10, per: 0.15,  desc: 'Prix de vente +15%/pt',  baseCost: 300000000,   growth: 1.65 },
+      volume: { name: 'Taille',        max: 8,  per: 0.04,  desc: 'Max g/tick +4%/pt',      baseCost: 450000000,   growth: 1.7 },
+    },
+    moonrock: {
+      speed:  { name: 'Trempage',      max: 10, per: 0.015, desc: 'Flux converti +1.5%/pt', baseCost: 600000000,   growth: 1.6 },
+      yield:  { name: 'Infusion',      max: 10, per: 0.15,  desc: 'Prix de vente +15%/pt',  baseCost: 900000000,   growth: 1.65 },
+      volume: { name: 'Enrobage',      max: 8,  per: 0.04,  desc: 'Max g/tick +4%/pt',      baseCost: 1300000000,  growth: 1.7 },
+    },
+    soda: {
+      speed:  { name: 'Carbonatation', max: 10, per: 0.01,  desc: 'Flux converti +1%/pt',   baseCost: 2000000000,  growth: 1.6 },
+      yield:  { name: 'Dosage',        max: 10, per: 0.18,  desc: 'Prix de vente +18%/pt',  baseCost: 3000000000,  growth: 1.65 },
+      volume: { name: 'Canettes',      max: 8,  per: 0.03,  desc: 'Max g/tick +3%/pt',      baseCost: 4500000000,  growth: 1.7 },
+    },
+  };
+
+  /** Default specialization state for a new game. */
+  function defaultChainSpecs() {
+    const specs = {};
+    for (const pid of Object.keys(CHAIN_SPECS)) {
+      specs[pid] = { speed: 0, yield: 0, volume: 0 };
+    }
+    return specs;
+  }
+
+  /** Contracts: exclusive late-game objectives with permanent rewards. */
+  const CONTRACTS = [
+    {
+      id: 'c_joint_king',
+      name: 'Roi du Joint',
+      desc: 'Produire 10 000 joints via la chaîne',
+      icon: '👑',
+      productId: 'joint',
+      target: 10000,
+      type: 'crafted',
+      reward: { yieldMult: 1.25, desc: '+25% prix joints (permanent)' },
+      unlockLevel: 30,
+      exclusive: ['c_sachet_king', 'c_hash_king']
+    },
+    {
+      id: 'c_sachet_king',
+      name: 'Empereur du Sachet',
+      desc: 'Produire 5 000 sachets via la chaîne',
+      icon: '🛍️',
+      productId: 'sachet',
+      target: 5000,
+      type: 'crafted',
+      reward: { yieldMult: 1.3, desc: '+30% prix sachets (permanent)' },
+      unlockLevel: 35,
+      exclusive: ['c_joint_king', 'c_hash_king']
+    },
+    {
+      id: 'c_hash_king',
+      name: 'Maître du Hash',
+      desc: 'Produire 2 000 hash via la chaîne',
+      icon: '📦',
+      productId: 'hash',
+      target: 2000,
+      type: 'crafted',
+      reward: { yieldMult: 1.35, desc: '+35% prix hash (permanent)' },
+      unlockLevel: 40,
+      exclusive: ['c_joint_king', 'c_sachet_king']
+    },
+    {
+      id: 'c_cake_king',
+      name: 'Pâtissier Cosmique',
+      desc: 'Produire 1 000 space cakes via la chaîne',
+      icon: '🍰',
+      productId: 'cake',
+      target: 1000,
+      type: 'crafted',
+      reward: { yieldMult: 1.4, desc: '+40% prix cakes (permanent)' },
+      unlockLevel: 45,
+      exclusive: ['c_resin_king']
+    },
+    {
+      id: 'c_resin_king',
+      name: 'Alchimiste Suprême',
+      desc: 'Produire 500 résines via la chaîne',
+      icon: '🍯',
+      productId: 'resin',
+      target: 500,
+      type: 'crafted',
+      reward: { yieldMult: 1.5, desc: '+50% prix résines (permanent)' },
+      unlockLevel: 50,
+      exclusive: ['c_cake_king']
+    },
+    {
+      id: 'c_rosin_king',
+      name: 'Vive la Rosin',
+      desc: 'Produire 200 live rosin via la chaîne',
+      icon: '🌟',
+      productId: 'rosin',
+      target: 200,
+      type: 'crafted',
+      reward: { yieldMult: 1.6, desc: '+60% prix rosin (permanent)' },
+      unlockLevel: 55,
+      exclusive: ['c_shatter_king']
+    },
+    {
+      id: 'c_shatter_king',
+      name: 'Cristal Pur',
+      desc: 'Produire 100 shatter via la chaîne',
+      icon: '💎',
+      productId: 'shatter',
+      target: 100,
+      type: 'crafted',
+      reward: { yieldMult: 1.7, desc: '+70% prix shatter (permanent)' },
+      unlockLevel: 60,
+      exclusive: ['c_rosin_king']
+    },
+    {
+      id: 'c_vape_king',
+      name: 'Vape Lord',
+      desc: 'Produire 50 vape carts via la chaîne',
+      icon: '🔋',
+      productId: 'vape',
+      target: 50,
+      type: 'crafted',
+      reward: { yieldMult: 1.5, desc: '+50% prix vapes (permanent)' },
+      unlockLevel: 65,
+      exclusive: []
+    },
+    {
+      id: 'c_diamonds_king',
+      name: 'Diamants Éternels',
+      desc: 'Produire 20 THC diamonds via la chaîne',
+      icon: '💠',
+      productId: 'diamonds',
+      target: 20,
+      type: 'crafted',
+      reward: { yieldMult: 1.6, desc: '+60% prix diamonds (permanent)' },
+      unlockLevel: 70,
+      exclusive: []
+    },
+    {
+      id: 'c_money_maker',
+      name: 'Money Maker',
+      desc: 'Gagner 1 000 000 € via les chaînes (idle)',
+      icon: '💸',
+      productId: null,
+      target: 1000000,
+      type: 'chain_money',
+      reward: { globalYield: 1.15, desc: '+15% prix TOUS produits chaînes (permanent)' },
+      unlockLevel: 40,
+      exclusive: ['c_volume_king']
+    },
+    {
+      id: 'c_volume_king',
+      name: 'Volume Max',
+      desc: 'Convertir 500 000g de weed via les chaînes',
+      icon: '📊',
+      productId: null,
+      target: 500000,
+      type: 'chain_grams',
+      reward: { flowBoost: 1.2, desc: '+20% flux converti TOUTES chaînes (permanent)' },
+      unlockLevel: 45,
+      exclusive: ['c_money_maker']
+    },
+  ];
+
+  /** Default contracts state. */
+  function defaultContracts() {
+    return { completed: [], offered: [], claimed: [], chainMoneyEarned: 0, chainGramsConverted: 0 };
+  }
+
+  /**
+   * Paliers de chaîne, façon AdVenture Capitalist : chaque palier franchi
+   * multiplie le rendement (prix de vente) de LA chaîne — cumulatif.
+   * Boucle motivationnelle : pousser une chaîne vers son prochain palier
+   * donne un saut de revenu visible, sans casser la règle « l'idle paie
+   * ce qu'il transforme » (le flux reste la ressource gate).
+   */
+  const CHAIN_MILESTONES = [
+    { at: 25,  mult: 2 },
+    { at: 50,  mult: 2 },
+    { at: 75,  mult: 2 },
+    { at: 100, mult: 2 },
+    { at: 150, mult: 2 },
+    { at: 200, mult: 3 },
+    { at: 300, mult: 3 },
+    { at: 400, mult: 4 },
+    { at: 500, mult: 5 }
+  ];
+
+  /** Multiplicateur de rendement cumulé des paliers atteints par UNE chaîne. */
+  function chainMilestoneMult(s, productId) {
+    const lvl = chainLvl(s, productId);
+    let mult = 1;
+    for (const m of CHAIN_MILESTONES) {
+      if (lvl >= m.at) mult *= m.mult;
+    }
+    return mult;
+  }
+
+  /** Prochain palier d'une chaîne ({at, mult}) ou null si tous franchis. */
+  function nextChainMilestone(s, productId) {
+    const lvl = chainLvl(s, productId);
+    return CHAIN_MILESTONES.find((m) => m.at > lvl) || null;
+  }
+
   /* ---- progression curve (lissée, plus longue) ---------------- */
   const XP_BASE = 150;
   const XP_GROWTH = 1.42;
@@ -176,6 +426,25 @@
     { id: 'm7', xp: 150000000,bonus: 60, name: 'Cartel Mondial',     icon: '🌍' },
     { id: 'm8', xp: 400000000,bonus: 80, name: 'Nébuleuse Verte',    icon: '🌌' },
     { id: 'm9', xp: 1000000000,bonus: 100, name: 'Légende Éternelle', icon: '♾️' }
+  ];
+
+  /** Achievements: permanent bonuses for specific accomplishments. */
+  const ACHIEVEMENTS = [
+    { id: 'ach_first_sell', name: 'Première Vente', desc: 'Vendre pour la première fois', icon: '💰', bonus: 2, condition: (s) => (s.totalEarned || 0) >= 1 },
+    { id: 'ach_first_chain', name: 'Première Chaîne', desc: 'Embaucher votre premier manager', icon: '⚙️', bonus: 3, condition: (s) => Object.values(s.chainLvl || {}).some((l) => l > 0) },
+    { id: 'ach_spike_master', name: 'Maître des Ruées', desc: 'Vendre pendant une ruée', icon: '🔥', bonus: 5, condition: (s, ctx) => ctx && ctx.spikeSale },
+    { id: 'ach_level_10', name: 'Niveau 10', desc: 'Atteindre le niveau 10', icon: '⭐', bonus: 4, condition: (s) => levelFromXp(s.xp) >= 10 },
+    { id: 'ach_level_25', name: 'Niveau 25', desc: 'Atteindre le niveau 25', icon: '🌟', bonus: 6, condition: (s) => levelFromXp(s.xp) >= 25 },
+    { id: 'ach_level_50', name: 'Niveau 50', desc: 'Atteindre le niveau 50', icon: '💫', bonus: 8, condition: (s) => levelFromXp(s.xp) >= 50 },
+    { id: 'ach_100k', name: 'Centenaire', desc: 'Gagner 100 000 € au total', icon: '💵', bonus: 5, condition: (s) => (s.totalEarned || 0) >= 100000 },
+    { id: 'ach_1m', name: 'Millionnaire', desc: 'Gagner 1 000 000 € au total', icon: '💎', bonus: 10, condition: (s) => (s.totalEarned || 0) >= 1000000 },
+    { id: 'ach_10m', name: 'Dix Millionnaire', desc: 'Gagner 10 000 000 € au total', icon: '👑', bonus: 15, condition: (s) => (s.totalEarned || 0) >= 10000000 },
+    { id: 'ach_all_strains', name: 'Collectionneur', desc: 'Débloquer toutes les variétés', icon: '🌈', bonus: 20, condition: (s) => (s.stock.strains || []).length >= STRAINS.length },
+    { id: 'ach_all_products', name: 'Producteur', desc: 'Fabriquer tous les produits au moins une fois', icon: '🏭', bonus: 15, condition: (s) => PRODUCTS.every((p) => (s.stock[p.id] || 0) > 0) },
+    { id: 'ach_chain_10', name: 'Chaîne x10', desc: 'Atteindre le niveau 10 sur une chaîne', icon: '⚡', bonus: 10, condition: (s) => Object.values(s.chainLvl || {}).some((l) => l >= 10) },
+    { id: 'ach_idle_1h', name: 'Producteur Passif', desc: 'Gagner 10 000 € en idle (1h offline)', icon: '⏰', bonus: 8, condition: (s, ctx) => ctx && ctx.offlineMoney >= 10000 },
+    { id: 'ach_click_1k', name: 'Cliqueur', desc: 'Cliquer 1 000 fois', icon: '👆', bonus: 5, condition: (s) => (s.totalClicks || 0) >= 1000 },
+    { id: 'ach_click_10k', name: 'Cliqueur Pro', desc: 'Cliquer 10 000 fois', icon: '👆', bonus: 10, condition: (s) => (s.totalClicks || 0) >= 10000 }
   ];
 
   /** Tier bonus: tous les 40 niveaux → ×2 (espacé pour lisser le late-game). */
@@ -269,6 +538,8 @@
     const bonus = MILESTONES.reduce((a, mi) =>
       a + ((s.milestones || []).includes(mi.id) ? mi.bonus : 0), 0);
     m *= 1 + bonus / 100;
+    const achBonus = achievementBonus(s);
+    m *= 1 + achBonus / 100;
     return m;
   }
 
@@ -302,6 +573,28 @@
     return awarded;
   }
 
+  /** Check and award achievements. Returns newly unlocked ones. */
+  function checkAchievements(s, ctx) {
+    const awarded = [];
+    for (const ach of ACHIEVEMENTS) {
+      if (!(s.achievements || []).includes(ach.id) && ach.condition(s, ctx || {})) {
+        s.achievements = s.achievements || [];
+        s.achievements.push(ach.id);
+        awarded.push(ach);
+      }
+    }
+    return awarded;
+  }
+
+  /** Total achievement bonus as a percentage. */
+  function achievementBonus(s) {
+    if (!s.achievements || !s.achievements.length) return 0;
+    return s.achievements.reduce((sum, id) => {
+      const ach = ACHIEVEMENTS.find((a) => a.id === id);
+      return sum + (ach ? ach.bonus : 0);
+    }, 0);
+  }
+
   /**
    * Deterministic pseudo-random generator (mulberry32).
    */
@@ -329,7 +622,37 @@
 
   /** Part effective d'UNE chaîne (clampée à CHAIN_SHARE_MAX). */
   function chainShareOf(s, productId) {
-    return Math.min(CHAIN_SHARE_MAX, CHAIN_FLOW_SHARE * chainLvl(s, productId) + distShare(s));
+    const baseShare = CHAIN_FLOW_SHARE * chainLvl(s, productId) + distShare(s);
+    const speedDef = CHAIN_SPECS[productId] && CHAIN_SPECS[productId].speed;
+    const specs = s.chainSpecs && s.chainSpecs[productId] ? s.chainSpecs[productId] : { speed: 0 };
+    // Hardware synergy: harvest/expert/trim boost speed spec effectiveness
+    const hwSpeedBoost = 1 + (s.levels.harvest || 0) * 0.01 + (s.levels.expert || 0) * 0.015 + (s.levels.trim || 0) * 0.02;
+    const specBonus = specs.speed * (speedDef ? speedDef.per : 0.05) * hwSpeedBoost;
+    const contractRewards = getContractRewards(s, productId);
+    return Math.min(CHAIN_SHARE_MAX, (baseShare + specBonus) * contractRewards.flowBoost);
+  }
+
+  /** Effective sale price multiplier from yield specialization + milestones + contracts. */
+  function chainYieldMult(s, productId) {
+    const yieldDef = CHAIN_SPECS[productId] && CHAIN_SPECS[productId].yield;
+    const specs = s.chainSpecs && s.chainSpecs[productId] ? s.chainSpecs[productId] : { yield: 0 };
+    // Hardware synergy: turbo/uv/mega boost yield spec effectiveness
+    const hwYieldBoost = 1 + (s.levels.turbo || 0) * 0.15 + (s.levels.uv || 0) * 0.1 + (s.levels.mega || 0) * 0.2;
+    const yieldPerPt = yieldDef ? yieldDef.per : 0.04;
+    const contractRewards = getContractRewards(s, productId);
+    return (1 + specs.yield * yieldPerPt * hwYieldBoost) * chainMilestoneMult(s, productId)
+      * contractRewards.yieldMult * contractRewards.globalYield;
+  }
+
+  /** Effective max grams per tick from volume specialization. */
+  function chainVolumeMult(s, productId) {
+    const volumeDef = CHAIN_SPECS[productId] && CHAIN_SPECS[productId].volume;
+    const specs = s.chainSpecs && s.chainSpecs[productId] ? s.chainSpecs[productId] : { volume: 0 };
+    // Hardware synergy: crew/co2 boost volume spec effectiveness
+    const hwVolumeBoost = 1 + (s.levels.crew || 0) * 0.1 + (s.levels.co2 || 0) * 0.15;
+    const volumePerPt = volumeDef ? volumeDef.per : 0.15;
+    const contractRewards = getContractRewards(s, productId);
+    return (1 + specs.volume * volumePerPt * hwVolumeBoost) * contractRewards.flowBoost;
   }
 
   /**
@@ -353,8 +676,12 @@
       levels: { ...DEFAULT_LEVELS },
       auto: { craft: {}, sell: {} },
       chainLvl,
+      chainSpecs: defaultChainSpecs(),
+      chainStats: {},
+      contracts: defaultContracts(),
       xp: 0,
       milestones: [],
+      achievements: [],
       totalEarned: 0,
       lastSeen: 0,
       spikeUntil: 0,
@@ -613,6 +940,100 @@
     return n;
   }
 
+  /** Cost to buy `n` points in a specialization branch. */
+  function chainSpecCost(s, productId, branch, n) {
+    const specDef = CHAIN_SPECS[productId] && CHAIN_SPECS[productId][branch];
+    if (!specDef) return NaN;
+    const cur = s.chainSpecs && s.chainSpecs[productId] ? s.chainSpecs[productId][branch] : 0;
+    if (cur >= specDef.max) return Infinity;
+    const count = Math.max(1, Math.min(n || 1, specDef.max - cur));
+    let total = 0;
+    for (let i = 0; i < count; i++) {
+      total += Math.floor(specDef.baseCost * Math.pow(specDef.growth, cur + i));
+    }
+    return total;
+  }
+
+  /** Max affordable spec points in a branch. */
+  function maxChainSpecPoints(s, productId, branch) {
+    let n = 0;
+    while (n < 20) {
+      if (chainSpecCost(s, productId, branch, n + 1) > s.money) break;
+      n++;
+    }
+    return n;
+  }
+
+  /** Buy specialization points. */
+  function buyChainSpec(s, productId, branch, n) {
+    const specDef = CHAIN_SPECS[productId] && CHAIN_SPECS[productId][branch];
+    if (!specDef) return { ok: false, reason: 'unknown' };
+    if (!s.chainLvl || !s.chainLvl[productId] || s.chainLvl[productId] < 1) {
+      return { ok: false, reason: 'locked', message: 'Chaîne non embauchée' };
+    }
+    const cur = s.chainSpecs && s.chainSpecs[productId] ? s.chainSpecs[productId][branch] : 0;
+    if (cur >= specDef.max) return { ok: false, reason: 'maxed' };
+    const want = Math.max(1, Math.min(n || 1, specDef.max - cur));
+    const cost = chainSpecCost(s, productId, branch, want);
+    if (s.money < cost) return { ok: false, reason: 'funds', cost };
+    s.money -= cost;
+    s.chainSpecs = s.chainSpecs || defaultChainSpecs();
+    s.chainSpecs[productId] = s.chainSpecs[productId] || { speed: 0, yield: 0, volume: 0 };
+    s.chainSpecs[productId][branch] = cur + want;
+    return { ok: true, productId, branch, lvl: cur + want, bought: want, cost };
+  }
+
+  /** Check and complete contracts. */
+  function checkContracts(s, ctx) {
+    const completed = [];
+    const level = levelFromXp(s.xp);
+    for (const ct of CONTRACTS) {
+      if (s.contracts.completed.includes(ct.id) || s.contracts.claimed.includes(ct.id)) continue;
+      if (level < ct.unlockLevel) continue;
+      let progress = 0;
+      if (ct.type === 'crafted' && ct.productId) {
+        progress = s.chainStats && s.chainStats[ct.productId] ? s.chainStats[ct.productId].crafted : 0;
+      } else if (ct.type === 'chain_money') {
+        progress = s.contracts.chainMoneyEarned || 0;
+      } else if (ct.type === 'chain_grams') {
+        progress = s.contracts.chainGramsConverted || 0;
+      }
+      if (progress >= ct.target) {
+        s.contracts.completed.push(ct.id);
+        completed.push(ct);
+      } else if (!s.contracts.offered.includes(ct.id)) {
+        s.contracts.offered.push(ct.id);
+      }
+    }
+    return completed;
+  }
+
+  /** Claim a completed contract. Rewards are DERIVED from the claimed list
+   *  (getContractRewards) — nothing multiplicative is stored in the save. */
+  function claimContract(s, contractId) {
+    const ct = CONTRACTS.find((c) => c.id === contractId);
+    if (!ct) return { ok: false, reason: 'unknown' };
+    if (!s.contracts.completed.includes(contractId)) return { ok: false, reason: 'not_completed' };
+    if (s.contracts.claimed.includes(contractId)) return { ok: false, reason: 'already_claimed' };
+    s.contracts.completed = s.contracts.completed.filter((c) => c !== contractId);
+    s.contracts.claimed.push(contractId);
+    return { ok: true, contract: ct };
+  }
+
+  /** Reward multipliers for a product, derived from the claimed contracts. */
+  function getContractRewards(s, productId) {
+    const rewards = { yieldMult: 1, globalYield: 1, flowBoost: 1 };
+    const claimed = s.contracts && Array.isArray(s.contracts.claimed) ? s.contracts.claimed : [];
+    for (const id of claimed) {
+      const ct = CONTRACTS.find((c) => c.id === id);
+      if (!ct) continue;
+      if (ct.reward.yieldMult && ct.productId === productId) rewards.yieldMult *= ct.reward.yieldMult;
+      if (ct.reward.globalYield) rewards.globalYield *= ct.reward.globalYield;
+      if (ct.reward.flowBoost) rewards.flowBoost *= ct.reward.flowBoost;
+    }
+    return rewards;
+  }
+
   /**
    * Embauche ou améliore une chaîne. Le gate de niveau ne s'applique qu'à la
    * PREMIÈRE embauche (lvl 0 → 1) ; ensuite on paie le niveau suivant.
@@ -674,23 +1095,47 @@
       if (!hasAuto(s, 'craft', p.id)) continue;
       // chains convert ONLY what actually entered storage this tick:
       // at least 1u/s when flow allows, up to this chain's share of the
-      // remaining budget (niveau de chaîne + bonus Distribution, clampé).
+      // remaining budget (niveau de chaîne + bonus Distribution + SPEED spec, clampé).
       if (budget < p.cost) continue;
-      const grams = Math.min(budget, Math.max(p.cost, flow * chainShareOf(s, p.id)));
+      const share = chainShareOf(s, p.id);
+      const volumeMult = chainVolumeMult(s, p.id);
+      const maxGrams = Math.max(p.cost, flow * share) * volumeMult;
+      const grams = Math.min(budget, maxGrams);
       const units = Math.floor(grams / p.cost);
       if (units < 1) continue;
       const r = craftProduct(s, p.id, units);
       if (r.ok) {
         res.crafted[p.id] = r.amount;
         budget -= r.amount * p.cost;
+        // track for contracts
+        s.chainStats = s.chainStats || {};
+        s.chainStats[p.id] = s.chainStats[p.id] || { crafted: 0, sold: 0, money: 0 };
+        s.chainStats[p.id].crafted += r.amount;
       }
     }
+    let chainMoneyThisTick = 0;
+    let chainGramsThisTick = 0;
     for (const p of PRODUCTS) {
       if (!hasAuto(s, 'sell', p.id)) continue;
       const made = res.crafted[p.id] || 0;
-      const gain = sellStock(s, p.id, made, now); // chain output only — manual stock is sacred
-      if (gain > 0) res.soldMoney[p.id] = gain;
+      if (!made) continue;
+      const prod = getProduct(p.id);
+      const unit = priceOf(s, p.id, now) * chainYieldMult(s, p.id);
+      const gain = Math.round(made * unit);
+      s.stock[p.id] -= made;
+      s.money += gain;
+      s.totalEarned = (s.totalEarned || 0) + gain;
+      res.soldMoney[p.id] = gain;
+      chainMoneyThisTick += gain;
+      chainGramsThisTick += made * prod.cost;
+      // track for contracts
+      s.chainStats[p.id] = s.chainStats[p.id] || { crafted: 0, sold: 0, money: 0 };
+      s.chainStats[p.id].sold += made;
+      s.chainStats[p.id].money += gain;
     }
+    // track totals for global contracts
+    if (chainMoneyThisTick > 0) s.contracts.chainMoneyEarned = (s.contracts.chainMoneyEarned || 0) + chainMoneyThisTick;
+    if (chainGramsThisTick > 0) s.contracts.chainGramsConverted = (s.contracts.chainGramsConverted || 0) + chainGramsThisTick;
     return res;
   }
 
@@ -884,9 +1329,61 @@
       delete d.points; delete d.genomes;
       delete d.stock.main; delete d.stock.premium;
       // moonrock is now a valid product (was legacy premium), keep it
-     d.milestones = Array.isArray(d.milestones)
-       ? d.milestones.filter((m) => MILESTONES.some((mi) => mi.id === m))
-       : [];
+      d.milestones = Array.isArray(d.milestones)
+        ? d.milestones.filter((m) => MILESTONES.some((mi) => mi.id === m))
+        : [];
+      d.achievements = Array.isArray(d.achievements)
+        ? d.achievements.filter((a) => ACHIEVEMENTS.some((ach) => ach.id === a))
+        : [];
+      // chain specs sanitization
+      const defaultSpecs = defaultChainSpecs();
+      if (!d.chainSpecs || typeof d.chainSpecs !== 'object') d.chainSpecs = defaultSpecs;
+      else {
+        for (const pid of Object.keys(CHAIN_SPECS)) {
+          if (!d.chainSpecs[pid] || typeof d.chainSpecs[pid] !== 'object') {
+            d.chainSpecs[pid] = { speed: 0, yield: 0, volume: 0 };
+          } else {
+            d.chainSpecs[pid].speed = Math.max(0, Math.min(CHAIN_SPECS[pid].speed.max, Math.floor(d.chainSpecs[pid].speed || 0)));
+            d.chainSpecs[pid].yield = Math.max(0, Math.min(CHAIN_SPECS[pid].yield.max, Math.floor(d.chainSpecs[pid].yield || 0)));
+            d.chainSpecs[pid].volume = Math.max(0, Math.min(CHAIN_SPECS[pid].volume.max, Math.floor(d.chainSpecs[pid].volume || 0)));
+          }
+        }
+      }
+      // contracts sanitization
+      const defaultContractsState = defaultContracts();
+      if (!d.contracts || typeof d.contracts !== 'object') d.contracts = defaultContractsState;
+      else {
+        d.contracts.completed = Array.isArray(d.contracts.completed)
+          ? d.contracts.completed.filter((c) => CONTRACTS.some((ct) => ct.id === c))
+          : [];
+        d.contracts.offered = Array.isArray(d.contracts.offered)
+          ? d.contracts.offered.filter((c) => CONTRACTS.some((ct) => ct.id === c))
+          : [];
+        d.contracts.claimed = Array.isArray(d.contracts.claimed)
+          ? d.contracts.claimed.filter((c) => CONTRACTS.some((ct) => ct.id === c))
+          : [];
+        d.contracts.chainMoneyEarned = typeof d.contracts.chainMoneyEarned === 'number' && d.contracts.chainMoneyEarned >= 0
+          ? Math.floor(d.contracts.chainMoneyEarned) : 0;
+        d.contracts.chainGramsConverted = typeof d.contracts.chainGramsConverted === 'number' && d.contracts.chainGramsConverted >= 0
+          ? Math.floor(d.contracts.chainGramsConverted) : 0;
+      }
+      // récompenses dérivées de claimed — drop du champ legacy (WIP pré-release)
+      delete d.contractRewards;
+      // stats de chaînes — produits connus uniquement, compteurs ≥ 0
+      if (!d.chainStats || typeof d.chainStats !== 'object') d.chainStats = {};
+      {
+        const clean = {};
+        for (const p of PRODUCTS) {
+          const st = d.chainStats[p.id];
+          if (!st || typeof st !== 'object') continue;
+          clean[p.id] = {
+            crafted: typeof st.crafted === 'number' && st.crafted >= 0 ? Math.floor(st.crafted) : 0,
+            sold: typeof st.sold === 'number' && st.sold >= 0 ? Math.floor(st.sold) : 0,
+            money: typeof st.money === 'number' && st.money >= 0 ? Math.floor(st.money) : 0
+          };
+        }
+        d.chainStats = clean;
+      }
        // automation hires — keep known flags only, drop anything else
        if (!d.auto || typeof d.auto !== 'object') d.auto = { craft: {}, sell: {} };
        for (const kind of ['craft', 'sell']) {
@@ -957,6 +1454,8 @@
     productionMult,
     earnXp,
     checkMilestones,
+    checkAchievements,
+    achievementBonus,
     perClick,
     perSecond,
     upgradeCost,
@@ -976,17 +1475,31 @@
     chainLvl,
     chainShareOf,
     distShare,
+    chainYieldMult,
+    chainVolumeMult,
     CHAIN_FLOW_SHARE,
     CHAIN_SHARE_MAX,
+    CHAIN_SPECS,
     AUTOMATION_GROWTH,
     automationCost,
     maxAutomationLevels,
+    chainSpecCost,
+    maxChainSpecPoints,
+    buyChainSpec,
     maxAffordableLevels,
     applySpoil,
     SPOIL_RATE,
     offlineTick,
     upgradeBulkCost,
     buyUpgradeBulk,
-    timeToAfford
+    timeToAfford,
+    CONTRACTS,
+    checkContracts,
+    claimContract,
+    getContractRewards,
+    defaultContracts,
+    CHAIN_MILESTONES,
+    chainMilestoneMult,
+    nextChainMilestone
   };
 });

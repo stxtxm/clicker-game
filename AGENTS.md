@@ -28,7 +28,7 @@ js/bud.js             Rendu SVG procédural du bud (déterministe, seeds fixés)
 sw.js                 Service worker PWA (network-first code, cache-first images)
 manifest.json         Manifest PWA + raccourcis d'app
 icon-*.{svg,png}      Icônes (SVG = source de vérité, PNG régénérés depuis le SVG)
-test/game.test.js     ~70 tests unitaires (économie, catalogues, limites, saves)
+test/game.test.js     ~75 tests unitaires (économie, catalogues, contrats, paliers, limites, saves)
 test/playthrough.test.js  Simulateur de joueur optimal — asserte la courbe de pacing
 test/e2e.test.js      E2E chromium : pilote le vrai jeu dans une iframe (13 scénarios)
 test/e2e-runner.html  Page harnais e2e (scénarios décrits en JS, sortie "E2E x: PASS|FAIL")
@@ -125,6 +125,9 @@ L'économie est pilotée par les données, pas au doigt mouillé :
      sont JAMAIS drainés par elles. L'argent idle est proportionnel au
      transformé et affiché en €/s dans le header; au-delà de ~3 chaînes,
      garder de la pression de cap.
+   - **Paliers de chaîne** (`CHAIN_MILESTONES`) — ×2 rendement aux niveaux
+     25/50/75/100/150 de chaque chaîne (puis ×3/×4/×5) : objectif court-terme
+     permanent façon AdCap, sans toucher au gate de flux.
    - **Coûts des variétés** — chaque variété est un saut exponentiel
      (`yieldMult × priceMult`) ; leurs coûts espacent les sauts.
    - `XP_GROWTH` (1.32) — les niveaux gate produits/chaînes/variétés.
