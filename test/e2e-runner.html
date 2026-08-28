@@ -53,10 +53,10 @@ async function scenario() {
     await sleep(100);
     report('tab-switch', q('#v-sell').classList.contains('active'), '');
 
-    // 5. market renders 13 cards with trend arrows + qty pills
+    // 5. market renders 15 cards (weed + 14 produits) with trend arrows + qty pills
     const cards = gameDoc().querySelectorAll('#market-grid .market-card').length;
     const trends = gameDoc().querySelectorAll('#market-grid .trend').length;
-    report('market-render', cards === 13 && trends >= 13, 'cards=' + cards + ' trends=' + trends);
+    report('market-render', cards === 15 && trends >= 15, 'cards=' + cards + ' trends=' + trends);
 
     // 6. sell weed raw -> money grows
     const moneyBefore = money();
@@ -138,7 +138,7 @@ async function scenario() {
     const firstNode = msItems[0];
     await sleep(1300); // > 1 autoProduce tick: an innerHTML rebuild would swap the node
     const msAfter = gameDoc().querySelectorAll('#ms .ms-item');
-    report('milestones-stable', msItems.length === 9 && msAfter.length === 9 && msAfter[0] === firstNode,
+    report('milestones-stable', msItems.length === 13 && msAfter.length === 13 && msAfter[0] === firstNode,
       'count=' + msAfter.length + ' sameNode=' + (msAfter[0] === firstNode));
 
     // 14. toast dedup: spamming a broke buy shows ONE toast, not a stack

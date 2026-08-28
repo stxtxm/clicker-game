@@ -61,6 +61,13 @@
   const chainEarnHistory = {};
   const CHAIN_HISTORY_MAX = 10;
 
+  // --- juice : paliers de gains totaux (💰) -----------------------------------
+  /** Exposant du palier de 10 atteint par les gains totaux (0 sous 1 M€). */
+  function earnStep(te) { return te >= 1e6 ? Math.floor(Math.log10(te)) : 0; }
+  /** Label compact pour le juice : 1 M€, 250 M€, 3 Md€… */
+  function moneyWord(n) { return n >= 1e9 ? Math.round(n / 1e9) + ' Md€' : Math.round(n / 1e6) + ' M€'; }
+  let lastEarnStep = 0;
+
   // --- helpers ---------------------------------------------------------------
   /** Format a number for display: 1.2K / 3.45M / floor below 1000. */
   function fmt(n) {
@@ -446,6 +453,15 @@
             const res = Game.claimContract(state, ct.id);
             if (res.ok) {
               toast(res.contract.icon + ' Contrat accompli : ' + res.contract.reward.desc);
+              // célébration : pop élastique de la carte + burst de particules
+              if (card.animate) {
+                card.animate(
+                  [{ transform: 'scale(1)' }, { transform: 'scale(1.06)', offset: 0.35 }, { transform: 'scale(0.98)', offset: 0.7 }, { transform: 'scale(1)' }],
+                  { duration: 420, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+                );
+              }
+              for (let i = 0; i < 3; i++) setTimeout(() => spawnParticle('🎁 ' + ct.icon + ' ' + ct.name + ' !'), i * 120);
+              popNum(el.m);
             }
             refreshStats();
             save();
@@ -708,6 +724,8 @@
     save();
     if (xp.leveledUp) {
       toast('Niveau ' + xp.level + ' !');
+      spawnParticle('⬆️ Niveau ' + xp.level + ' !');
+      popNum(el.lv);
       const st = Game.STRAINS.find((x2) => x2.unlock === xp.level && !state.stock.strains.includes(x2.id));
       if (st) setTimeout(() => toast(st.name + ' débloquée ! 🎉'), 600);
     }
@@ -810,9 +828,11 @@
   function buyAuto(id) {
     let count = upgradeQtyMode;
     if (count === 'max') {
-      const a = Game.AUTOMATION.find((x) => x.id === id);
-      count = a ? Math.max(1, Game.maxAutomationLevels(state, a.productId)) : 1;
+      const a0 = Game.AUTOMATION.find((x) => x.id === id);
+      count = a0 ? Math.max(1, Game.maxAutomationLevels(state, a0.productId)) : 1;
     }
+    const a = Game.AUTOMATION.find((x) => x.id === id);
+    const multBefore = a && Game.chainMilestoneMult ? Game.chainMilestoneMult(state, a.productId) : 1;
     const res = Game.buyAutomation(state, id, count);
     if (res.ok) {
       toast(res.lvl > res.bought
@@ -825,6 +845,16 @@
         card.animate && card.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.04)' }, { transform: 'scale(1)' }], { duration: 350, easing: 'cubic-bezier(.34,1.56,.64,1)' });
         setTimeout(() => card.classList.remove('popping'), 400);
         for (let i = 0; i < Math.min(3, res.bought || 1); i++) setTimeout(() => spawnParticle('⚙️ +' + (res.bought || 1) + ' Niv !'), i * 90);
+      }
+      // juice palier de chaîne (AdCap) : le rendement vient de sauter
+      if (a && Game.chainMilestoneMult) {
+        const multAfter = Game.chainMilestoneMult(state, a.productId);
+        if (multAfter > multBefore) {
+          setTimeout(() => {
+            toast('🏁 Palier ×' + multAfter + ' — ' + a.name + ' !');
+            spawnParticle('🏁 ×' + multAfter + ' !');
+          }, 250);
+        }
       }
     } else if (res.reason === 'funds') {
       toast('Manque ' + fmt((res.cost || 0) - state.money) + ' €');
@@ -887,6 +917,13 @@
     }
     // spoilage doux (remplace le cap) : le surplus au-dessus du plancher se dégrade
     const spoiled = Game.applySpoil ? Game.applySpoil(state) : 0;
+    // juice paliers de gains totaux : chaque puissance de 10 franchie célèbre
+    const earnSt = earnStep(state.totalEarned || 0);
+    if (earnSt > lastEarnStep) {
+      lastEarnStep = earnSt;
+      toast('💰 ' + moneyWord(Math.pow(10, earnSt)) + ' de gains totaux !');
+      popNum(el.m);
+    }
     // idle income visibility: rolling average of what dealers actually earned
     if (el.mps) {
       let totalAvg = 0;
@@ -910,6 +947,7 @@
   function load() {
     try {
       state = Game.deserialize(localStorage.getItem(SAVE_KEY));
+      lastEarnStep = earnStep(state.totalEarned || 0); // pas de toast au boot
       // offline earnings (AdvCap 50%, 8h cap)
       if (state.lastSeen) {
         const secs = Math.floor((Date.now() - state.lastSeen) / 1000);
@@ -1002,6 +1040,7 @@
     disarmReset();
     try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
     state = Game.defaultState();
+    lastEarnStep = 0;
     renderBud();
     renderUpgrades();
     renderStrains();

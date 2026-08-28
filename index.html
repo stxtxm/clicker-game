@@ -405,8 +405,10 @@
     .ct-reward { font-size: .72rem; color: var(--green-soft); margin-top: 8px; padding: 8px; background: rgba(46,204,113,.1); border-radius: 8px; border-left: 3px solid var(--green); }
     .ct-btn { width: 100%; margin-top: 10px; padding: 12px; font-size: .85rem; font-weight: 800; border-radius: 12px; cursor: pointer; transition: all .2s; }
     .ct-btn:disabled { opacity: .5; cursor: not-allowed; }
-    .ct-btn.claim { background: linear-gradient(135deg, var(--green-dim), var(--green)); color: #0a0e0a; border: 1px solid var(--green); }
+    .ct-btn.claim { background: linear-gradient(135deg, var(--green-dim), var(--green)); color: #0a0e0a; border: 1px solid var(--green); animation: ctPulse 1.6s ease-in-out infinite; }
     .ct-btn.claim:hover:not(:disabled) { box-shadow: 0 0 16px rgba(46,204,113,.4); }
+    @keyframes ctPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.045); } }
+    @media (prefers-reduced-motion: reduce) { .ct-btn.claim { animation: none; } }
     .ct-btn.locked { background: #1a1a1a; color: var(--muted); border: 1px solid #333; }
 
     /* ===== Toasts ===== */

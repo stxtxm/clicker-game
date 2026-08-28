@@ -96,7 +96,13 @@
       vein: '#2a0f2a', stroke: '#1c0a1c', pistil: '#ffd700', pistil2: '#ffea00', frost: 3.2 },
     { id: 'gelato', name: 'Gelato 33', icon: '🍦', cost: 2000000000, unlock: 62, yieldMult: 24.0, priceMult: 21.0, desc: 'Crémeuse et glaciale, le graal moderne',
       d: ['#4a6e2f', '#1f2f15'], m: ['#6e8f3f', '#2f4a1f'], l: ['#a8d070', '#5a8f3f'], f: ['#d8e8a8', '#a0c070'],
-      vein: '#1a2f10', stroke: '#0f1a08', pistil: '#ff69b4', pistil2: '#ffb6c1', frost: 3.5 }
+      vein: '#1a2f10', stroke: '#0f1a08', pistil: '#ff69b4', pistil2: '#ffb6c1', frost: 3.5 },
+    { id: 'runtz', name: 'Runtz', icon: '🍇', cost: 10000000000, unlock: 70, yieldMult: 28.0, priceMult: 25.0, desc: 'Bonbons crémeux violets, rendement de folie',
+      d: ['#5f2f6e', '#2f1543'], m: ['#8a3fa0', '#481a58'], l: ['#cf70d0', '#8a3f8a'], f: ['#f0a8ee', '#b880c0'],
+      vein: '#2a1040', stroke: '#1c0a2c', pistil: '#ffd700', pistil2: '#ffe873', frost: 3.8 },
+    { id: 'godfather', name: 'Godfather OG', icon: '🕴️', cost: 80000000000, unlock: 78, yieldMult: 34.0, priceMult: 32.0, desc: 'La légende des légendes, puissance mythique',
+      d: ['#3d3220', '#1c1508'], m: ['#6b5636', '#382b12'], l: ['#b08d4a', '#6b5226'], f: ['#e8c87f', '#a8823f'],
+      vein: '#241a08', stroke: '#181004', pistil: '#ffae00', pistil2: '#ffd24d', frost: 4.2 }
   ];
 
   /** Base cost of each upgrade, indexed by id. */
@@ -129,7 +135,9 @@
     { id: 'vape',    icon: '🔋', name: 'Vape Cart',          cost: 600, price: 12500, unlock: 52, desc: 'Distillat en cartouche' },
     { id: 'diamonds',icon: '💠', name: 'THC Diamonds',       cost: 1200,price: 26000, unlock: 60, desc: 'Cristaux purs à 99%' },
     { id: 'moonrock',icon: '🌙', name: 'Moonrock',           cost: 2500,price: 55000, unlock: 68, desc: 'Fleur trempée dans l\'huile et le kief' },
-    { id: 'soda',    icon: '🥤', name: 'Soda THC',           cost: 5000,price: 115000,unlock: 75, desc: 'Boisson pétillante infusée' }
+    { id: 'soda',    icon: '🥤', name: 'Soda THC',           cost: 5000,price: 115000,unlock: 75, desc: 'Boisson pétillante infusée' },
+    { id: 'nectar',  icon: '🧪', name: 'Nectar Terpéné',     cost: 11000,price: 300000,unlock: 82, desc: 'Extraction à froid ultra-concentrée' },
+    { id: 'caviar',  icon: '🥂', name: 'Caviar Rosin',       cost: 24000,price: 720000,unlock: 88, desc: 'Rosin enrobé de kief, prestige absolu' }
   ];
 
   /**
@@ -223,6 +231,16 @@
       speed:  { name: 'Carbonatation', max: 10, per: 0.01,  desc: 'Flux converti +1%/pt',   baseCost: 2000000000,  growth: 1.6 },
       yield:  { name: 'Dosage',        max: 10, per: 0.18,  desc: 'Prix de vente +18%/pt',  baseCost: 3000000000,  growth: 1.65 },
       volume: { name: 'Canettes',      max: 8,  per: 0.03,  desc: 'Max g/tick +3%/pt',      baseCost: 4500000000,  growth: 1.7 },
+    },
+    nectar: {
+      speed:  { name: 'Filtration',    max: 10, per: 0.01,  desc: 'Flux converti +1%/pt',   baseCost: 8000000000,  growth: 1.6 },
+      yield:  { name: 'Froid',         max: 10, per: 0.18,  desc: 'Prix de vente +18%/pt',  baseCost: 12000000000, growth: 1.65 },
+      volume: { name: 'Fioles',        max: 8,  per: 0.03,  desc: 'Max g/tick +3%/pt',      baseCost: 18000000000, growth: 1.7 },
+    },
+    caviar: {
+      speed:  { name: 'Enrobage',      max: 10, per: 0.01,  desc: 'Flux converti +1%/pt',   baseCost: 20000000000, growth: 1.6 },
+      yield:  { name: 'Prestige',      max: 10, per: 0.20,  desc: 'Prix de vente +20%/pt',  baseCost: 30000000000, growth: 1.65 },
+      volume: { name: 'Boîtes',        max: 8,  per: 0.03,  desc: 'Max g/tick +3%/pt',      baseCost: 45000000000, growth: 1.7 },
     },
   };
 
@@ -369,6 +387,66 @@
       unlockLevel: 45,
       exclusive: ['c_money_maker']
     },
+    {
+      id: 'c_moonrock_king',
+      name: 'Rockstar Lunaire',
+      desc: 'Produire 100 moonrocks via la chaîne',
+      icon: '🌙',
+      productId: 'moonrock',
+      target: 100,
+      type: 'crafted',
+      reward: { yieldMult: 1.8, desc: '+80% prix moonrocks (permanent)' },
+      unlockLevel: 70,
+      exclusive: []
+    },
+    {
+      id: 'c_soda_king',
+      name: 'Baron du Soda',
+      desc: 'Produire 50 sodas THC via la chaîne',
+      icon: '🥤',
+      productId: 'soda',
+      target: 50,
+      type: 'crafted',
+      reward: { yieldMult: 2.0, desc: '+100% prix sodas (permanent)' },
+      unlockLevel: 78,
+      exclusive: []
+    },
+    {
+      id: 'c_caviar_king',
+      name: 'Caviar Club',
+      desc: 'Produire 10 caviars rosin via la chaîne',
+      icon: '🥂',
+      productId: 'caviar',
+      target: 10,
+      type: 'crafted',
+      reward: { yieldMult: 2.5, desc: '+150% prix caviars (permanent)' },
+      unlockLevel: 86,
+      exclusive: []
+    },
+    {
+      id: 'c_chain_billion',
+      name: 'Milliardaire Silencieux',
+      desc: 'Gagner 1 milliard € via les chaînes (idle)',
+      icon: '💰',
+      productId: null,
+      target: 1000000000,
+      type: 'chain_money',
+      reward: { globalYield: 1.25, desc: '+25% prix TOUS produits chaînes (permanent)' },
+      unlockLevel: 60,
+      exclusive: ['c_money_maker', 'c_volume_king']
+    },
+    {
+      id: 'c_flow_legend',
+      name: 'Maître du Flux',
+      desc: 'Convertir 1 milliard de grammes via les chaînes',
+      icon: '🌊',
+      productId: null,
+      target: 1000000000,
+      type: 'chain_grams',
+      reward: { flowBoost: 1.3, desc: '+30% flux converti TOUTES chaînes (permanent)' },
+      unlockLevel: 65,
+      exclusive: ['c_money_maker', 'c_volume_king']
+    },
   ];
 
   /** Default contracts state. */
@@ -392,7 +470,10 @@
     { at: 200, mult: 3 },
     { at: 300, mult: 3 },
     { at: 400, mult: 4 },
-    { at: 500, mult: 5 }
+    { at: 500, mult: 5 },
+    { at: 650, mult: 6 },
+    { at: 800, mult: 8 },
+    { at: 1000, mult: 10 }
   ];
 
   /** Multiplicateur de rendement cumulé des paliers atteints par UNE chaîne. */
@@ -414,6 +495,14 @@
   /* ---- progression curve (lissée, plus longue) ---------------- */
   const XP_BASE = 150;
   const XP_GROWTH = 1.42;
+  /**
+   * Late-game rebalance : au-delà du niveau XP_LATE_FROM, la croissance du
+   * coût XP ralentit (1.42 → 1.28) sinon le contenu débloqué à 60/68/75 est
+   * mathématiquement inatteignable. L'early/mid-game (<= 45) est inchangé
+   * au centigramme près — les cibles de pacing du playthrough tiennent toujours.
+   */
+  const XP_GROWTH_LATE = 1.28;
+  const XP_LATE_FROM = 45;
 
   /** Milestones: permanent production bonuses granted at lifetime-XP thresholds. */
   const MILESTONES = [
@@ -425,7 +514,11 @@
     { id: 'm6', xp: 50000000,bonus: 75, name: 'Empereur du Cannabis',icon: '🪐' },
     { id: 'm7', xp: 150000000,bonus: 60, name: 'Cartel Mondial',     icon: '🌍' },
     { id: 'm8', xp: 400000000,bonus: 80, name: 'Nébuleuse Verte',    icon: '🌌' },
-    { id: 'm9', xp: 1000000000,bonus: 100, name: 'Légende Éternelle', icon: '♾️' }
+    { id: 'm9', xp: 1000000000,bonus: 100, name: 'Légende Éternelle', icon: '♾️' },
+    { id: 'm10', xp: 10000000000,   bonus: 120, name: 'Empire Souterrain',  icon: '🏰' },
+    { id: 'm11', xp: 1000000000000, bonus: 150, name: 'Dynastie Verte',     icon: '🌳' },
+    { id: 'm12', xp: 100000000000000, bonus: 180, name: 'Mythe Éternel',    icon: '🔱' },
+    { id: 'm13', xp: 10000000000000000, bonus: 220, name: 'Au-delà du Graal', icon: '🌀' }
   ];
 
   /** Achievements: permanent bonuses for specific accomplishments. */
@@ -444,7 +537,10 @@
     { id: 'ach_chain_10', name: 'Chaîne x10', desc: 'Atteindre le niveau 10 sur une chaîne', icon: '⚡', bonus: 10, condition: (s) => Object.values(s.chainLvl || {}).some((l) => l >= 10) },
     { id: 'ach_idle_1h', name: 'Producteur Passif', desc: 'Gagner 10 000 € en idle (1h offline)', icon: '⏰', bonus: 8, condition: (s, ctx) => ctx && ctx.offlineMoney >= 10000 },
     { id: 'ach_click_1k', name: 'Cliqueur', desc: 'Cliquer 1 000 fois', icon: '👆', bonus: 5, condition: (s) => (s.totalClicks || 0) >= 1000 },
-    { id: 'ach_click_10k', name: 'Cliqueur Pro', desc: 'Cliquer 10 000 fois', icon: '👆', bonus: 10, condition: (s) => (s.totalClicks || 0) >= 10000 }
+    { id: 'ach_click_10k', name: 'Cliqueur Pro', desc: 'Cliquer 10 000 fois', icon: '👆', bonus: 10, condition: (s) => (s.totalClicks || 0) >= 10000 },
+    { id: 'ach_level_75', name: 'Légende Urbaine', desc: 'Atteindre le niveau 75', icon: '⚜️', bonus: 12, condition: (s) => levelFromXp(s.xp) >= 75 },
+    { id: 'ach_1b', name: "Milliard d'Or", desc: 'Gagner 1 milliard € au total', icon: '🏆', bonus: 20, condition: (s) => (s.totalEarned || 0) >= 1000000000 },
+    { id: 'ach_contracts_5', name: 'Contract Killer', desc: 'Réclamer 5 contrats', icon: '📜', bonus: 15, condition: (s) => (s.contracts && s.contracts.claimed || []).length >= 5 }
   ];
 
   /** Tier bonus: tous les 40 niveaux → ×2 (espacé pour lisser le late-game). */
@@ -495,12 +591,19 @@
   /** Lazily extended cumulative-XP table (index = level; index 1 = 0 XP). */
   const _xpTable = [0, 0];
 
+  /** Produit des taux de croissance pour l'exposant n (hybride early/late). */
+  function _xpPowFor(n) {
+    return n <= XP_LATE_FROM
+      ? Math.pow(XP_GROWTH, n)
+      : Math.pow(XP_GROWTH, XP_LATE_FROM) * Math.pow(XP_GROWTH_LATE, n - XP_LATE_FROM);
+  }
+
   /** Cumulative XP required to reach `level` (level 1 needs 0 XP). */
   function xpForLevel(level) {
     const l = Math.max(1, Math.min(9999, Math.floor(Number(level) || 1)));
     while (_xpTable.length <= l) {
       const n = _xpTable.length - 1; // entry for level n+1 uses exponent n
-      _xpTable.push(Math.round(XP_BASE * n * n * Math.pow(XP_GROWTH, n)));
+      _xpTable.push(Math.round(XP_BASE * n * n * _xpPowFor(n)));
     }
     return _xpTable[l];
   }
@@ -1432,6 +1535,8 @@
     MARKET,
     XP_BASE,
     XP_GROWTH,
+    XP_GROWTH_LATE,
+    XP_LATE_FROM,
     MILESTONES,
     TIER_EVERY,
     SPIKE_DURATION,
