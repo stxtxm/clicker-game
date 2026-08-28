@@ -57,10 +57,6 @@
   /** Active sub-tab in the Upgrades view: 'hw' (matériel) | 'chains'. */
   let upgTab = 'hw';
 
-  /** Rolling average of chain earnings per product (last 10 ticks). */
-  const chainEarnHistory = {};
-  const CHAIN_HISTORY_MAX = 10;
-
   // --- juice : paliers de gains totaux (💰) -----------------------------------
   /** Exposant du palier de 10 atteint par les gains totaux (0 sous 1 M€). */
   function earnStep(te) { return te >= 1e6 ? Math.floor(Math.log10(te)) : 0; }
@@ -80,8 +76,9 @@
    * Short toast notification — max 2 visibles, dédoublonnées: re-notifier le
    * même message (ex « Pas assez d'argent » en spam-cliquant) ne réempile pas,
    * ça relance seulement le timer du toast existant.
+   * `big` = variante dorée pour les moments jouissifs (paliers de chaîne, max…).
    */
-  function toast(text) {
+  function toast(text, big) {
     const last = el.mc.lastElementChild;
     if (last && last.textContent === text) {
       clearTimeout(last._timer);
@@ -89,7 +86,7 @@
       return;
     }
     const m = document.createElement('div');
-    m.className = 'ms';
+    m.className = 'ms' + (big ? ' big' : '');
     m.textContent = text;
     while (el.mc.children.length >= 2) el.mc.firstElementChild.remove();
     el.mc.appendChild(m);
@@ -499,6 +496,12 @@
     if (el.hl) el.hl.textContent = pc;
     if (el.lv) el.lv.textContent = Game.levelFromXp(state.xp); // header: always fresh
 
+    // idle income visibility — derived from state (chainEarnRate), pas d'historique
+    // qui lag derrière les achats : la valeur est EXACTE pour le flux idle et
+    // réagit instantanément à chaque upgrade (testé contre autoTick).
+    const earn = Game.chainEarnRate ? Game.chainEarnRate(state) : { per: {}, total: 0 };
+    if (el.mps) el.mps.textContent = earn.total > 0 ? '+' + fmt(earn.total) + ' €/s idle' : '';
+
     // PAS de cap : le stock est libre, on affiche juste le total
     if (el.stw) el.stw.textContent = fmt(state.stock.weed) + 'g dispo';
 
@@ -525,16 +528,12 @@
     if (el.upgQtyInfo) el.upgQtyInfo.textContent = showHw ? 'Paliers ×2 tous les 40' : 'Chaînes +15%/niveau · MAX = max payable';
     if (el.chainSummary) {
       if (!showHw) {
-        const active = Game.AUTOMATION.filter((a) => Game.chainLvl(state, a.productId) > 0).length;
+        const activeOwned = Game.AUTOMATION.filter((a) => Game.chainLvl(state, a.productId) > 0).length;
         const totalLvl = Game.PRODUCTS.reduce((s, p) => s + Game.chainLvl(state, p.id), 0);
         const totalShare = Game.distShare ? Game.distShare(state) : 0;
-        let totalAvg = 0;
-        for (const arr of Object.values(chainEarnHistory)) {
-          if (arr.length) totalAvg += arr.reduce((a, b) => a + b, 0) / arr.length;
-        }
-        const idleEst = totalAvg > 0 ? '+' + fmt(totalAvg) + ' €/s réel (moy. 10s)' : '';
+        const idleEst = earn.total > 0 ? '+' + fmt(earn.total) + ' €/s idle' : '';
         el.chainSummary.style.display = 'block';
-        el.chainSummary.innerHTML = '<b>⚙️ ' + active + '/' + Game.AUTOMATION.length + ' chaînes</b> · Niv total ' + totalLvl + (totalShare ? ' · +' + Math.round(totalShare*100) + '% dist' : '') + (idleEst ? ' · ' + idleEst : '') + ' <span style="float:right;color:var(--gold);font-weight:800;">' + fmt(state.money) + ' €</span>';
+        el.chainSummary.innerHTML = '<b>⚙️ ' + activeOwned + '/' + Game.AUTOMATION.length + ' chaînes</b> · Niv total ' + totalLvl + (totalShare ? ' · +' + Math.round(totalShare*100) + '% dist' : '') + (idleEst ? ' · ' + idleEst : '') + ' <span style="float:right;color:var(--gold);font-weight:800;">' + fmt(state.money) + ' €</span>';
       } else {
         el.chainSummary.style.display = 'none';
       }
@@ -582,6 +581,10 @@
 
   /** Chaînes (onglet dédié) : multi-niveaux — embauche puis améliorations. */
   function updateChainCards() {
+    // €/s idle estimé : dérivé de state (chainEarnRate), requis ici et par
+    // refreshStats — on le calcule donc dans la portée locale (pas de
+    // dépendance à une variable de refreshStats, source de ReferenceError).
+    const earn = Game.chainEarnRate ? Game.chainEarnRate(state) : { per: {}, total: 0 };
     for (const a of Game.AUTOMATION) {
       const lvl = Game.chainLvl(state, a.productId);
       const levelOk = lvl > 0 || Game.levelFromXp(state.xp) >= a.unlock;
@@ -590,8 +593,9 @@
       const cost = Game.automationCost(state, a.productId, count);
       const lv = document.getElementById('ul-' + a.id);
       if (lv) {
+        const shareNow = lvl > 0 ? Game.chainShareOf(state, a.productId) : 0;
         lv.textContent = lvl > 0
-          ? 'Niv ' + lvl + (lvl >= 4 ? ' · +' + Math.round(Game.CHAIN_FLOW_SHARE * lvl * 100) + '% flux' : '')
+          ? 'Niv ' + lvl + ' · ' + Math.round(shareNow*100) + '% flux'
           : (!levelOk ? '🔒 Niv. ' + a.unlock : 'Niv 0');
         lv.classList.toggle('owned', lvl > 0);
       }
@@ -617,41 +621,25 @@
       if (idleEl) {
         if (lvl > 0) {
           const share = Game.chainShareOf(state, a.productId);
-          const hist = chainEarnHistory[a.productId] || [];
-          const avg = hist.length ? Math.round(hist.reduce((a, b) => a + b, 0) / hist.length) : 0;
-          idleEl.textContent = avg > 0
-            ? '≈ ' + fmt(avg) + ' €/s réel · ' + Math.round(share*100) + '% flux'
-            : 'Démarrage... · ' + Math.round(share*100) + '% flux';
+          const eps = (earn.per && earn.per[a.productId]) || 0;
+          const fluxPct = Math.round(share * 100);
+          idleEl.textContent = eps > 0
+            ? '≈ ' + fmt(eps) + ' €/s idle · ' + fluxPct + '% flux'
+            : (Game.perSecond(state) > 0
+              ? 'Pas encore de flux converti (coût > budget) · ' + fluxPct + '% flux'
+              : 'Aucune production — achète de l\'idle · ' + fluxPct + '% flux');
         } else {
           idleEl.textContent = levelOk ? 'Prête à embaucher — idle dès le niveau 1' : '🔒 Niveau ' + a.unlock;
         }
       }
-      // render specialization tree
+      // render specialization tree — built once, updated in place (innerHTML
+      // par tick détruisait les transitions et remplaçait les boutons sous le
+      // doigt : les 2e/3e achats rapides tombaient sur un nœud détaché)
       const specsEl = document.getElementById('chain-specs-' + a.id);
       if (specsEl) {
         if (lvl > 0) {
           specsEl.style.display = 'block';
-          specsEl.innerHTML = renderChainSpecs(a.productId);
-          specsEl.querySelectorAll('button[data-spec]').forEach((btn) => {
-            btn.addEventListener('click', (ev) => {
-              ev.stopPropagation();
-              const branch = btn.dataset.spec;
-              const pid = btn.dataset.pid;
-              const res = Game.buyChainSpec(state, pid, branch, 1);
-              if (res.ok) {
-                toast('+' + res.bought + ' ' + branch + ' (' + res.lvl + '/' + Game.CHAIN_SPECS[pid][branch].max + ')');
-                popNum(btn);
-              } else if (res.reason === 'funds') {
-                toast('Pas assez d\'argent');
-              } else if (res.reason === 'maxed') {
-                toast('Branche maxée');
-              } else if (res.reason === 'locked') {
-                toast(res.message);
-              }
-              refreshStats();
-              save();
-            });
-          });
+          updateChainSpecs('chain-specs-' + a.id, a.productId);
         } else {
           specsEl.style.display = 'none';
         }
@@ -659,39 +647,110 @@
     }
   }
 
-  /** Render specialization tree for a chain. */
-  function renderChainSpecs(productId) {
+  /** Specialization tree: build ONCE per chain (ids stables, handlers attachés
+   *  une seule fois), puis updateChainSpecs ne touche que text/width/disabled. */
+  function buildChainSpecs(containerId, productId) {
     const specs = Game.CHAIN_SPECS && Game.CHAIN_SPECS[productId];
-    if (!specs) return '';
-    const stateSpecs = state.chainSpecs && state.chainSpecs[productId] ? state.chainSpecs[productId] : { speed: 0, yield: 0, volume: 0 };
-    const lvl = Game.chainLvl(state, productId);
-    if (lvl < 1) return '';
+    const specsEl = document.getElementById(containerId);
+    if (!specs || !specsEl) return;
     let html = '<div style="font-size:.7rem;line-height:1.6;">';
-    // palier de chaîne (AdCap) : multiplicateur courant + prochain objectif
-    const curMult = Game.chainMilestoneMult ? Game.chainMilestoneMult(state, productId) : 1;
-    const nextMs = Game.nextChainMilestone ? Game.nextChainMilestone(state, productId) : null;
-    html += '<div style="color:var(--gold);font-weight:700;margin-bottom:2px;">' +
-      '🏁 Rendement ×' + curMult +
-      (nextMs ? ' — prochain ×' + nextMs.mult + ' au niveau ' + nextMs.at + ' (' + (nextMs.at - lvl) + ' restants)' : ' — tous paliers maxés') +
-      '</div>';
+    html += '<div id="cs-' + productId + '-ms" style="color:var(--gold);font-weight:700;margin-bottom:2px;"></div>';
     for (const [branch, def] of Object.entries(specs)) {
-      const cur = stateSpecs[branch] || 0;
-      const cost = Game.chainSpecCost(state, productId, branch, 1);
-      const maxed = cur >= def.max;
-      const affordable = state.money >= cost;
       const icon = branch === 'speed' ? '⚡' : branch === 'yield' ? '💎' : '📦';
       html += '<div style="display:flex;align-items:center;gap:4px;margin:2px 0;">' +
         '<span style="min-width:2.5rem;">' + icon + ' ' + def.name + '</span>' +
-        '<span style="color:var(--gold);font-weight:700;min-width:2rem;">' + cur + '/' + def.max + '</span>' +
+        '<span style="color:var(--gold);font-weight:700;min-width:2rem;" id="cs-' + productId + '-' + branch + '-count">0/' + def.max + '</span>' +
         '<div style="flex:1;height:4px;background:var(--bg);border-radius:2px;overflow:hidden;">' +
-          '<div style="width:' + (cur/def.max*100) + '%;height:100%;background:' + (maxed ? 'var(--gold)' : 'var(--accent)') + ';transition:width .2s"></div>' +
+          '<div class="spec-fill" id="cs-' + productId + '-' + branch + '-fill" style="width:0%;height:100%;background:var(--accent);transition:width .2s"></div>' +
         '</div>' +
-        (maxed ? '<span style="color:var(--gold);font-size:.65rem;">MAX</span>' :
-          '<button class="bb" data-spec="' + branch + '" data-pid="' + productId + '" style="font-size:.6rem;padding:1px 6px;"' + (affordable ? '' : ' disabled') + '>' + fmt(cost) + ' €</button>') +
+        '<button class="bb" data-spec="' + branch + '" data-pid="' + productId + '" id="cs-' + productId + '-' + branch + '-buy" style="font-size:.6rem;padding:1px 6px;"></button>' +
       '</div>';
     }
     html += '</div>';
-    return html;
+    specsEl.innerHTML = html;
+    specsEl.dataset.built = productId;
+    specsEl.querySelectorAll('button[data-spec]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const branch = btn.dataset.spec;
+        const pid = btn.dataset.pid;
+        // impact calculé AVANT l'achat (delta €/s = avant → après)
+        const impact = Game.chainSpecImpact ? Game.chainSpecImpact(state, pid, branch) : null;
+        const res = Game.buyChainSpec(state, pid, branch, 1);
+        if (res.ok) {
+          const def = Game.CHAIN_SPECS[pid][branch];
+          const impactText = impact && impact.pctText ? impact.pctText : '';
+          const epsTxt = impact && impact.epsDelta > 0 ? ' (+' + fmt(impact.epsDelta) + ' €/s)' : '';
+          toast('💎 ' + def.name + ' → ' + res.lvl + '/' + def.max + ' — ' + impactText + epsTxt);
+          popNum(btn);
+          // juice : la branche flash en doré, le compteur pop, la carte vibre,
+          // une particule part exactement du bouton qui vient de payer
+          const countEl = document.getElementById('cs-' + pid + '-' + branch + '-count');
+          if (countEl) popNum(countEl);
+          const fillEl = document.getElementById('cs-' + pid + '-' + branch + '-fill');
+          if (fillEl) {
+            fillEl.classList.add('spec-flash');
+            setTimeout(() => fillEl.classList.remove('spec-flash'), 550);
+          }
+          const card = document.getElementById('ui-' + 'auto-' + pid);
+          if (card) {
+            card.classList.add('popping');
+            card.animate && card.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.03)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(.34,1.56,.64,1)' });
+            setTimeout(() => card.classList.remove('popping'), 400);
+          }
+          spawnParticle('💎 +' + res.bought + ' ' + branch, false, card || btn);
+          if (el.mps) popNum(el.mps);
+          if (res.lvl >= def.max) toast('💎 ' + def.name + ' maxée !', true);
+        } else if (res.reason === 'funds') {
+          toast('Pas assez d\'argent');
+        } else if (res.reason === 'maxed') {
+          toast('Branche maxée');
+        } else if (res.reason === 'locked') {
+          toast(res.message);
+        }
+        refreshStats();
+        save();
+      });
+    });
+  }
+
+  /** Update the spec tree in place: counts, bar widths, costs, MAX state. */
+  function updateChainSpecs(containerId, productId) {
+    const specs = Game.CHAIN_SPECS && Game.CHAIN_SPECS[productId];
+    const specsEl = document.getElementById(containerId);
+    if (!specs || !specsEl) return;
+    if (specsEl.dataset.built !== productId) buildChainSpecs(containerId, productId);
+    const stateSpecs = state.chainSpecs && state.chainSpecs[productId] ? state.chainSpecs[productId] : {};
+    for (const [branch, def] of Object.entries(specs)) {
+      const cur = stateSpecs[branch] || 0;
+      const maxed = cur >= def.max;
+      const countEl = document.getElementById('cs-' + productId + '-' + branch + '-count');
+      const fillEl = document.getElementById('cs-' + productId + '-' + branch + '-fill');
+      const buyEl = document.getElementById('cs-' + productId + '-' + branch + '-buy');
+      if (countEl) countEl.textContent = cur + '/' + def.max;
+      if (fillEl) {
+        fillEl.style.width = (cur / def.max * 100) + '%';
+        fillEl.style.background = maxed ? 'var(--gold)' : 'var(--accent)';
+      }
+      if (buyEl) {
+        if (maxed) {
+          buyEl.textContent = 'MAX';
+          buyEl.disabled = true;
+        } else {
+          const cost = Game.chainSpecCost(state, productId, branch, 1);
+          buyEl.textContent = fmt(cost) + ' €';
+          buyEl.disabled = state.money < cost;
+        }
+      }
+    }
+    const msEl = document.getElementById('cs-' + productId + '-ms');
+    if (msEl) {
+      const curMult = Game.chainMilestoneMult ? Game.chainMilestoneMult(state, productId) : 1;
+      const nextMs = Game.nextChainMilestone ? Game.nextChainMilestone(state, productId) : null;
+      const lvlNow = Game.chainLvl(state, productId);
+      msEl.textContent = '🏁 Rendement ×' + curMult +
+        (nextMs ? ' — prochain ×' + nextMs.mult + ' au niveau ' + nextMs.at + ' (' + (nextMs.at - lvlNow) + ' restants)' : ' — tous paliers maxés');
+    }
   }
 
   // --- game actions ----------------------------------------------------------
@@ -746,7 +805,7 @@
     (el.bc ? el.bc.parentElement : document.body).appendChild(el.fx);
     return el.fx;
   }
-  function spawnParticle(text, warn) {
+  function spawnParticle(text, warn, anchor) {
     const layer = fxLayer();
     let p = FX_POOL.find((n) => !n._busy);
     if (!p) {
@@ -756,11 +815,12 @@
     p._busy = true;
     p.className = 'click-fx' + (warn ? ' warn' : '');
     p.textContent = text;
-    // anchor to the bud's current rect (fixed particles get their own
-    // compositor layers — the bud's layer is never invalidated by them)
-    const r = el.bc.getBoundingClientRect();
+    // anchor to the target's current rect (bud by default) — fixed particles
+    // get their own compositor layers, the viewed node's layer is untouched
+    const node = anchor && anchor.getBoundingClientRect ? anchor : el.bc;
+    const r = node.getBoundingClientRect();
     p.style.left = Math.round(r.left + r.width * (0.5 + (Math.random() - 0.5) * 0.16)) + 'px';
-    p.style.top = Math.round(r.top + r.height * 0.18) + 'px';
+    p.style.top = Math.round(r.top + r.height * 0.22) + 'px';
     if (p.animate) {
       const a = p.animate(
         [
@@ -824,43 +884,63 @@
     save();
   }
 
-  /** Embauche ou améliore une chaîne (niveau +1, ou bulk/MAX). */
+  /** Embauche ou améliore une chaîne (niveau +1, ou bulk/MAX) — juice inclus. */
   function buyAuto(id) {
-    let count = upgradeQtyMode;
-    if (count === 'max') {
-      const a0 = Game.AUTOMATION.find((x) => x.id === id);
-      count = a0 ? Math.max(1, Game.maxAutomationLevels(state, a0.productId)) : 1;
-    }
     const a = Game.AUTOMATION.find((x) => x.id === id);
+    let count = upgradeQtyMode;
+    if (count === 'max') count = a ? Math.max(1, Game.maxAutomationLevels(state, a.productId)) : 1;
+    const eps0 = a && Game.chainEarnRate ? (Game.chainEarnRate(state).per[a.productId] || 0) : 0;
     const multBefore = a && Game.chainMilestoneMult ? Game.chainMilestoneMult(state, a.productId) : 1;
     const res = Game.buyAutomation(state, id, count);
     if (res.ok) {
-      toast(res.lvl > res.bought
-        ? res.name + ' → Niv ' + res.lvl + ' !'
-        : res.name + ' embauchée ! 🛠️');
+      // la stat €/s idle réagit INSTANTANÉMENT (dérivée de state) : le delta
+      // affiché dans le toast est exact, pas une moyenne qui lag derrière.
+      const eps1 = a && Game.chainEarnRate ? (Game.chainEarnRate(state).per[a.productId] || 0) : 0;
+      const delta = eps1 - eps0;
+      const deltaLabel = delta > 0 ? ' (+' + fmt(delta) + ' €/s)' : '';
+      const firstHire = res.lvl <= res.bought;
+      toast(firstHire
+        ? res.name + ' embauchée ! 🛠️' + deltaLabel
+        : res.name + ' → Niv ' + res.lvl + ' !' + deltaLabel);
       popNum(el.m);
       const card = document.getElementById('ui-' + id);
       if (card) {
         card.classList.add('popping');
         card.animate && card.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.04)' }, { transform: 'scale(1)' }], { duration: 350, easing: 'cubic-bezier(.34,1.56,.64,1)' });
-        setTimeout(() => card.classList.remove('popping'), 400);
-        for (let i = 0; i < Math.min(3, res.bought || 1); i++) setTimeout(() => spawnParticle('⚙️ +' + (res.bought || 1) + ' Niv !'), i * 90);
+        setTimeout(() => card.classList.remove('popping'), 420);
+        // halo doré court — le joueur voit QUE sa chaîne vient de vibrer
+        card.classList.add('chain-juiced');
+        setTimeout(() => card.classList.remove('chain-juiced'), 650);
+        const lvlSpan = document.getElementById('ul-' + a.id);
+        if (lvlSpan) popNum(lvlSpan);
+        const bar = document.getElementById('chain-bar-' + a.id);
+        if (bar) {
+          bar.classList.add('flash');
+          setTimeout(() => bar.classList.remove('flash'), 550);
+        }
+        for (let i = 0; i < Math.min(3, res.bought || 1); i++) {
+          setTimeout(() => spawnParticle('⚙️ +' + (res.bought || 1) + ' Niv !', false, card), i * 90);
+        }
       }
-      // juice palier de chaîne (AdCap) : le rendement vient de sauter
+      // juice palier de chaîne (AdCap) : le rendement vient de sauter — toast
+      // doré big + pluie de ✦, le head-up date la stat en parallèle
       if (a && Game.chainMilestoneMult) {
         const multAfter = Game.chainMilestoneMult(state, a.productId);
         if (multAfter > multBefore) {
           setTimeout(() => {
-            toast('🏁 Palier ×' + multAfter + ' — ' + a.name + ' !');
-            spawnParticle('🏁 ×' + multAfter + ' !');
+            toast('🏁 Palier ×' + multAfter + ' — ' + a.name + ' !', true);
+            spawnParticle('🏁 ×' + multAfter + ' !', false, card);
+            if (el.m) popNum(el.m);
+            if (el.mps) popNum(el.mps);
+            for (let i = 0; i < 4; i++) setTimeout(() => spawnParticle('✦', false, card), i * 120);
           }, 250);
         }
       }
     } else if (res.reason === 'funds') {
       toast('Manque ' + fmt((res.cost || 0) - state.money) + ' €');
     } else if (res.reason === 'level') {
-      const a = Game.AUTOMATION.find((x) => x.id === id);
-      toast('Niveau ' + (a ? a.unlock : '?') + ' requis');
+      const lvlGate = a ? a.unlock : '?';
+      toast('Niveau ' + lvlGate + ' requis');
     }
     refreshStats();
     save();
@@ -909,12 +989,6 @@
     for (const ct of doneContracts) {
       toast('📋 ' + ct.name + ' accompli — récupère ta récompense !');
     }
-    // track per-product chain earnings for rolling average
-    for (const [pid, money] of Object.entries(tick.soldMoney || {})) {
-      if (!chainEarnHistory[pid]) chainEarnHistory[pid] = [];
-      chainEarnHistory[pid].push(money);
-      if (chainEarnHistory[pid].length > CHAIN_HISTORY_MAX) chainEarnHistory[pid].shift();
-    }
     // spoilage doux (remplace le cap) : le surplus au-dessus du plancher se dégrade
     const spoiled = Game.applySpoil ? Game.applySpoil(state) : 0;
     // juice paliers de gains totaux : chaque puissance de 10 franchie célèbre
@@ -923,14 +997,6 @@
       lastEarnStep = earnSt;
       toast('💰 ' + moneyWord(Math.pow(10, earnSt)) + ' de gains totaux !');
       popNum(el.m);
-    }
-    // idle income visibility: rolling average of what dealers actually earned
-    if (el.mps) {
-      let totalAvg = 0;
-      for (const arr of Object.values(chainEarnHistory)) {
-        if (arr.length) totalAvg += arr.reduce((a, b) => a + b, 0) / arr.length;
-      }
-      el.mps.textContent = totalAvg > 0 ? '+' + fmt(totalAvg) + ' €/s (moy. 10s)' : '';
     }
     refreshStats();
     save();

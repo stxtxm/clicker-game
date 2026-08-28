@@ -759,6 +759,67 @@
   }
 
   /**
+   * Estimated idle €/s per chain from CURRENT state — the exact model of
+   * `autoTick` run on the idle-only flow (`perSecond`): same product order,
+   * share/volume/yield multipliers and rounding. Derived purely from state,
+   * it reacts INSTANTLY to purchases (no 10s history lag) and is verifiable:
+   * `autoTick` repeated on a fixed clock converges exactly on this number.
+   * @param {object} s state
+   * @param {number} [now] epoch ms for the market pulse
+   * @returns {{per:Object<string,number>, total:number}} €/s per product + total
+   */
+  function chainEarnRate(s, now) {
+    const t = now === undefined ? Date.now() : now;
+    const flow = Math.max(0, perSecond(s));
+    const per = {};
+    let total = 0;
+    let budget = flow;
+    for (const p of [...PRODUCTS].reverse()) {
+      const pid = p.id;
+      if (chainLvl(s, pid) < 1 || !hasAuto(s, 'craft', pid)) continue;
+      per[pid] = 0;
+      if (budget < p.cost) continue;
+      const share = chainShareOf(s, pid);
+      const maxGrams = Math.max(p.cost, flow * share) * chainVolumeMult(s, pid);
+      const grams = Math.min(budget, maxGrams);
+      const units = Math.floor(grams / p.cost);
+      if (units < 1) continue;
+      budget -= units * p.cost;
+      if (!hasAuto(s, 'sell', pid)) continue; // craft sans Dealer = stock, pas d'€
+      const gain = Math.round(units * priceOf(s, pid, t) * chainYieldMult(s, pid));
+      per[pid] = gain;
+      total += gain;
+    }
+    return { per, total };
+  }
+
+  /**
+   * Human-readable impact of buying ONE more specialization point on a chain
+   * branch, plus the delta it produces on the estimated idle €/s.
+   * @param {object} s state
+   * @param {string} productId chain product id
+   * @param {string} branch 'speed' | 'yield' | 'volume'
+   * @returns {{pctText:string, epsDelta:number, lvl:number, max:number}|{maxed:true}|null}
+   */
+  function chainSpecImpact(s, productId, branch) {
+    const specDef = CHAIN_SPECS[productId] && CHAIN_SPECS[productId][branch];
+    if (!specDef) return null;
+    const cur = s.chainSpecs && s.chainSpecs[productId] ? s.chainSpecs[productId][branch] || 0 : 0;
+    if (cur >= specDef.max) return { maxed: true };
+    const pct = Math.round(specDef.per * 100);
+    const pctText = branch === 'speed' ? '+' + pct + '% flux'
+      : branch === 'yield' ? '+' + pct + '% prix'
+      : '+' + pct + '% max';
+    const before = chainEarnRate(s).per[productId] || 0;
+    const next = JSON.parse(JSON.stringify(s)); // clone léger, achat simulé
+    next.chainSpecs = next.chainSpecs || defaultChainSpecs();
+    next.chainSpecs[productId] = next.chainSpecs[productId] || { speed: 0, yield: 0, volume: 0 };
+    next.chainSpecs[productId][branch] = cur + 1;
+    const after = chainEarnRate(next).per[productId] || 0;
+    return { pctText, epsDelta: after - before, lvl: cur + 1, max: specDef.max };
+  }
+
+  /**
    * Fresh game state.
    * @returns {object} a brand new, unmodified default state
    */
@@ -1605,6 +1666,8 @@
     defaultContracts,
     CHAIN_MILESTONES,
     chainMilestoneMult,
-    nextChainMilestone
+    nextChainMilestone,
+    chainEarnRate,
+    chainSpecImpact
   };
 });

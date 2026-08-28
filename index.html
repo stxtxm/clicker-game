@@ -163,6 +163,24 @@
     @keyframes upgradePop { 0% { transform: scale(1); } 30% { transform: scale(1.03); } 100% { transform: scale(1); } }
     .chain-bar { height: 6px; background: #0a0e0a; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; margin-top: 6px; }
     .chain-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-soft)); border-radius: 999px; transition: width .3s; }
+    /* juice chaînes : halo doré après achat, flash de la barre de flux */
+    .upgrade.chain-juiced { animation: chainJuice .6s ease-out; }
+    @keyframes chainJuice {
+      0% { box-shadow: 0 0 0 rgba(251,191,36,0); border-color: var(--border2); }
+      35% { box-shadow: 0 0 20px rgba(251,191,36,.55), 0 0 40px rgba(251,191,36,.18); border-color: var(--gold); }
+      100% { box-shadow: 0 0 0 rgba(251,191,36,0); border-color: var(--border2); }
+    }
+    .chain-fill.flash, .spec-fill.spec-flash { animation: fillFlash .5s ease-out; }
+    @keyframes fillFlash {
+      0%, 100% { filter: brightness(1); }
+      40% { filter: brightness(1.9) saturate(1.4); }
+    }
+    .chain-specs .bb {
+      min-height: 26px;
+      padding: 2px 8px;
+      font-size: .62rem;
+    }
+    .chain-specs .bb:active:not(:disabled) { transform: scale(.92); filter: brightness(1.18); }
     .bud-container::before {
       content: '';
       position: absolute;
@@ -414,6 +432,7 @@
     /* ===== Toasts ===== */
     .mc { position: fixed; top: calc(8px + var(--sat)); left: 0; right: 0; pointer-events: none; z-index: 1000; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 20px; }
     .ms { background: rgba(0,0,0,.92); color: var(--green-soft); padding: 11px 20px; border-radius: 12px; font-size: .9rem; font-weight: 800; border: 1px solid var(--border); box-shadow: var(--sh); animation: mi .28s cubic-bezier(.34,1.56,.64,1),mo .25s cubic-bezier(.4,0,.2,1) 1.8s forwards; text-align: center; }
+    .ms.big { color: var(--gold); border-color: var(--gold); background: linear-gradient(180deg, rgba(251,191,36,.18), rgba(0,0,0,.94)); font-size: 1rem; text-shadow: 0 0 14px rgba(251,191,36,.35); }
     @keyframes mi { from { opacity: 0; transform: translateY(-10px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
     @keyframes mo { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-10px); } }
 
