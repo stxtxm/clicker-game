@@ -259,9 +259,10 @@ test('deserialize: sanitizes unknown strain and bad shapes', () => {
 
 test('data catalog is coherent', () => {
   assert.strictEqual(Game.UPGRADES.length, 14);
-  assert.strictEqual(Game.STRAINS.length, 10);
-  assert.strictEqual(Game.PRODUCTS.length, 12);
-  assert.strictEqual(Game.MILESTONES.length, 9);
+  assert.strictEqual(Game.STRAINS.length, 12);
+  assert.strictEqual(Game.PRODUCTS.length, 14);
+  assert.strictEqual(Game.MILESTONES.length, 13);
+  assert.strictEqual(Game.CONTRACTS.length, 16);
   for (const u of Game.UPGRADES) {
     assert.ok(u.id && u.name && u.desc && u.cost > 0);
     assert.strictEqual(Game.BASE_COST[u.id], u.cost);
@@ -824,7 +825,11 @@ test('chainMilestoneMult: paliers ×2 cumulatifs façon AdCap', () => {
   s.chainLvl.joint = 200; // 2*2*2*2*2*3 = 96
   assert.strictEqual(Game.chainMilestoneMult(s, 'joint'), 96);
   assert.deepStrictEqual(Game.nextChainMilestone(s, 'joint'), { at: 300, mult: 3 });
-  s.chainLvl.joint = 999;
+  s.chainLvl.joint = 650; // paliers late-game : 650→×6, 800→×8, 1000→×10
+  assert.strictEqual(Game.chainMilestoneMult(s, 'joint'), 2 * 2 * 2 * 2 * 2 * 3 * 3 * 4 * 5 * 6);
+  assert.deepStrictEqual(Game.nextChainMilestone(s, 'joint'), { at: 800, mult: 8 });
+  s.chainLvl.joint = 1000;
+  assert.strictEqual(Game.chainMilestoneMult(s, 'joint'), 2 * 2 * 2 * 2 * 2 * 3 * 3 * 4 * 5 * 6 * 8 * 10);
   assert.strictEqual(Game.nextChainMilestone(s, 'joint'), null);
   // les autres chaînes ne bougent pas
   assert.strictEqual(Game.chainMilestoneMult(s, 'sachet'), 1);
@@ -968,5 +973,95 @@ test('roundtrip contrats/paliers: claimed + chainStats + chainSpecs préservés'
   assert.deepStrictEqual(d.contracts.claimed, ['c_joint_king']);
   assert.strictEqual(Game.chainMilestoneMult(d, 'joint'), 4);
   assert.strictEqual(Game.getContractRewards(d, 'joint').yieldMult, 1.25);
+});
+
+test('courbe XP hybride: early inchangé, late-game aplati après le niveau XP_LATE_FROM', () => {
+  const g = Game.XP_GROWTH, gl = Game.XP_GROWTH_LATE, F = Game.XP_LATE_FROM;
+  // niveaux <= XP_LATE_FROM + 1 : formule historique pure (pacing intact)
+  for (const L of [2, 10, 30, 45, F + 1]) {
+    const n = L - 1;
+    assert.strictEqual(Game.xpForLevel(L), Math.round(150 * n * n * Math.pow(g, n)), 'lvl ' + L);
+  }
+  // au-delà : la croissance bascule sur XP_GROWTH_LATE
+  const n46 = F + 1; // exposant du niveau F + 2
+  assert.strictEqual(Game.xpForLevel(F + 2), Math.round(150 * n46 * n46 * Math.pow(g, F) * Math.pow(gl, 1)));
+  // monotone et significativement plus accessible que la courbe pure 1.42
+  assert.ok(Game.xpForLevel(F + 3) > Game.xpForLevel(F + 2));
+  const late = Math.round(150 * 74 * 74 * Math.pow(g, F) * Math.pow(gl, 74 - F));
+  const old = Math.round(150 * 74 * 74 * Math.pow(g, 74));
+  assert.ok(late < old / 10, 'le niveau 75 doit couter au moins 10x moins cher qu avant');
+});
+
+test('contenu late-game: produits/variétés/chaînes dérivées cohérents', () => {
+  for (const id of ['nectar', 'caviar']) {
+    const p = Game.getProduct(id);
+    assert.ok(p && p.unlock > 75 && p.price > 115000, id + ' existe et est late-game');
+    assert.ok(Game.CHAIN_SPECS[id], 'chaîne spécialisable : ' + id);
+    const a = Game.AUTOMATION.find((x) => x.productId === id);
+    assert.ok(a && a.unlock === p.unlock + 4 && a.cost === Math.round(p.price * 400), 'automation dérivée ' + id);
+  }
+  assert.ok(Game.getStrain('runtz') && Game.getStrain('godfather'));
+  assert.ok(Game.getStrain('runtz').unlock === 70 && Game.getStrain('godfather').unlock === 78);
+});
+
+test('buyChainSpec sur une chaîne late-game (nectar)', () => {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(90); // chaîne nectar débloquée au niveau 86
+  s.chainLvl.nectar = 1;      // embauchée : prérequis buyChainSpec
+  s.money = 1e11;
+  const res = Game.buyChainSpec(s, 'nectar', 'yield', 2);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(s.chainSpecs.nectar.yield, 2);
+  assert.ok(Game.chainYieldMult(s, 'nectar') > 1);
+});
+
+test('contrats late-game: chain_money, crafted et récompenses dérivées', () => {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(80);
+  // c_chain_billion : 1 Md€ idle
+  s.contracts.chainMoneyEarned = 1e9;
+  let done = Game.checkContracts(s);
+  assert.ok(done.some((c) => c.id === 'c_chain_billion'));
+  assert.strictEqual(Game.claimContract(s, 'c_chain_billion').ok, true);
+  assert.strictEqual(Game.getContractRewards(s, 'shatter').globalYield, 1.25);
+  // c_moonrock_king : 100 moonrocks craftés
+  s.chainStats.moonrock = { crafted: 100, sold: 0, money: 0 };
+  done = Game.checkContracts(s);
+  assert.ok(done.some((c) => c.id === 'c_moonrock_king'));
+  Game.claimContract(s, 'c_moonrock_king');
+  assert.strictEqual(Game.getContractRewards(s, 'moonrock').yieldMult, 1.8);
+  assert.strictEqual(Game.getContractRewards(s, 'joint').yieldMult, 1);
+});
+
+test('jalons m10-m13 et nouveaux achievements', () => {
+  const s = Game.defaultState();
+  s.xp = 1.5e10; // franchit m10 (1e10)
+  const awarded = Game.checkMilestones(s);
+  assert.ok(awarded.some((m) => m.id === 'm10'));
+  assert.ok(!s.milestones.includes('m11')); // 1e12 pas atteint
+  // ach_1b
+  s.totalEarned = 2e9;
+  const got = Game.checkAchievements(s);
+  assert.ok(got.some((a) => a.id === 'ach_1b'));
+  // ach_contracts_5 : 5 contrats réclamés
+  s.contracts.claimed = ['c_joint_king', 'c_cake_king', 'c_money_maker', 'c_vape_king', 'c_moonrock_king'];
+  assert.ok(Game.checkAchievements(s).some((a) => a.id === 'ach_contracts_5'));
+});
+
+test('roundtrip late-game: nouveaux catalogues + jalons survivent à la save', () => {
+  const s = Game.defaultState();
+  s.chainLvl.caviar = 3;
+  s.chainSpecs.caviar.prestige = 0; s.chainSpecs.caviar.yield = 5;
+  s.milestones = ['m1', 'm10'];
+  s.contracts.claimed = ['c_chain_billion'];
+  const d = Game.deserialize(Game.serialize(s));
+  assert.strictEqual(d.chainLvl.caviar, 3);
+  assert.strictEqual(d.chainSpecs.caviar.yield, 5);
+  assert.deepStrictEqual(d.milestones, ['m1', 'm10']);
+  assert.strictEqual(Game.getContractRewards(d, 'joint').globalYield, 1.25);
+  // une vieille save sans specs nectar/caviar reçoit les défauts
+  const old = Game.deserialize(JSON.stringify({ xp: 5e12, chainLvl: { joint: 2 } }));
+  assert.deepStrictEqual(old.chainSpecs.nectar, { speed: 0, yield: 0, volume: 0 });
+  assert.deepStrictEqual(old.chainSpecs.caviar, { speed: 0, yield: 0, volume: 0 });
 });
 
