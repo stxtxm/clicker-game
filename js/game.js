@@ -1367,7 +1367,7 @@
         d.contracts.chainGramsConverted = typeof d.contracts.chainGramsConverted === 'number' && d.contracts.chainGramsConverted >= 0
           ? Math.floor(d.contracts.chainGramsConverted) : 0;
       }
-      // récompenses dérivées de claimed — drop du champ legacy (WIP pré-release)
+      // récompenses dérivées de claimed — drop du champ legacy
       delete d.contractRewards;
       // stats de chaînes — produits connus uniquement, compteurs ≥ 0
       if (!d.chainStats || typeof d.chainStats !== 'object') d.chainStats = {};
