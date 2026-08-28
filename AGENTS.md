@@ -114,30 +114,38 @@ Vérifications avant tout commit : `npm test` passe **et** `node --check` sur ch
 L'économie est pilotée par les données, pas au doigt mouillé :
 
 1. Modifie les knobs dans `js/game.js` (dans l'ordre d'impact) :
-   - **Stockage** (`sbox`/`coldroom`, growth ×3.0, +1%/niveau passif) — le revenu
-     ≈ cap × €/g, donc le cap gate tout le late game. C'est LE puits à argent.
-     L'XP vient des grammes produits (`harvestXp`): pertes au cap = 25% — la
-     boucle « plein → bloqué » ne doit jamais revenir.
+   - **Spoilage doux + paliers Distribution** (`dist1/2/3`, growth ×1.9,
+     +3/+6/+10 % de flux converti chacune) — plus aucun cap : la weed
+     s'accumule librement et, au-delà d'un plancher (60 s de production),
+     le surplus se dégrade à `SPOIL_RATE` (1 %/s). Vendre ou fabriquer
+     reste la bonne idée, sans jamais bloquer. Le revenu idle late-game
+     est gate par la part de flux que les chaînes peuvent convertir —
+     les paliers dist en sont LE levier. L'XP vient des grammes produits
+     (`harvestXp`).
    - **Chaînes proportionnelles** (`CHAIN_FLOW_SHARE` 0.15) — chaque chaîne
-     transforme max 15% du flux réellement entré au stockage ce tick
-     (autoTick reçoit les grammes AJOUTÉS, pas produits). Règle gravée:
-     à cap, flux 0 -> les chaînes pausent, le tas et le stock manuel ne
-     sont JAMAIS drainés par elles. L'argent idle est proportionnel au
-     transformé et affiché en €/s dans le header; au-delà de ~3 chaînes,
-     garder de la pression de cap.
+     transforme max 15 % du flux réellement ajouté au stock ce tick
+     (autoTick reçoit les grammes AJOUTÉS, pas produits), part de flux
+     bornée par `CHAIN_SHARE_MAX` (0.6). Règle gravée : le tas et le
+     stock manuel ne sont JAMAIS drainés par elles. L'argent idle est
+     proportionnel au transformé et affiché en €/s dans le header.
    - **Paliers de chaîne** (`CHAIN_MILESTONES`) — ×2 rendement aux niveaux
      25/50/75/100/150 de chaque chaîne (puis ×3/×4/×5) : objectif court-terme
      permanent façon AdCap, sans toucher au gate de flux.
+   - **Spécialisation de chaîne** (`CHAIN_SPECS`) — branches speed/yield/volume
+     par produit, nœuds achetables avec les gains de chaîne au late game.
+   - **Contrats exclusifs** (`CONTRACTS`) — objectifs fin de jeu à récompenses
+     permanentes, dérivées de la liste `claimed` (rien de multiplicatif
+     stocké dans la save).
    - **Coûts des variétés** — chaque variété est un saut exponentiel
      (`yieldMult × priceMult`) ; leurs coûts espacent les sauts.
-   - `XP_GROWTH` (1.32) — les niveaux gate produits/chaînes/variétés.
+   - `XP_GROWTH` (1.42) — les niveaux gate produits/chaînes/variétés.
    - Échelle de produits (`PRODUCTS`) et `MARKET` (pulse ±30 %).
 2. Lance `node --test test/playthrough.test.js` et lis la ligne `SIM2H` :
    c'est un joueur **optimal** (2.5 clics/s, vente aux pics, sessions AFK,
    achats parfaits). Un joueur réel est 2-4× plus lent.
-3. Ajuste jusqu'à tenir les cibles gravées dans le test (niveau 10 à 6-20 min,
-   1 M€ à 6-20 min, plafond < 10 Md€ en 2h optimale, etc.).
-4. `npm test` — les assertions de pacing + les 70 tests unitaires doivent rester
+3. Ajuste jusqu'à tenir les cibles gravées dans le test (niveau 10 à 5-20 min,
+   1 M€ à 4-20 min, gains totaux < 5 P€ en 2h optimale, etc.).
+4. `npm test` — les assertions de pacing + les 75 tests unitaires doivent rester
    verts. Toute valeur de prix/coût du README doit suivre (tables à jour).
 
 ## PWA / cache — règle de versioning
@@ -160,7 +168,7 @@ pertinente. L'e2e doit rester **sans dépendance** (pas de puppeteer/playwright)
 
 ## Checklist de PR
 
-- [ ] `npm test` vert en local (70 unit + playthrough + e2e)
+- [ ] `npm test` vert en local (75 unit + playthrough + e2e)
 - [ ] `node --check` sur chaque fichier JS touché
 - [ ] Nouvelles données de jeu → sanitisation `deserialize` + test roundtrip
 - [ ] Changement d'économie → sim playthrough relancée, README à jour
