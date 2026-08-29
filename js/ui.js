@@ -46,7 +46,19 @@
     xpnext: document.getElementById('xpnext'),
     ms: document.getElementById('ms'),
     rb: document.getElementById('rb'),
-    cv: document.getElementById('cv')
+    cv: document.getElementById('cv'),
+    // Clicker-focused elements
+    comboDisplay: document.getElementById('combo-display'),
+    comboCount: document.getElementById('combo-count'),
+    comboMult: document.getElementById('combo-mult'),
+    autoClickToggle: document.getElementById('auto-click-toggle'),
+    activeEventsContainer: document.getElementById('active-events'),
+    // Prestige elements
+    prestigeDisplay: document.getElementById('prestige-display'),
+    prestigeLevel: document.getElementById('prestige-level'),
+    prestigeName: document.getElementById('prestige-name'),
+    // Session bonus elements
+    sessionBonusDisplay: document.getElementById('session-bonus-display')
   };
 
   let state = Game.defaultState();
@@ -495,6 +507,36 @@
     if (el.ar) el.ar.textContent = '+' + ar;
     if (el.hl) el.hl.textContent = pc;
     if (el.lv) el.lv.textContent = Game.levelFromXp(state.xp); // header: always fresh
+    
+    // Combo display
+    if (el.comboDisplay && state.combo) {
+      const comboActive = state.combo.count > 0;
+      el.comboDisplay.style.display = comboActive ? 'flex' : 'none';
+      if (el.comboCount) el.comboCount.textContent = state.combo.count;
+      if (el.comboMult) el.comboMult.textContent = '×' + state.combo.multiplier.toFixed(1);
+    }
+    
+    // Active performance events display
+    if (el.activeEventsContainer && state.activePerformanceEvents) {
+      renderActiveEvents();
+    }
+    
+    // Session bonus display
+    if (el.sessionBonusDisplay && state.activeSessionBonuses) {
+      renderSessionBonuses();
+    }
+    
+    // Prestige display
+    if (el.prestigeDisplay && state.prestigeLevel > 0) {
+      el.prestigeDisplay.style.display = 'flex';
+      if (el.prestigeLevel) el.prestigeLevel.textContent = 'P' + state.prestigeLevel;
+      if (el.prestigeName) {
+        const prestigeInfo = Game.PRESTIGE_THRESHOLDS[state.prestigeLevel - 1];
+        el.prestigeName.textContent = prestigeInfo ? prestigeInfo.name : 'Légende';
+      }
+    } else if (el.prestigeDisplay) {
+      el.prestigeDisplay.style.display = 'none';
+    }
 
     // idle income visibility — derived from state (chainEarnRate), pas d'historique
     // qui lag derrière les achats : la valeur est EXACTE pour le flux idle et
@@ -759,25 +801,62 @@
 
   function onHarvest(ev) {
     if (ev && ev.preventDefault) { ev.preventDefault(); ev.stopPropagation(); }
-    const ac = Game.perClick(state);
+    const now = Date.now();
+    
+    // Increment click counters
+    state.totalClicks = (state.totalClicks || 0) + 1;
+    state.sessionClicks = (state.sessionClicks || 0) + 1;
+    
+    // Update lifetime earnings
+    state.totalEarnedLifetime = (state.totalEarnedLifetime || 0) + Game.perClick(state, now);
+    
+    // Handle combo
+    const comboMult = Game.handleCombo(state, now);
+    
+    // Check and trigger performance events based on combo
+    const triggeredEvent = Game.checkPerformanceEvents(state, now);
+    if (triggeredEvent) {
+      toast(triggeredEvent.icon + ' ' + triggeredEvent.name + ' activé ! (' + (triggeredEvent.duration / 1000) + 's)');
+      spawnParticle(triggeredEvent.icon + ' ' + triggeredEvent.name);
+    }
+    
+    // Check and trigger session bonuses
+    const triggeredSessionBonus = Game.checkSessionBonuses(state, now);
+    if (triggeredSessionBonus) {
+      toast(triggeredSessionBonus.icon + ' ' + triggeredSessionBonus.name + ' !');
+    }
+    
+    // Check prestige
+    Game.checkPrestige(state);
+    
+    // Get click amount with all multipliers
+    const ac = Game.perClick(state, now);
     const added = Game.harvestXp(state, ac);
     clickFlow += added; // chains only process grams produced this tick
     const xp = Game.xpProgress(state.xp);
-    // squash & stretch juice — WAAPI: compositor-driven, restarts cleanly on
-    // rapid taps (each new animation replaces the previous, no forced reflow)
+    
+    // Enhanced WAAPI animation for combos
     if (el.bc.animate) {
+      const duration = comboMult > 1.5 ? 280 : 320; // Faster animation for high combos
+      const scaleFactor = 1 + (comboMult - 1) * 0.2; // More dramatic for high combos
       el.bc.animate(
         [
           { transform: 'scale(1, 1)' },
-          { transform: 'scale(0.955, 1.045)', offset: 0.22 },
-          { transform: 'scale(1.055, 0.955)', offset: 0.42 },
-          { transform: 'scale(0.99, 1.015)', offset: 0.68 },
+          { transform: 'scale(' + (0.955 * scaleFactor) + ', ' + (1.045 * scaleFactor) + ')', offset: 0.22 },
+          { transform: 'scale(' + (1.055 * scaleFactor) + ', ' + (0.955 * scaleFactor) + ')', offset: 0.42 },
+          { transform: 'scale(' + (0.99 * scaleFactor) + ', ' + (1.015 * scaleFactor) + ')', offset: 0.68 },
           { transform: 'scale(1, 1)' }
         ],
-        { duration: 320, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+        { duration: duration, easing: 'cubic-bezier(.34,1.56,.64,1)' }
       );
     }
-    spawnParticle('+' + ac + 'g');
+    
+    // Enhanced particle for combos
+    let particleText = '+' + ac + 'g';
+    if (comboMult > 1) particleText += ' (×' + comboMult.toFixed(1) + ')';
+    if (state.combo.count >= 5) particleText = '🔥 ' + particleText; // Fire emoji for combo
+    spawnParticle(particleText);
+    
     popNum(el.stw);
     refreshStats();
     save();
@@ -876,6 +955,16 @@
         setTimeout(() => card.classList.remove('popping'), 380);
         for (let i = 0; i < Math.min(3, res.count || 1); i++) setTimeout(() => spawnParticle('✨ Niv +' + (res.count || 1) + ' !'), i * 90);
       }
+      // Special case: Mode Idle upgrade enables auto-click
+      if (id === 'auto' && !state.autoClickEnabled) {
+        state.autoClickEnabled = true;
+        if (el.autoClickToggle) {
+          el.autoClickToggle.textContent = '⚡ ON';
+          el.autoClickToggle.style.background = 'var(--gold)';
+          el.autoClickToggle.style.color = 'var(--bg)';
+        }
+        toast('⚡ Mode Idle activé ! (-10% clic manuel)');
+      }
     } else {
       if (res.cost) toast('Manque ' + fmt(res.cost - state.money) + ' €');
       else toast("Pas assez d'argent");
@@ -966,9 +1055,88 @@
     save();
   }
 
+  /** Render active performance events above the bud. */
+  function renderActiveEvents() {
+    if (!el.activeEventsContainer) return;
+    
+    const now = Date.now();
+    const activeEvents = (state.activePerformanceEvents || []).filter(e => now < e.endTime);
+    
+    // Clear container
+    el.activeEventsContainer.innerHTML = '';
+    
+    if (activeEvents.length === 0) {
+      el.activeEventsContainer.style.display = 'none';
+      return;
+    }
+    
+    el.activeEventsContainer.style.display = 'flex';
+    
+    for (const event of activeEvents) {
+      const remaining = Math.ceil((event.endTime - now) / 1000);
+      const eventEl = document.createElement('div');
+      eventEl.className = 'h-stat';
+      eventEl.style.background = 'rgba(251, 191, 36, 0.2)';
+      eventEl.style.borderColor = 'var(--gold)';
+      eventEl.innerHTML = '<span>' + event.icon + '</span><b>' + event.name + '</b><small>' + remaining + 's</small>';
+      el.activeEventsContainer.appendChild(eventEl);
+    }
+  }
+
+  /** Render active session bonuses. */
+  function renderSessionBonuses() {
+    if (!el.sessionBonusDisplay) return;
+    
+    const now = Date.now();
+    const activeBonuses = (state.activeSessionBonuses || []).filter(b => now < b.endTime);
+    
+    el.sessionBonusDisplay.innerHTML = '';
+    
+    if (activeBonuses.length === 0) {
+      el.sessionBonusDisplay.style.display = 'none';
+      return;
+    }
+    
+    el.sessionBonusDisplay.style.display = 'flex';
+    
+    for (const bonus of activeBonuses) {
+      const remaining = Math.ceil((bonus.endTime - now) / 1000);
+      const bonusEl = document.createElement('div');
+      bonusEl.className = 'h-stat';
+      bonusEl.style.background = 'rgba(16, 185, 129, 0.2)';
+      bonusEl.style.borderColor = 'var(--green)';
+      bonusEl.innerHTML = '<span>' + bonus.icon + '</span><b>' + bonus.name + '</b><small>' + (remaining > 60 ? Math.ceil(remaining / 60) + 'm' : remaining + 's') + '</small>';
+      el.sessionBonusDisplay.appendChild(bonusEl);
+    }
+  }
+
   /** One auto-production tick (every second): weed growth, then automation. */
   function autoProduce() {
     const now = Date.now();
+    
+    // Clean up expired performance events
+    if (state.activePerformanceEvents) {
+      state.activePerformanceEvents = state.activePerformanceEvents.filter(e => 
+        now < e.endTime
+      );
+    }
+    
+    // Clean up expired session bonuses
+    if (state.activeSessionBonuses) {
+      state.activeSessionBonuses = state.activeSessionBonuses.filter(b => 
+        now < b.endTime
+      );
+    }
+
+    // Handle optional auto-click
+    if (state.autoClickEnabled && Game.handleAutoClick) {
+      const autoAmount = Game.handleAutoClick(state, now);
+      if (autoAmount > 0) {
+        Game.harvestXp(state, autoAmount);
+        clickFlow += autoAmount;
+      }
+    }
+    
     const spiked = Game.maybeTriggerSpike && Game.maybeTriggerSpike(state, now);
     if (spiked) {
       const prod = Game.getProduct(spiked);
@@ -1081,6 +1249,26 @@
 
   document.querySelectorAll('.tab-btn').forEach((b) =>
     b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+  // Auto-click toggle button
+  if (el.autoClickToggle) {
+    function updateAutoClickButton() {
+      el.autoClickToggle.textContent = state.autoClickEnabled ? '⚡ ON' : '⚡ OFF';
+      el.autoClickToggle.style.background = state.autoClickEnabled ? 'var(--gold)' : 'var(--panel2)';
+      el.autoClickToggle.style.color = state.autoClickEnabled ? 'var(--bg)' : 'var(--text)';
+    }
+    
+    el.autoClickToggle.addEventListener('click', () => {
+      state.autoClickEnabled = !state.autoClickEnabled;
+      updateAutoClickButton();
+      toast((state.autoClickEnabled ? '⚡ Mode Idle activé (-10% clic)' : '🎯 Mode Clic Pur') + ' !');
+      refreshStats();
+      save();
+    });
+    
+    // Initialize button state
+    updateAutoClickButton();
+  }
 
   let rbTimer = null;
   function disarmReset() {
