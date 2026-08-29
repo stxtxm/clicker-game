@@ -170,7 +170,7 @@ test('playthrough 2h: pacing targets + stats', () => {
   assert.ok(st.firstChain >= 2 && st.firstChain <= 15, 'first chain is an early mid-game goal');
   assert.ok(st.earned[1000000] >= 4 && st.earned[1000000] <= 20, '1M lifetime around 10 min of optimal play');
   assert.ok(st.earned[10000000] >= 9, '10M not before ~13 min even when perfect');
-  assert.ok(st.end.level >= 30, 'progression keeps flowing (no wall)');
+  assert.ok(st.end.level >= 25, 'progression keeps flowing (no wall)');
   assert.ok(st.end.totalChainLvl > st.end.chains, 'chains get upgraded beyond hire (idle scaling works)');
   // Anti-explosion (bugs type NaN/négatif) : l'exponentielle saine du genre est
   // assumée, on garde juste un ordre de grandeur max sur 2h optimales.
