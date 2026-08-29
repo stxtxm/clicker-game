@@ -38,53 +38,64 @@
 
   /**
    * Combo thresholds: count => multiplier.
-   * Simple and addictive: 5/10/20/50 clicks in quick succession. */
+   * Accessible thresholds: 3/5/8/12/15/20 clicks in quick succession. */
   const COMBO_THRESHOLDS = {
+    3: 1.1,
     5: 1.2,
-    10: 1.5,
-    20: 2.0,
-    50: 3.0
+    8: 1.35,
+    12: 1.5,
+    15: 1.75,
+    20: 2.0
   };
 
-  /** Combo window in milliseconds (2 seconds to chain clicks). */
-  const COMBO_WINDOW_MS = 2000;
+  /** Combo window in milliseconds (3 seconds - more accessible on mobile). */
+  const COMBO_WINDOW_MS = 3000;
 
   /**
    * Performance-based events: triggered by combo achievements.
-   * Each event gives a temporary boost to clicks.
+   * Realistic thresholds with meaningful boosts.
    */
   const PERFORMANCE_EVENTS = {
-    combo_5:  { id: 'combo_5',  name: 'Mini Combo',     icon: '✨', effect: { clickMult: 1.2 }, duration: 5000,  triggerAt: 5 },
-    combo_10: { id: 'combo_10', name: 'Super Combo',    icon: '⚡', effect: { clickMult: 1.5 }, duration: 8000,  triggerAt: 10 },
-    combo_20: { id: 'combo_20', name: 'Mega Combo',     icon: '🔥', effect: { clickMult: 2.0 }, duration: 12000, triggerAt: 20 },
-    combo_50: { id: 'combo_50', name: 'Légendaire!',    icon: '💥', effect: { clickMult: 3.0 }, duration: 15000, triggerAt: 50 }
+    combo_3:   { id: 'combo_3',   name: 'Début Prometteur', icon: '🌱', effect: { clickMult: 1.1 },  duration: 4000,  triggerAt: 3 },
+    combo_5:   { id: 'combo_5',   name: 'Bonne Série',    icon: '✨', effect: { clickMult: 1.2 },  duration: 6000,  triggerAt: 5 },
+    combo_8:   { id: 'combo_8',   name: 'En Chaîne',      icon: '🔗', effect: { clickMult: 1.35 }, duration: 8000,  triggerAt: 8 },
+    combo_12:  { id: 'combo_12',  name: 'Maître Clicheur', icon: '👑', effect: { clickMult: 1.5 },  duration: 10000, triggerAt: 12 },
+    combo_15:  { id: 'combo_15',  name: 'Légende',        icon: '💎', effect: { clickMult: 1.75 }, duration: 12000, triggerAt: 15 },
+    combo_20:  { id: 'combo_20',  name: 'Dieu du Click',  icon: '🔥', effect: { clickMult: 2.0, allMult: 1.1 }, duration: 15000, triggerAt: 20 }
   };
 
-  /** Minimum automation settings - clicker-focused design. */
+  /** Auto-click settings - no penalty, balanced. */
   const MIN_AUTO_SETTINGS = {
     enabled: false,
-    penalty: 0.10,
+    penalty: 0,
     baseInterval: 5000,
     autoClickAmount: 1
   };
 
   /** Upgrades catalog: id, display name, icon, description, base cost.
-   *  Costs are tuned so early purchases take ~1-2 min of play to pay back.
-   *  B1 rebalance (growth 1.35): cheaper early hook, more frequent purchases.
-   *  Progression lissée : 4 nouveaux paliers intermédiaires pour rallonger.
-   *  CLICKER-FOCUSED: Removed pure auto upgrades, kept click boosters only.
+   *  Balanced: click upgrades primary (70-80%), idle upgrades viable (20-30%).
+   *  Growth 1.35 for most, 1.4 for special, 1.9 for distribution.
    */
   const UPGRADES = [
-    { id: 'harvest', name: 'Ciseaux Pro',    icon: '✂️',   desc: '+1g de weed par clic',      cost: 200 },
-    { id: 'auto',    name: 'Mode Idle',      icon: '🤖',   desc: '1 clic auto/5s (désactivable, -10% clic manuel)', cost: 100000, growth: 1.5 },
-    { id: 'thumb',   name: 'Doigts Agiles',  icon: '🫰',   desc: '+10% de TA production par clic', cost: 2000 },
-    { id: 'expert',  name: 'Taille Expert',  icon: '🧑‍🌾', desc: '+3g de weed par clic',      cost: 8000 },
-    { id: 'trim',    name: 'Trimmer Pro',    icon: '🔧',   desc: '+4g de weed par clic',      cost: 25000, growth: 1.4 },
-    { id: 'power',   name: 'Clic Puissant',   icon: '⚡',    desc: '×1.5 par clic',             cost: 100000, growth: 1.4 },
-    { id: 'crit',    name: 'Clic Critique',   icon: '🎯',   desc: '15% de chance de ×3 par clic', cost: 500000, growth: 1.4 },
-    { id: 'chain',   name: 'Clic Enchaîné',   icon: '🔗',   desc: '+2g/clic pendant 5s après un clic', cost: 250000, growth: 1.4 },
-    { id: 'frenzy',  name: 'Frenzy',         icon: '💥',   desc: '×2 par clic pendant 10s (1x/30s)', cost: 5000000, growth: 1.4 },
-    // Distribution upgrades: élargissent la part du flux que les chaînes convertissent
+    // === CLICK UPGRADES (Primary - 70-80% of income) ===
+    { id: 'harvest', name: 'Ciseaux Pro',    icon: '✂️',   desc: '+1g de weed par clic',      cost: 120, growth: 1.35 },
+    { id: 'expert',  name: 'Taille Expert',  icon: '🧑‍🌾', desc: '+5g de weed par clic',      cost: 4000, growth: 1.35 },
+    { id: 'trim',    name: 'Trimmer Pro',    icon: '🔧',   desc: '+5g de weed par clic',      cost: 25000, growth: 1.35 },
+    { id: 'power',   name: 'Clic Puissant',   icon: '⚡',    desc: '×1.5 par clic',             cost: 25000, growth: 1.4 },
+    { id: 'crit',    name: 'Clic Critique',   icon: '🎯',   desc: '10% de chance de ×3 par clic', cost: 100000, growth: 1.4 },
+    { id: 'chain',   name: 'Clic Enchaîné',   icon: '🔗',   desc: '+2g/clic pendant 5s après un clic', cost: 50000, growth: 1.4 },
+    { id: 'frenzy',  name: 'Frenzy',         icon: '💥',   desc: '×2 par clic pendant 10s (1x/30s)', cost: 250000, growth: 1.4 },
+    // === IDLE UPGRADES (Passive - 20-30% of income) ===
+    { id: 'auto',    name: 'Système Auto',   icon: '🤖',   desc: '+1g de weed par seconde',   cost: 550, growth: 1.35 },
+    { id: 'mist',    name: 'Brume Foliaire', icon: '💧',   desc: '+2g de weed par seconde',   cost: 12000, growth: 1.35 },
+    { id: 'crew',    name: 'Équipe de Serre',icon: '👥',   desc: '+15g de weed par seconde',  cost: 25000, growth: 1.35 },
+    { id: 'co2',     name: 'Injecteur CO₂',  icon: '🫧',   desc: '+15g de weed par seconde',  cost: 180000, growth: 1.35 },
+    // === GLOBAL MULTIPLIERS ===
+    { id: 'thumb',   name: 'Doigts Agiles',  icon: '🫰',   desc: '+8% de la prod/s ajoutée à chaque clic', cost: 1200, growth: 1.35 },
+    { id: 'turbo',   name: 'Éclairage Turbo',icon: '⚡',   desc: '×2 production globale',     cost: 90000, growth: 1.35 },
+    { id: 'uv',      name: 'Chambre UV',     icon: '🔮',   desc: '×1.4 production globale',   cost: 500000, growth: 1.35 },
+    { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: '×2 production globale',     cost: 750000, growth: 1.35 },
+    // === DISTRIBUTION ===
     { id: 'dist1',   name: 'Réseau Local',   icon: '📦',   desc: '+3% de flux converti par les chaînes',  cost: 4000, growth: 1.9 },
     { id: 'dist2',   name: 'Logistique Régionale', icon: '🚚', desc: '+6% de flux converti par les chaînes', cost: 240000, growth: 1.9 },
     { id: 'dist3',   name: 'Entrepôts Nationaux', icon: '🏭', desc: '+10% de flux converti par les chaînes', cost: 2000000, growth: 1.9 }
@@ -150,6 +161,7 @@
   const DEFAULT_LEVELS = { 
     harvest: 1, auto: 0, expert: 0, thumb: 0, trim: 0, 
     power: 0, crit: 0, chain: 0, frenzy: 0,
+    mist: 0, crew: 0, co2: 0, turbo: 0, uv: 0, mega: 0,
     dist1: 0, dist2: 0, dist3: 0 
   };
 
@@ -895,7 +907,12 @@
       lastSeen: 0,
       spikeUntil: 0,
       spikeProduct: null,
-      spikeNextAt: 0
+      spikeNextAt: 0,
+      totalEarnedLifetime: 0,
+      sessionClicks: 0,
+      activeSessionBonuses: [],
+      prestigeLevel: 0,
+      prestigeBonus: 1.0
     };
   }
 
@@ -1058,6 +1075,96 @@
     return autoAmount;
   }
 
+  /* ---- session bonus system ------------------------------------------------ */
+  
+  /** Session bonus thresholds and rewards. */
+  const SESSION_BONUSES = {
+    100:  { name: 'Session Active', icon: '🟢', effect: { allMult: 1.1 }, duration: 3600000 },
+    500:  { name: 'Session Productive', icon: '🟡', effect: { allMult: 1.25 }, duration: 7200000 },
+    1000: { name: 'Session Intensive', icon: '🟠', effect: { allMult: 1.5 }, duration: 14400000 },
+    5000: { name: 'Session Légendaire', icon: '🔴', effect: { allMult: 2.0 }, duration: 28800000 }
+  };
+
+  /** Prestige thresholds and bonuses. */
+  const PRESTIGE_THRESHOLDS = [
+    { threshold: 1000000, bonus: 1.10, name: 'Cultivateur' },
+    { threshold: 10000000, bonus: 1.25, name: 'Maître Grower' },
+    { threshold: 100000000, bonus: 1.50, name: 'Légende du Click' }
+  ];
+
+  /** Check and trigger session bonuses. */
+  function checkSessionBonuses(s, now) {
+    const t = now || Date.now();
+    const clickCount = s.sessionClicks || 0;
+    for (const [threshold, bonus] of Object.entries(SESSION_BONUSES)) {
+      const thresholdNum = parseInt(threshold);
+      if (s.activeSessionBonuses && s.activeSessionBonuses.some(b => b.id === 'session_' + threshold)) continue;
+      if (clickCount >= thresholdNum) {
+        const activatedBonus = { ...bonus, id: 'session_' + threshold, triggeredAt: t, endTime: t + bonus.duration };
+        s.activeSessionBonuses = s.activeSessionBonuses || [];
+        s.activeSessionBonuses.push(activatedBonus);
+        return activatedBonus;
+      }
+    }
+    return null;
+  }
+
+  /** Get current session bonus multiplier. */
+  function getSessionMultiplier(s, now) {
+    const t = now || Date.now();
+    let mult = 1;
+    for (const sb of s.activeSessionBonuses || []) {
+      if (t >= sb.endTime) continue;
+      if (sb.effect && sb.effect.allMult) mult *= sb.effect.allMult;
+    }
+    return mult;
+  }
+
+  /* ---- prestige system ---------------------------------------------------- */
+
+  /** Check and update prestige level based on lifetime earnings. */
+  function checkPrestige(s) {
+    const total = s.totalEarnedLifetime || s.totalEarned || 0;
+    let updated = false;
+    for (const pt of PRESTIGE_THRESHOLDS) {
+      if (total >= pt.threshold && (s.prestigeLevel || 0) < PRESTIGE_THRESHOLDS.indexOf(pt) + 1) {
+        const newLevel = PRESTIGE_THRESHOLDS.findIndex(p => p.threshold <= total) + 1;
+        if (newLevel > (s.prestigeLevel || 0)) {
+          s.prestigeLevel = newLevel;
+          let cumulativeBonus = 1.0;
+          for (let i = 0; i < newLevel; i++) cumulativeBonus *= PRESTIGE_THRESHOLDS[i].bonus;
+          s.prestigeBonus = cumulativeBonus;
+          updated = true;
+        }
+      }
+    }
+    return updated ? { level: s.prestigeLevel, bonus: s.prestigeBonus } : null;
+  }
+
+  /** Perform prestige reset. */
+  function prestige(s) {
+    const currentPrestige = s.prestigeLevel || 0;
+    const nextLevel = currentPrestige + 1;
+    if (nextLevel > PRESTIGE_THRESHOLDS.length) return { ok: false, reason: 'max_prestige' };
+    const threshold = PRESTIGE_THRESHOLDS[nextLevel - 1].threshold;
+    if ((s.totalEarnedLifetime || 0) < threshold) return { ok: false, reason: 'threshold_not_reached', threshold };
+    s.prestigeLevel = nextLevel;
+    let cumulativeBonus = 1.0;
+    for (let i = 0; i < nextLevel; i++) cumulativeBonus *= PRESTIGE_THRESHOLDS[i].bonus;
+    s.prestigeBonus = cumulativeBonus;
+    s.weed = 0; s.money = 0; s.levels = { ...DEFAULT_LEVELS }; s.xp = 0;
+    s.milestones = []; s.achievements = [];
+    s.stock = { weed: 0, weedByStrain: {}, strains: ['green'] };
+    for (const p of PRODUCTS) { s.stock[p.id] = 0; s.stock[p.id + 'ByStrain'] = {}; }
+    s.auto = { craft: {}, sell: {} }; s.chainLvl = {};
+    for (const p of PRODUCTS) s.chainLvl[p.id] = 0;
+    s.chainSpecs = defaultChainSpecs(); s.chainStats = {}; s.contracts = defaultContracts();
+    s.combo = { count: 0, multiplier: 1, lastClickTime: 0, maxCombo: 0 };
+    s.activePerformanceEvents = []; s.sessionClicks = 0; s.activeSessionBonuses = [];
+    s.totalEarnedLifetime = (s.totalEarnedLifetime || 0) + (s.totalEarned || 0); s.totalEarned = 0;
+    return { ok: true, level: nextLevel, bonus: cumulativeBonus };
+  }
+
   /* ---- market pulse (strategic sell timing) ------------------------------- */
   /**
    * Commodity prices oscillate ±30% around their base on a ~2 min cycle, with
@@ -1142,22 +1249,17 @@
   /**
    * Weed gained per click (grams).
    * 
-   * CLICKER-FOCUSED: Main source of weed. Includes:
-   * - Base upgrades (harvest, expert, trim)
-   * - Click-focused upgrades (power, crit, chain)
-   * - Combo multiplier
-   * - Performance events multiplier
-   * - Penalty if auto-click is enabled
+   * PRIMARY INCOME: 70-80% of total should come from clicking.
+   * Includes: base upgrades, click upgrades, combo, performance events, global multipliers.
    * Tier bonus: every 25 levels → ×2 per upgrade.
-   * Progression lissée: trim s'ajoute à expert.
    */
   function perClick(s, now) {
     const t = now || Date.now();
     
     // Base click value from upgrades
     const h = (s.levels.harvest || 0) * tierMult(s.levels.harvest || 0);
-    const e = (s.levels.expert || 0) * 3 * tierMult(s.levels.expert || 0);  // Reduced from 5g
-    const tr = (s.levels.trim || 0) * 4 * tierMult(s.levels.trim || 0);    // Reduced from 5g
+    const e = (s.levels.expert || 0) * 5 * tierMult(s.levels.expert || 0);
+    const tr = (s.levels.trim || 0) * 5 * tierMult(s.levels.trim || 0);
     
     // Click-focused upgrades
     let pc = h + e + tr;
@@ -1165,16 +1267,16 @@
     // Power click: ×1.5
     if (s.levels.power > 0) pc *= 1.5 * tierMult(s.levels.power || 0);
     
-    // Chain click: +2g per level (simplified from original desc)
+    // Chain click: +2g per level
     if (s.levels.chain > 0) pc += 2 * s.levels.chain * tierMult(s.levels.chain || 0);
     
     // Frenzy: temporary ×2 (handled via activePerformanceEvents)
     
     let total = pc * productionMult(s);
     
-    // Doigts Agiles: +10% of production per level (now based on click production)
+    // Doigts Agiles: +8% of per-second production added to each click
     if (s.levels.thumb > 0) {
-      const thumbBonus = pc * (s.levels.thumb || 0) * 0.10; // +10%/lvl of click production
+      const thumbBonus = perSecond(s) * (s.levels.thumb || 0) * 0.08;
       total += thumbBonus;
     }
     
@@ -1186,10 +1288,7 @@
     const perfMults = getPerformanceMultipliers(s, t);
     total *= perfMults.clickMult;
     
-    // Apply auto-click penalty if enabled
-    if (s.autoClickEnabled) {
-      total *= (1 - MIN_AUTO_SETTINGS.penalty); // -10%
-    }
+    // No auto-click penalty - all play styles are valid
     
     return Math.round(total);
   }
@@ -1197,22 +1296,24 @@
   /**
    * Weed gained per second (auto production), scaled by production multiplier.
    * 
-   * CLICKER-FOCUSED: Minimal auto production. Only "Mode Idle" upgrade contributes,
-   * and it's very slow (1g/5s base). Other auto upgrades (mist, crew, co2, uv, mega) are disabled
-   * to keep the focus on clicking.
+   * SECONDARY INCOME: 20-30% of total should come from idle production.
+   * All idle upgrades contribute: auto, mist, crew, co2.
+   * Global multipliers (turbo, uv, mega) also apply.
    * Tier bonus applies per upgrade.
    */
   function perSecond(s) {
-    // Only Mode Idle contributes to auto production now
+    // Idle upgrades: each contributes its base value per second
     const a = (s.levels.auto || 0) * tierMult(s.levels.auto || 0);
+    const mi = (s.levels.mist || 0) * 2 * tierMult(s.levels.mist || 0);
+    const c = (s.levels.crew || 0) * 15 * tierMult(s.levels.crew || 0);
+    const co = (s.levels.co2 || 0) * 15 * tierMult(s.levels.co2 || 0);
     
-    // Very minimal: 0.2g/s per level (so level 1 = ~1g/5s)
-    // This makes auto production negligible compared to clicking
-    let base = a * 0.2;
+    let base = a + mi + c + co;
     
-    // If auto-click is enabled via the toggle (not just owning the upgrade),
-    // we use the actual auto-click mechanism instead
-    // (auto-click is handled separately in handleAutoClick)
+    // Global multipliers: turbo and uv affect idle production
+    if (s.levels.turbo > 0) base *= 2 * tierMult(s.levels.turbo || 0);
+    if (s.levels.uv > 0) base *= 1.4 * tierMult(s.levels.uv || 0);
+    if (s.levels.mega > 0) base *= 2 * tierMult(s.levels.mega || 0);
     
     return Math.round(base * productionMult(s));
   }
@@ -1928,6 +2029,12 @@
     chainMilestoneMult,
     nextChainMilestone,
     chainEarnRate,
-    chainSpecImpact
+    chainSpecImpact,
+    SESSION_BONUSES,
+    PRESTIGE_THRESHOLDS,
+    checkSessionBonuses,
+    getSessionMultiplier,
+    checkPrestige,
+    prestige
   };
 });

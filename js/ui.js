@@ -52,7 +52,13 @@
     comboCount: document.getElementById('combo-count'),
     comboMult: document.getElementById('combo-mult'),
     autoClickToggle: document.getElementById('auto-click-toggle'),
-    activeEventsContainer: document.getElementById('active-events')
+    activeEventsContainer: document.getElementById('active-events'),
+    // Prestige elements
+    prestigeDisplay: document.getElementById('prestige-display'),
+    prestigeLevel: document.getElementById('prestige-level'),
+    prestigeName: document.getElementById('prestige-name'),
+    // Session bonus elements
+    sessionBonusDisplay: document.getElementById('session-bonus-display')
   };
 
   let state = Game.defaultState();
@@ -514,6 +520,23 @@
     if (el.activeEventsContainer && state.activePerformanceEvents) {
       renderActiveEvents();
     }
+    
+    // Session bonus display
+    if (el.sessionBonusDisplay && state.activeSessionBonuses) {
+      renderSessionBonuses();
+    }
+    
+    // Prestige display
+    if (el.prestigeDisplay && state.prestigeLevel > 0) {
+      el.prestigeDisplay.style.display = 'flex';
+      if (el.prestigeLevel) el.prestigeLevel.textContent = 'P' + state.prestigeLevel;
+      if (el.prestigeName) {
+        const prestigeInfo = Game.PRESTIGE_THRESHOLDS[state.prestigeLevel - 1];
+        el.prestigeName.textContent = prestigeInfo ? prestigeInfo.name : 'Légende';
+      }
+    } else if (el.prestigeDisplay) {
+      el.prestigeDisplay.style.display = 'none';
+    }
 
     // idle income visibility — derived from state (chainEarnRate), pas d'historique
     // qui lag derrière les achats : la valeur est EXACTE pour le flux idle et
@@ -780,8 +803,12 @@
     if (ev && ev.preventDefault) { ev.preventDefault(); ev.stopPropagation(); }
     const now = Date.now();
     
-    // Increment click counter
+    // Increment click counters
     state.totalClicks = (state.totalClicks || 0) + 1;
+    state.sessionClicks = (state.sessionClicks || 0) + 1;
+    
+    // Update lifetime earnings
+    state.totalEarnedLifetime = (state.totalEarnedLifetime || 0) + Game.perClick(state, now);
     
     // Handle combo
     const comboMult = Game.handleCombo(state, now);
@@ -792,6 +819,15 @@
       toast(triggeredEvent.icon + ' ' + triggeredEvent.name + ' activé ! (' + (triggeredEvent.duration / 1000) + 's)');
       spawnParticle(triggeredEvent.icon + ' ' + triggeredEvent.name);
     }
+    
+    // Check and trigger session bonuses
+    const triggeredSessionBonus = Game.checkSessionBonuses(state, now);
+    if (triggeredSessionBonus) {
+      toast(triggeredSessionBonus.icon + ' ' + triggeredSessionBonus.name + ' !');
+    }
+    
+    // Check prestige
+    Game.checkPrestige(state);
     
     // Get click amount with all multipliers
     const ac = Game.perClick(state, now);
@@ -1047,6 +1083,33 @@
     }
   }
 
+  /** Render active session bonuses. */
+  function renderSessionBonuses() {
+    if (!el.sessionBonusDisplay) return;
+    
+    const now = Date.now();
+    const activeBonuses = (state.activeSessionBonuses || []).filter(b => now < b.endTime);
+    
+    el.sessionBonusDisplay.innerHTML = '';
+    
+    if (activeBonuses.length === 0) {
+      el.sessionBonusDisplay.style.display = 'none';
+      return;
+    }
+    
+    el.sessionBonusDisplay.style.display = 'flex';
+    
+    for (const bonus of activeBonuses) {
+      const remaining = Math.ceil((bonus.endTime - now) / 1000);
+      const bonusEl = document.createElement('div');
+      bonusEl.className = 'h-stat';
+      bonusEl.style.background = 'rgba(16, 185, 129, 0.2)';
+      bonusEl.style.borderColor = 'var(--green)';
+      bonusEl.innerHTML = '<span>' + bonus.icon + '</span><b>' + bonus.name + '</b><small>' + (remaining > 60 ? Math.ceil(remaining / 60) + 'm' : remaining + 's') + '</small>';
+      el.sessionBonusDisplay.appendChild(bonusEl);
+    }
+  }
+
   /** One auto-production tick (every second): weed growth, then automation. */
   function autoProduce() {
     const now = Date.now();
@@ -1058,6 +1121,13 @@
       );
     }
     
+    // Clean up expired session bonuses
+    if (state.activeSessionBonuses) {
+      state.activeSessionBonuses = state.activeSessionBonuses.filter(b => 
+        now < b.endTime
+      );
+    }
+
     // Handle optional auto-click
     if (state.autoClickEnabled && Game.handleAutoClick) {
       const autoAmount = Game.handleAutoClick(state, now);
