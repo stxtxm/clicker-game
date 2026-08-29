@@ -1928,7 +1928,17 @@
       d.autoClickEnabled = typeof d.autoClickEnabled === 'boolean' ? d.autoClickEnabled : false;
       d.autoClickLastTime = typeof d.autoClickLastTime === 'number' && d.autoClickLastTime >= 0 ? d.autoClickLastTime : 0;
       
-      // drop removed fields (golden, prestige)
+      // New clicker-focused fields
+      d.sessionClicks = typeof d.sessionClicks === 'number' && d.sessionClicks >= 0 ? d.sessionClicks : 0;
+      d.activeSessionBonuses = Array.isArray(d.activeSessionBonuses) ?
+        d.activeSessionBonuses.filter(b => b && b.id) : [];
+      
+      // Prestige system fields
+      d.prestigeLevel = typeof d.prestigeLevel === 'number' && d.prestigeLevel >= 0 ? Math.floor(d.prestigeLevel) : 0;
+      d.prestigeBonus = typeof d.prestigeBonus === 'number' && d.prestigeBonus > 0 ? d.prestigeBonus : 1.0;
+      d.totalEarnedLifetime = typeof d.totalEarnedLifetime === 'number' && d.totalEarnedLifetime >= 0 ? Math.floor(d.totalEarnedLifetime) : 0;
+      
+      // drop removed fields (golden, old prestige)
       delete d.goldenUntil;
       delete d.goldenNextAt;
       delete d.prestige;
