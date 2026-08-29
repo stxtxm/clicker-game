@@ -258,7 +258,7 @@ test('deserialize: sanitizes unknown strain and bad shapes', () => {
 });
 
 test('data catalog is coherent', () => {
-  assert.strictEqual(Game.UPGRADES.length, 18);
+  assert.strictEqual(Game.UPGRADES.length, 14);
   assert.strictEqual(Game.STRAINS.length, 12);
   assert.strictEqual(Game.PRODUCTS.length, 14);
   assert.strictEqual(Game.MILESTONES.length, 13);
