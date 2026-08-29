@@ -36,24 +36,55 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
 
+  /**
+   * Combo thresholds: count => multiplier.
+   * Simple and addictive: 5/10/20/50 clicks in quick succession. */
+  const COMBO_THRESHOLDS = {
+    5: 1.2,
+    10: 1.5,
+    20: 2.0,
+    50: 3.0
+  };
+
+  /** Combo window in milliseconds (2 seconds to chain clicks). */
+  const COMBO_WINDOW_MS = 2000;
+
+  /**
+   * Performance-based events: triggered by combo achievements.
+   * Each event gives a temporary boost to clicks.
+   */
+  const PERFORMANCE_EVENTS = {
+    combo_5:  { id: 'combo_5',  name: 'Mini Combo',     icon: '✨', effect: { clickMult: 1.2 }, duration: 5000,  triggerAt: 5 },
+    combo_10: { id: 'combo_10', name: 'Super Combo',    icon: '⚡', effect: { clickMult: 1.5 }, duration: 8000,  triggerAt: 10 },
+    combo_20: { id: 'combo_20', name: 'Mega Combo',     icon: '🔥', effect: { clickMult: 2.0 }, duration: 12000, triggerAt: 20 },
+    combo_50: { id: 'combo_50', name: 'Légendaire!',    icon: '💥', effect: { clickMult: 3.0 }, duration: 15000, triggerAt: 50 }
+  };
+
+  /** Minimum automation settings - clicker-focused design. */
+  const MIN_AUTO_SETTINGS = {
+    enabled: false,
+    penalty: 0.10,
+    baseInterval: 5000,
+    autoClickAmount: 1
+  };
+
   /** Upgrades catalog: id, display name, icon, description, base cost.
    *  Costs are tuned so early purchases take ~1-2 min of play to pay back.
    *  B1 rebalance (growth 1.35): cheaper early hook, more frequent purchases.
-   *  Progression lissée : 4 nouveaux paliers intermédiaires pour rallonger. */
+   *  Progression lissée : 4 nouveaux paliers intermédiaires pour rallonger.
+   *  CLICKER-FOCUSED: Removed pure auto upgrades, kept click boosters only.
+   */
   const UPGRADES = [
-    { id: 'harvest', name: 'Ciseaux Pro',    icon: '✂️',   desc: '+1g de weed par clic',      cost: 120 },
-    { id: 'auto',    name: 'Système Auto',   icon: '🤖',   desc: '+1g de weed par seconde',   cost: 550 },
-    { id: 'thumb',   name: 'Doigts Agiles',  icon: '🫰',   desc: '+8% de ta prod./s s\'ajoute à chaque clic', cost: 1200 },
-    { id: 'expert',  name: 'Taille Expert',  icon: '🧑‍🌾', desc: '+5g de weed par clic',      cost: 4000 },
-    { id: 'mist',    name: 'Brume Foliaire', icon: '💧',   desc: '+2g de weed par seconde',   cost: 12000, growth: 1.35 },
-    { id: 'trim',    name: 'Trimmer Pro',    icon: '🔧',   desc: '+5g de weed par clic',      cost: 25000, growth: 1.35 },
-    { id: 'crew',    name: 'Équipe de Serre',icon: '👥',   desc: '+15g de weed par seconde',  cost: 25000 },
-    { id: 'co2',     name: 'Injecteur CO₂',  icon: '🫧',   desc: '+15g de weed par seconde',  cost: 180000, growth: 1.35 },
-    { id: 'turbo',   name: 'Éclairage Turbo',icon: '⚡',   desc: 'x2 production de weed',     cost: 90000 },
-    { id: 'uv',      name: 'Chambre UV',     icon: '🔮',   desc: 'x1.4 production globale',   cost: 500000, growth: 1.35 },
-    { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: 'x2 production globale',     cost: 750000 },
-    // Distribution upgrades: PAS de cap de stock — ces paliers élargissent la
-    // part du flux que les chaînes convertissent (le vrai gate late-game).
+    { id: 'harvest', name: 'Ciseaux Pro',    icon: '✂️',   desc: '+1g de weed par clic',      cost: 200 },
+    { id: 'auto',    name: 'Mode Idle',      icon: '🤖',   desc: '1 clic auto/5s (désactivable, -10% clic manuel)', cost: 100000, growth: 1.5 },
+    { id: 'thumb',   name: 'Doigts Agiles',  icon: '🫰',   desc: '+10% de TA production par clic', cost: 2000 },
+    { id: 'expert',  name: 'Taille Expert',  icon: '🧑‍🌾', desc: '+3g de weed par clic',      cost: 8000 },
+    { id: 'trim',    name: 'Trimmer Pro',    icon: '🔧',   desc: '+4g de weed par clic',      cost: 25000, growth: 1.4 },
+    { id: 'power',   name: 'Clic Puissant',   icon: '⚡',    desc: '×1.5 par clic',             cost: 100000, growth: 1.4 },
+    { id: 'crit',    name: 'Clic Critique',   icon: '🎯',   desc: '15% de chance de ×3 par clic', cost: 500000, growth: 1.4 },
+    { id: 'chain',   name: 'Clic Enchaîné',   icon: '🔗',   desc: '+2g/clic pendant 5s après un clic', cost: 250000, growth: 1.4 },
+    { id: 'frenzy',  name: 'Frenzy',         icon: '💥',   desc: '×2 par clic pendant 10s (1x/30s)', cost: 5000000, growth: 1.4 },
+    // Distribution upgrades: élargissent la part du flux que les chaînes convertissent
     { id: 'dist1',   name: 'Réseau Local',   icon: '📦',   desc: '+3% de flux converti par les chaînes',  cost: 4000, growth: 1.9 },
     { id: 'dist2',   name: 'Logistique Régionale', icon: '🚚', desc: '+6% de flux converti par les chaînes', cost: 240000, growth: 1.9 },
     { id: 'dist3',   name: 'Entrepôts Nationaux', icon: '🏭', desc: '+10% de flux converti par les chaînes', cost: 2000000, growth: 1.9 }
@@ -116,7 +147,11 @@
   const STORAGE_GROWTH = 1.9;
 
   /** Default upgrade levels for a brand new game. */
-  const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, thumb: 0, crew: 0, turbo: 0, mega: 0, dist1: 0, dist2: 0, mist: 0, trim: 0, co2: 0, uv: 0, dist3: 0 };
+  const DEFAULT_LEVELS = { 
+    harvest: 1, auto: 0, expert: 0, thumb: 0, trim: 0, 
+    power: 0, crit: 0, chain: 0, frenzy: 0,
+    dist1: 0, dist2: 0, dist3: 0 
+  };
 
   /**
    * Product catalog — everything sellable at the market.
@@ -847,6 +882,16 @@
       milestones: [],
       achievements: [],
       totalEarned: 0,
+      totalClicks: 0,
+      combo: {
+        count: 0,
+        multiplier: 1,
+        lastClickTime: 0,
+        maxCombo: 0
+      },
+      activePerformanceEvents: [],
+      autoClickEnabled: false,
+      autoClickLastTime: 0,
       lastSeen: 0,
       spikeUntil: 0,
       spikeProduct: null,
@@ -862,6 +907,155 @@
   /** @returns {object|undefined} product definition, or undefined if unknown */
   function getProduct(id) {
     return PRODUCTS.find((x) => x.id === id);
+  }
+
+  /**
+   * Update combo state and return the current multiplier.
+   * @param {object} s state (mutated)
+   * @param {number} now epoch ms
+   * @returns {number} combo multiplier
+   */
+  function handleCombo(s, now) {
+    const t = now || Date.now();
+    const timeSinceLast = t - (s.combo.lastClickTime || 0);
+
+    if (timeSinceLast > COMBO_WINDOW_MS) {
+      // Reset combo if too slow
+      s.combo.count = 0;
+      s.combo.multiplier = 1;
+    } else {
+      s.combo.count++;
+      // Find the highest threshold reached
+      let bestMult = 1;
+      for (const [threshold, mult] of Object.entries(COMBO_THRESHOLDS)) {
+        if (s.combo.count >= parseInt(threshold)) {
+          bestMult = mult;
+        }
+      }
+      s.combo.multiplier = bestMult;
+
+      // Update max combo
+      if (s.combo.count > s.combo.maxCombo) {
+        s.combo.maxCombo = s.combo.count;
+      }
+    }
+
+    s.combo.lastClickTime = t;
+    return s.combo.multiplier;
+  }
+
+  /**
+   * Check and trigger performance-based events from combo.
+   * @param {object} s state (mutated)
+   * @param {number} now epoch ms
+   * @returns {object|null} triggered event or null
+   */
+  function checkPerformanceEvents(s, now) {
+    const t = now || Date.now();
+    const comboCount = s.combo.count;
+
+    // Check each performance event
+    for (const [key, event] of Object.entries(PERFORMANCE_EVENTS)) {
+      // Skip if already active
+      if (s.activePerformanceEvents.some(e => e.id === event.id)) continue;
+
+      // Check if combo threshold is reached
+      if (comboCount >= event.triggerAt) {
+        // Check additional requirements if any
+        if (event.requires && !checkEventRequirement(s, event.requires)) continue;
+
+        // Trigger the event
+        return triggerPerformanceEvent(s, event, t);
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Check if event requirement is met.
+   * @param {object} s state
+   * @param {string} requirement requirement type
+   * @returns {boolean}
+   */
+  function checkEventRequirement(s, requirement) {
+    switch (requirement) {
+      case 'perfect':
+        // Perfect combo means all clicks in the window were on time
+        // For now, just check if we have a high combo
+        return s.combo.count >= 10;
+      default:
+        return true;
+    }
+  }
+
+  /**
+   * Trigger a performance event.
+   * @param {object} s state (mutated)
+   * @param {object} event event definition
+   * @param {number} now epoch ms
+   * @returns {object} triggered event with metadata
+   */
+  function triggerPerformanceEvent(s, event, now) {
+    const t = now || Date.now();
+
+    // Remove expired events first
+    s.activePerformanceEvents = s.activePerformanceEvents.filter(e => 
+      t < e.endTime
+    );
+
+    const activatedEvent = {
+      ...event,
+      triggeredAt: t,
+      endTime: t + event.duration
+    };
+
+    s.activePerformanceEvents.push(activatedEvent);
+    return activatedEvent;
+  }
+
+  /**
+   * Get current performance event multipliers.
+   * @param {object} s state
+   * @param {number} now epoch ms
+   * @returns {object} { clickMult: number, nextClickMult: number }
+   */
+  function getPerformanceMultipliers(s, now) {
+    const t = now || Date.now();
+    const mults = { clickMult: 1, nextClickMult: 1 };
+
+    for (const event of s.activePerformanceEvents || []) {
+      if (t >= event.endTime) continue;
+      if (event.effect.clickMult) mults.clickMult *= event.effect.clickMult;
+      if (event.effect.nextClickMult) mults.nextClickMult *= event.effect.nextClickMult;
+    }
+
+    return mults;
+  }
+
+  /**
+   * Handle auto-click if enabled.
+   * @param {object} s state (mutated)
+   * @param {number} now epoch ms
+   * @returns {number} grams gained from auto-click (0 if disabled or not ready)
+   */
+  function handleAutoClick(s, now) {
+    const t = now || Date.now();
+
+    // Check if auto-click is enabled
+    if (!s.autoClickEnabled || !s.levels || !s.levels.auto) return 0;
+
+    // Check cooldown
+    const cooldown = MIN_AUTO_SETTINGS.baseInterval;
+    if (t - (s.autoClickLastTime || 0) < cooldown) return 0;
+
+    // Apply penalty to auto-click amount
+    const autoAmount = MIN_AUTO_SETTINGS.autoClickAmount;
+    
+    // Mark the auto-click
+    s.autoClickLastTime = t;
+    
+    // Return the amount (will be added by addWeed)
+    return autoAmount;
   }
 
   /* ---- market pulse (strategic sell timing) ------------------------------- */
@@ -947,39 +1141,79 @@
 
   /**
    * Weed gained per click (grams).
-   *
-   * Cookie-Clicker-style relevance: beyond the flat harvest, every level of
-   * `thumb` (Doigts Agiles) adds a share of your per-second production to each
-   * click — clicking stays worthwhile because it scales with your economy.
+   * 
+   * CLICKER-FOCUSED: Main source of weed. Includes:
+   * - Base upgrades (harvest, expert, trim)
+   * - Click-focused upgrades (power, crit, chain)
+   * - Combo multiplier
+   * - Performance events multiplier
+   * - Penalty if auto-click is enabled
    * Tier bonus: every 25 levels → ×2 per upgrade.
    * Progression lissée: trim s'ajoute à expert.
    */
-  function perClick(s) {
+  function perClick(s, now) {
+    const t = now || Date.now();
+    
+    // Base click value from upgrades
     const h = (s.levels.harvest || 0) * tierMult(s.levels.harvest || 0);
-    const e = (s.levels.expert || 0) * 5 * tierMult(s.levels.expert || 0);
-    const t = (s.levels.trim || 0) * 5 * tierMult(s.levels.trim || 0);
-    let pc = h + e + t;
-    if (s.levels.turbo > 0) pc *= 2 * tierMult(s.levels.turbo || 0);
-    if (s.levels.uv > 0) pc *= 1.4 * tierMult(s.levels.uv || 0);
-    if (s.levels.mega > 0) pc *= 2 * tierMult(s.levels.mega || 0);
+    const e = (s.levels.expert || 0) * 3 * tierMult(s.levels.expert || 0);  // Reduced from 5g
+    const tr = (s.levels.trim || 0) * 4 * tierMult(s.levels.trim || 0);    // Reduced from 5g
+    
+    // Click-focused upgrades
+    let pc = h + e + tr;
+    
+    // Power click: ×1.5
+    if (s.levels.power > 0) pc *= 1.5 * tierMult(s.levels.power || 0);
+    
+    // Chain click: +2g per level (simplified from original desc)
+    if (s.levels.chain > 0) pc += 2 * s.levels.chain * tierMult(s.levels.chain || 0);
+    
+    // Frenzy: temporary ×2 (handled via activePerformanceEvents)
+    
     let total = pc * productionMult(s);
-    total += perSecond(s) * (s.levels.thumb || 0) * 0.08; // +8%/lvl of auto prod
+    
+    // Doigts Agiles: +10% of production per level (now based on click production)
+    if (s.levels.thumb > 0) {
+      const thumbBonus = pc * (s.levels.thumb || 0) * 0.10; // +10%/lvl of click production
+      total += thumbBonus;
+    }
+    
+    // Apply combo multiplier
+    const comboMult = s.combo ? s.combo.multiplier : 1;
+    total *= comboMult;
+    
+    // Apply performance events multiplier
+    const perfMults = getPerformanceMultipliers(s, t);
+    total *= perfMults.clickMult;
+    
+    // Apply auto-click penalty if enabled
+    if (s.autoClickEnabled) {
+      total *= (1 - MIN_AUTO_SETTINGS.penalty); // -10%
+    }
+    
     return Math.round(total);
   }
 
   /**
    * Weed gained per second (auto production), scaled by production multiplier.
-   * Tier bonus applies per upgrade. Progression lissée: mist/co2.
+   * 
+   * CLICKER-FOCUSED: Minimal auto production. Only "Mode Idle" upgrade contributes,
+   * and it's very slow (1g/5s base). Other auto upgrades (mist, crew, co2, uv, mega) are disabled
+   * to keep the focus on clicking.
+   * Tier bonus applies per upgrade.
    */
   function perSecond(s) {
+    // Only Mode Idle contributes to auto production now
     const a = (s.levels.auto || 0) * tierMult(s.levels.auto || 0);
-    const mi = (s.levels.mist || 0) * 2 * tierMult(s.levels.mist || 0);
-    const c = (s.levels.crew || 0) * 15 * tierMult(s.levels.crew || 0);
-    const co = (s.levels.co2 || 0) * 15 * tierMult(s.levels.co2 || 0);
-    let base = a + mi + c + co;
-    if (s.levels.uv > 0) base *= 1.4 * tierMult(s.levels.uv || 0);
-    if (s.levels.mega > 0) base *= 2 * tierMult(s.levels.mega || 0);
-    // turbo does not affect perSecond (only click weed)
+    
+    // Very minimal: 0.2g/s per level (so level 1 = ~1g/5s)
+    // This makes auto production negligible compared to clicking
+    let base = a * 0.2;
+    
+    // If auto-click is enabled via the toggle (not just owning the upgrade),
+    // we use the actual auto-click mechanism instead
+    // (auto-click is handled separately in handleAutoClick)
+    
     return Math.round(base * productionMult(s));
   }
 
@@ -1576,6 +1810,23 @@
       d.spikeUntil = typeof d.spikeUntil === 'number' && d.spikeUntil >= 0 ? d.spikeUntil : 0;
       d.spikeProduct = typeof d.spikeProduct === 'string' && (d.spikeProduct === 'weed' || PRODUCTS.some((p) => p.id === d.spikeProduct)) ? d.spikeProduct : null;
       d.spikeNextAt = typeof d.spikeNextAt === 'number' && d.spikeNextAt >= 0 ? d.spikeNextAt : 0;
+      
+      // New clicker-focused fields
+      d.totalClicks = typeof d.totalClicks === 'number' && d.totalClicks >= 0 ? d.totalClicks : 0;
+      d.combo = d.combo && typeof d.combo === 'object' ? {
+        count: typeof d.combo.count === 'number' && d.combo.count >= 0 ? Math.floor(d.combo.count) : 0,
+        multiplier: typeof d.combo.multiplier === 'number' && d.combo.multiplier >= 1 ? d.combo.multiplier : 1,
+        lastClickTime: typeof d.combo.lastClickTime === 'number' && d.combo.lastClickTime >= 0 ? d.combo.lastClickTime : 0,
+        maxCombo: typeof d.combo.maxCombo === 'number' && d.combo.maxCombo >= 0 ? Math.floor(d.combo.maxCombo) : 0
+      } : { count: 0, multiplier: 1, lastClickTime: 0, maxCombo: 0 };
+      
+      d.activePerformanceEvents = Array.isArray(d.activePerformanceEvents) ?
+        d.activePerformanceEvents.filter(e => e && e.id && PERFORMANCE_EVENTS[e.id])
+        : [];
+      
+      d.autoClickEnabled = typeof d.autoClickEnabled === 'boolean' ? d.autoClickEnabled : false;
+      d.autoClickLastTime = typeof d.autoClickLastTime === 'number' && d.autoClickLastTime >= 0 ? d.autoClickLastTime : 0;
+      
       // drop removed fields (golden, prestige)
       delete d.goldenUntil;
       delete d.goldenNextAt;
@@ -1604,6 +1855,10 @@
     SPIKE_MULT,
     SPIKE_COOLDOWN_MIN,
     SPIKE_COOLDOWN_MAX,
+    COMBO_THRESHOLDS,
+    COMBO_WINDOW_MS,
+    PERFORMANCE_EVENTS,
+    MIN_AUTO_SETTINGS,
     mulberry32,
     addWeed,
     harvestXp,
@@ -1624,6 +1879,11 @@
     achievementBonus,
     perClick,
     perSecond,
+    handleCombo,
+    checkPerformanceEvents,
+    triggerPerformanceEvent,
+    getPerformanceMultipliers,
+    handleAutoClick,
     upgradeCost,
     buyUpgrade,
     hasAuto,
