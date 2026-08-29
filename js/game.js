@@ -1270,6 +1270,11 @@
     // Chain click: +2g per level
     if (s.levels.chain > 0) pc += 2 * s.levels.chain * tierMult(s.levels.chain || 0);
     
+    // Global multipliers: turbo, uv, mega
+    if (s.levels.turbo > 0) pc *= 2 * tierMult(s.levels.turbo || 0);
+    if (s.levels.uv > 0) pc *= 1.4 * tierMult(s.levels.uv || 0);
+    if (s.levels.mega > 0) pc *= 2 * tierMult(s.levels.mega || 0);
+    
     // Frenzy: temporary ×2 (handled via activePerformanceEvents)
     
     let total = pc * productionMult(s);

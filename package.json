@@ -4,7 +4,7 @@
   "private": true,
   "description": "Bud Clicker — a mobile-friendly cannabis bud clicker game. Static HTML/CSS/JS, zero dependencies.",
   "scripts": {
-    "test": "node --test"
+    "test": "node test/game.test.js && node test/playthrough.test.js && node test/bud.test.js && node test/e2e.test.js"
   },
   "engines": {
     "node": ">=18"
