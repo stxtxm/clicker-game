@@ -156,14 +156,90 @@ test('product prices scale with equipped strain multiplier and pulse', () => {
     Math.round(14 * 1.4 * Game.pulse('joint', 0)));
 });
 
-test('perClick: Doigts Agiles adds a share of auto production', () => {
+test('perClick: Doigts Agiles adds a share of auto production (5%/level)', () => {
   const s = Game.defaultState();          // harvest lvl1 -> 1*1.08
   s.levels.auto = 10;                     // perSecond = round(10*1.08) = 11
-  s.levels.thumb = 1;                     // +8% of 11 = +0.88
-  // 1.08 + 0.88 = 1.96 -> 2 (vs 1 without thumb)
+  s.levels.thumb = 1;                     // +5% of 11 = +0.55
+  // 1.08 + 0.55 = 1.63 -> 2 (vs 1 without thumb)
   assert.strictEqual(Game.perClick(s), 2);
-  s.levels.thumb = 5;                     // +40% of 11 = +4.4 -> 1.08+4.4=5.48 -> 5
-  assert.strictEqual(Game.perClick(s), 5);
+  s.levels.thumb = 5;                     // +25% of 11 = +2.75 -> 1.08+2.75=3.83 -> 4
+  assert.strictEqual(Game.perClick(s), 4);
+});
+
+test('comboMultiplier: +5% par clic soutenu, capé à ×3 (40 clics)', () => {
+  assert.strictEqual(Game.comboMultiplier(0), 1);
+  assert.strictEqual(Game.comboMultiplier(1), 1.05);
+  assert.strictEqual(Game.comboMultiplier(4), 1.2);
+  assert.strictEqual(Game.comboMultiplier(Game.COMBO_CAP), Game.COMBO_MAX_MULT);
+  assert.strictEqual(Game.comboMultiplier(999), Game.COMBO_MAX_MULT);
+  assert.strictEqual(Game.comboMultiplier(-3), 1);
+  assert.strictEqual(Game.comboMultiplier('x'), 1);
+  assert.strictEqual(Game.COMBO_CAP, (Game.COMBO_MAX_MULT - 1) / Game.COMBO_PER);
+});
+
+test('clickBud: 100% du clic = pour le joueur (never aspiré par les chaînes)', () => {
+  const s = Game.defaultState();
+  const r = Game.clickBud(s, 1000);
+  assert.strictEqual(r.added, 1);                 // lvl1, combo ×1
+  assert.strictEqual(s.weed, 1);
+  assert.strictEqual(s.stock.weed, 1);
+  assert.strictEqual(s.xp, 1);
+  assert.strictEqual(s.totalClicks, 1);
+  assert.strictEqual(s.combo.count, 1);
+  assert.strictEqual(r.combo.count, 1);
+  // le clic n'ajoute AUCUN flow aux chaînes : elles ne voient que l'auto
+  const before = s.stock.weed;
+  assert.strictEqual(Game.autoTick(s, 1000, 0).crafted.joint, undefined);
+  assert.strictEqual(s.stock.weed, before);
+});
+
+test('clickBud: le combo monte mécaniquement (+5%/clic) et compte jusqu’au cap', () => {
+  const s = Game.defaultState();
+  for (let i = 0; i < 5; i++) Game.clickBud(s, 1000 + i * 100); // dans la fenêtre de 2s
+  assert.strictEqual(s.combo.count, 5);
+  assert.strictEqual(s.combo.maxCombo, 5);
+  assert.strictEqual(Game.comboMultiplier(s.combo.count), 1.25); // 5 clics → ×1.25
+});
+
+test('clickBud: le cap ×3 est plafonné mais le compteur continue', () => {
+  const s = Game.defaultState();
+  for (let i = 0; i < 45; i++) Game.clickBud(s, 1000 + i * 10);
+  assert.strictEqual(s.combo.count, 45);
+  assert.strictEqual(Game.comboMultiplier(s.combo.count), Game.COMBO_MAX_MULT);
+  const lastAdded = s.weed;
+  const r = Game.clickBud(s, 4000); // après la fenêtre → combo reset
+  assert.strictEqual(s.combo.count, 1);
+  assert.strictEqual(r.combo.count, 1);
+  assert.strictEqual(s.combo.maxCombo, 45);
+  assert.ok(lastAdded < s.weed); // re-click produit toujours
+});
+
+test('clickBud: la fenêtre expire au-delà de COMBO_WINDOW_MS', () => {
+  const s = Game.defaultState();
+  Game.clickBud(s, 5000);
+  Game.clickBud(s, 5400);
+  assert.strictEqual(s.combo.count, 2);
+  const c = Game.comboNow(s, 5400 + Game.COMBO_WINDOW_MS + 1);
+  assert.strictEqual(c.count, 0);
+  assert.strictEqual(c.maxCombo, 2);
+});
+
+test('clicker upgrade: +3g de weed par clic par niveau, borné à max 30', () => {
+  const s = Game.defaultState();
+  assert.strictEqual(Game.perClick(s), 1);          // lvl0: (1+0) × 1.08 -> 1
+  s.levels.clicker = 1;
+  assert.strictEqual(Game.perClick(s), 4);          // (1+3) × 1.08 = 4.32 -> 4
+  s.levels.clicker = 4;
+  assert.strictEqual(Game.perClick(s), 14);         // (1+12) × 1.08 = 14.04 -> 14
+  // croissance de coût ×1.8 par niveau (additif borné, pas de snowball)
+  assert.strictEqual(Game.upgradeCost(s, 'clicker'), Math.floor(20000 * Math.pow(1.8, 4)));
+  // plafond : au max, plus d'achat possible
+  s.levels.clicker = 30;
+  assert.strictEqual(Game.upgradeCost(s, 'clicker'), Infinity);
+  assert.strictEqual(Game.buyUpgrade(s, 'clicker').reason, 'maxed');
+  const bulk = Game.buyUpgradeBulk(s, 'clicker', 2);
+  assert.strictEqual(bulk.reason, 'maxed');
+  assert.strictEqual(Game.maxAffordableLevels(s, 'clicker'), 0);
 });
 
 test('equipStrain: unknown id', () => {
@@ -258,7 +334,7 @@ test('deserialize: sanitizes unknown strain and bad shapes', () => {
 });
 
 test('data catalog is coherent', () => {
-  assert.strictEqual(Game.UPGRADES.length, 14);
+  assert.strictEqual(Game.UPGRADES.length, 15);
   assert.strictEqual(Game.STRAINS.length, 12);
   assert.strictEqual(Game.PRODUCTS.length, 14);
   assert.strictEqual(Game.MILESTONES.length, 13);
@@ -342,6 +418,27 @@ test('deserialize: old saves get default progression fields', () => {
   assert.strictEqual(loaded.xp, 0);
   assert.strictEqual(loaded.totalEarned, 0);
   assert.deepStrictEqual(loaded.milestones, []);
+  assert.strictEqual(loaded.totalClicks, 0);
+  assert.deepStrictEqual(loaded.combo, { count: 0, lastClickAt: 0, maxCombo: 0 });
+});
+
+test('deserialize: combo + totalClicks sont sanitizés et migrés', () => {
+  const loaded = Game.deserialize(JSON.stringify({
+    totalClicks: 12.9,
+    combo: { count: '7', lastClickAt: 5, maxCombo: 99 },
+    // venus de la tentative #24 — doivent être purgés
+    sessionClicks: 1, activeSessionBonuses: [],
+    prestige: 2, prestigeLevel: 1, prestigeBonus: 3, totalEarnedLifetime: 5,
+    activePerformanceEvents: [], autoClickEnabled: true, autoClickLastTime: 2,
+    levels: { power: 2, crit: 1, chain: 3, frenzy: 1, harvest: 3 }
+  }));
+  assert.strictEqual(loaded.totalClicks, 12);
+  assert.deepStrictEqual(loaded.combo, { count: 7, lastClickAt: 5, maxCombo: 99 });
+  assert.strictEqual(loaded.sessionClicks, undefined);
+  assert.strictEqual(loaded.prestige, undefined);
+  assert.strictEqual(loaded.levels.power, undefined);
+  assert.strictEqual(loaded.levels.crit, undefined);
+  assert.strictEqual(loaded.levels.harvest, 3);
 });
 
 test('deserialize: sanitizes bad progression fields', () => {
@@ -488,10 +585,10 @@ test('autoTick: scarce weed goes to the most expensive product first', () => {
   }
   s.stock.weed = 350;
   const t = Game.autoTick(s, 0, 350);
-  // chaque chaîne lvl1 vise 15% du flux (52.5g) : rosin max(300,52.5)=300 → 1u ;
-  // hash max(12,52.5)=52.5 → 4u ; joint budget restant 2g → 1u
-  assert.deepStrictEqual(t.crafted, { rosin: 1, hash: 4, joint: 1 });
-  assert.strictEqual(s.stock.weed, 350 - 300 - 48 - 2);
+  // chaque chaîne lvl1 vise 8% du flux (28g) : rosin max(300,28)=300 → 1u ;
+  // hash max(12,28)=28 → 2u ; joint budget restant 26g → 13u
+  assert.deepStrictEqual(t.crafted, { rosin: 1, hash: 2, joint: 13 });
+  assert.strictEqual(s.stock.weed, 350 - 300 - 24 - 26);
 });
 
 test('automation flags survive serialize/deserialize roundtrip', () => {
@@ -669,10 +766,10 @@ test('autoTick: multiple chains drain weed expensive-first, dealers sell each ou
   s.money = 1e9;
   for (const id of ['auto-cake', 'auto-joint']) assert.strictEqual(Game.buyAutomation(s, id).ok, true);
   s.stock.weed = 30;
-  const t = Game.autoTick(s, 0, 30); // cake vise 4.5g→max(25,4.5)=25 →1u ; joint budget 5g→2u
-  assert.deepStrictEqual(t.crafted, { cake: 1, joint: 2 });
+  const t = Game.autoTick(s, 0, 30); // cake vise 2.4g→max(25,2.4)=25 →1u ; joint budget 5g→1u
+  assert.deepStrictEqual(t.crafted, { cake: 1, joint: 1 });
   assert.strictEqual(t.soldMoney.cake, px(290, 'cake'));
-  assert.strictEqual(t.soldMoney.joint, px(14, 'joint') * 2);
+  assert.strictEqual(t.soldMoney.joint, px(14, 'joint') * 1);
 });
 
 test('autoTick: chains never consume beyond the flow (pile untouched)', () => {
@@ -684,20 +781,20 @@ test('autoTick: chains never consume beyond the flow (pile untouched)', () => {
   const before = s.stock.weed;
   const flow = 240;
   const t = Game.autoTick(s, 0, flow);
-  assert.strictEqual(t.crafted.hash, 3);            // 15% of 240 = 36g -> 3 units
-  assert.strictEqual(before - s.stock.weed, 36);    // consumed <= flow, never the pile
+  assert.strictEqual(t.crafted.hash, 1);            // 8% of 240 = 19.2g -> 1 unit
+  assert.strictEqual(before - s.stock.weed, 12);    // consumed <= flow, never the pile
 });
 
-test('autoTick: chains scale with stored flow (15% share, pause without inflow)', () => {
+test('autoTick: chains scale with stored flow (8% share, pause without inflow)', () => {
   const s = Game.defaultState();
   s.xp = Game.xpForLevel(20);
   s.money = 1e9;
   Game.buyAutomation(s, 'auto-hash'); // 12g -> 115 €
   s.stock.weed = 500;
-  // flow 240g: budget = max(12, 240*0.15=36) -> 3 units
+  // flow 240g: budget = max(12, 240*0.08=19.2) -> 1 unit
   let t = Game.autoTick(s, 0, 240);
-  assert.strictEqual(t.crafted.hash, 3);
-  assert.strictEqual(t.soldMoney.hash, 3 * px(115, 'hash'));
+  assert.strictEqual(t.crafted.hash, 1);
+  assert.strictEqual(t.soldMoney.hash, 1 * px(115, 'hash'));
   // flow below one unit's cost: nothing crafted this tick (no pile eating)
   s.stock.weed = 500;
   t = Game.autoTick(s, 0, 10);
@@ -716,9 +813,9 @@ test('autoTick: flow budget is consumed expensive-first across chains', () => {
   Game.buyAutomation(s, 'auto-joint');  // 2g  -> 14 €
   s.stock.weed = 500;
   const t = Game.autoTick(s, 0, 120);
-  // chaque chaîne lvl1 vise 15% du flux (18g) : cake max(25,18)=25 → 1u ;
-  // joint max(2,18)=18 → 9u
-  assert.deepStrictEqual(t.crafted, { cake: 1, joint: 9 });
+  // chaque chaîne lvl1 vise 8% du flux (9.6g) : cake max(25,9.6)=25 → 1u ;
+  // joint max(2,9.6)=9.6 → 4u
+  assert.deepStrictEqual(t.crafted, { cake: 1, joint: 4 });
 });
 
 
@@ -740,27 +837,27 @@ test('autoTick: chain level widens throughput (idle money scale)', () => {
   s.money = 1e9;
   Game.buyAutomation(s, 'auto-hash'); // lvl1
   s.stock.weed = 5000;
-  let t = Game.autoTick(s, 0, 240);   // lvl1: max(12, 240*0.15=36) -> 3u
-  assert.strictEqual(t.crafted.hash, 3);
+  let t = Game.autoTick(s, 0, 240);   // lvl1: max(12, 240*0.08=19.2) -> 1u
+  assert.strictEqual(t.crafted.hash, 1);
   Game.buyAutomation(s, 'auto-hash');          // -> lvl2
   s.stock.weed = 5000;
-  t = Game.autoTick(s, 0, 240);                // lvl2: max(12, 72) -> 6u
-  assert.strictEqual(t.crafted.hash, 6);
-  // clamp par chaîne : CHAIN_SHARE_MAX=60% même à haut niveau
+  t = Game.autoTick(s, 0, 240);                // lvl2: max(12, 38.4) -> 3u
+  assert.strictEqual(t.crafted.hash, 3);
+  // clamp par chaîne : CHAIN_SHARE_MAX=40% même à haut niveau
   for (let i = 0; i < 5; i++) Game.buyAutomation(s, 'auto-hash'); // lvl7
   s.stock.weed = 50000;
-  t = Game.autoTick(s, 0, 240);                // min(60%,144g) -> 12u
-  assert.strictEqual(t.crafted.hash, 12);
+  t = Game.autoTick(s, 0, 240);                // min(40%, 96g) -> 8u
+  assert.strictEqual(t.crafted.hash, 8);
 });
 
-test('chainShareOf: base × niveau + bonus Distribution, clamp 60%', () => {
+test('chainShareOf: base × niveau + bonus Distribution, clamp 40%', () => {
   const s = Game.defaultState();
   assert.ok(Math.abs(Game.chainShareOf(s, 'joint') - 0) < 1e-9);      // lvl 0
   s.chainLvl.joint = 1;
-  assert.ok(Math.abs(Game.chainShareOf(s, 'joint') - 0.15) < 1e-9);
+  assert.ok(Math.abs(Game.chainShareOf(s, 'joint') - 0.08) < 1e-9);
   s.levels.dist1 = 2;                                                  // +6%
-  assert.ok(Math.abs(Game.chainShareOf(s, 'joint') - 0.21) < 1e-9);
-  s.chainLvl.joint = 10;                                               // 150+6% -> clamp
+  assert.ok(Math.abs(Game.chainShareOf(s, 'joint') - 0.14) < 1e-9);
+  s.chainLvl.joint = 10;                                               // 80+6% -> clamp
   assert.strictEqual(Game.chainShareOf(s, 'joint'), Game.CHAIN_SHARE_MAX);
 });
 

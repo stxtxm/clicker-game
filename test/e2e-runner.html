@@ -80,6 +80,13 @@ async function scenario() {
     await sleep(120);
     report('harvest-space', weedStock() >= b2 + 1, 'stock ' + b2 + '->' + weedStock());
 
+    // 3b. combo UI: après un burst de clics rapides, pill + barre dorée apparaissent
+    for (let i = 0; i < 5; i++) q('#bs').click();
+    await sleep(150);
+    const comboWrap = q('#combo-wrap');
+    const comboVisible = comboWrap && !comboWrap.hidden && /Combo ×/.test((q('#combo-pill').textContent || ''));
+    report('combo-ui', !!comboVisible, comboWrap ? 'hidden=' + comboWrap.hidden + ' pill=' + (q('#combo-pill').textContent || '') : 'no wrap');
+
     // 4. buy first upgrade (150 € needs clicks: seed via many clicks is slow — use craft/sell loop instead)
     // sell raw weed to afford Ciseaux Pro
     w.BudGame; // sanity: game exposed

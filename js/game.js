@@ -23,10 +23,12 @@
  *       strains: string[]
  *     },
  *     prices: { weed },
- *     levels: { harvest, auto, expert, crew, turbo, mega, sbox, coldroom },
+ *     levels: { harvest, auto, expert, crew, turbo, mega, sbox, coldroom, clicker },
  *     xp: number,                        // lifetime XP
  *     milestones: string[],
- *     totalEarned: number
+ *     totalEarned: number,
+ *     totalClicks: number,               // clics cumulés (achievements)
+ *     combo: { count, lastClickAt, maxCombo }  // combo clic (fenêtre 2s)
  *   }
  */
 (function (root, factory) {
@@ -52,6 +54,9 @@
     { id: 'turbo',   name: 'Éclairage Turbo',icon: '⚡',   desc: 'x2 production de weed',     cost: 90000 },
     { id: 'uv',      name: 'Chambre UV',     icon: '🔮',   desc: 'x1.4 production globale',   cost: 500000, growth: 1.35 },
     { id: 'mega',    name: 'Laboratoire+',   icon: '🌟',   desc: 'x2 production globale',     cost: 750000 },
+    // Cœur du jeu : le clic. Additif borné (pas de ×2 répétable qui fait exploser
+    // l'économie) — la boutique/upgrades servent le clic, jamais l'inverse.
+    { id: 'clicker', name: 'Clic Multi',     icon: '👆',   desc: '+3g de weed par clic par niveau', cost: 20000, growth: 1.8, max: 30 },
     // Distribution upgrades: PAS de cap de stock — ces paliers élargissent la
     // part du flux que les chaînes convertissent (le vrai gate late-game).
     { id: 'dist1',   name: 'Réseau Local',   icon: '📦',   desc: '+3% de flux converti par les chaînes',  cost: 4000, growth: 1.9 },
@@ -116,7 +121,7 @@
   const STORAGE_GROWTH = 1.9;
 
   /** Default upgrade levels for a brand new game. */
-  const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, thumb: 0, crew: 0, turbo: 0, mega: 0, dist1: 0, dist2: 0, mist: 0, trim: 0, co2: 0, uv: 0, dist3: 0 };
+  const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, thumb: 0, crew: 0, turbo: 0, mega: 0, dist1: 0, dist2: 0, mist: 0, trim: 0, co2: 0, uv: 0, dist3: 0, clicker: 0 };
 
   /**
    * Product catalog — everything sellable at the market.
@@ -167,7 +172,7 @@
   /** Croissance du coût par niveau de chaîne. */
   const AUTOMATION_GROWTH = 1.5;
   /** Part max convertible par UNE chaîne (clamp anti-tout-manger). */
-  const CHAIN_SHARE_MAX = 0.6;
+  const CHAIN_SHARE_MAX = 0.4;
 
   /** Chain specialization trees — each product gets its own branching upgrades.
    *  `per` = effet par point (donnée pilotante, pas de parsing de desc). */
@@ -847,6 +852,8 @@
       milestones: [],
       achievements: [],
       totalEarned: 0,
+      totalClicks: 0,
+      combo: { count: 0, lastClickAt: 0, maxCombo: 0 },
       lastSeen: 0,
       spikeUntil: 0,
       spikeProduct: null,
@@ -948,11 +955,11 @@
   /**
    * Weed gained per click (grams).
    *
-   * Cookie-Clicker-style relevance: beyond the flat harvest, every level of
-   * `thumb` (Doigts Agiles) adds a share of your per-second production to each
-   * click — clicking stays worthwhile because it scales with your economy.
-   * Tier bonus: every 25 levels → ×2 per upgrade.
-   * Progression lissée: trim s'ajoute à expert.
+   * Click-first design: the flat harvest (Ciseaux/Taille/Trimmer) plus the
+   * `clicker` upgrade (+3g, max 30 levels) are the main scaling curve, and
+   * `thumb` only ADDS a share of your idle production into each click — the
+   * idle feeds the click (5%/level), never the reverse. Tier bonus: every
+   * 40 levels → ×2 per upgrade.
    */
   function perClick(s) {
     const h = (s.levels.harvest || 0) * tierMult(s.levels.harvest || 0);
@@ -962,8 +969,10 @@
     if (s.levels.turbo > 0) pc *= 2 * tierMult(s.levels.turbo || 0);
     if (s.levels.uv > 0) pc *= 1.4 * tierMult(s.levels.uv || 0);
     if (s.levels.mega > 0) pc *= 2 * tierMult(s.levels.mega || 0);
+    const ck = s.levels.clicker || 0;
+    pc += ck * 3; // Clic Multi : +3g/clic par niveau (additif borné)
     let total = pc * productionMult(s);
-    total += perSecond(s) * (s.levels.thumb || 0) * 0.08; // +8%/lvl of auto prod
+    total += perSecond(s) * (s.levels.thumb || 0) * 0.05; // +5%/niveau de la prod/s
     return Math.round(total);
   }
 
@@ -983,12 +992,60 @@
     return Math.round(base * productionMult(s));
   }
 
+  /* ---- combo (la mécanique signature du clic) ------------------------------ */
+  const COMBO_WINDOW_MS = 2000;
+  const COMBO_PER = 0.05;
+  const COMBO_MAX_MULT = 3;
+  const COMBO_CAP = (COMBO_MAX_MULT - 1) / COMBO_PER; // 40 clics soutenus
+
+  /** Effective combo multiplier for a sustained-clicks counter (cap ×5). */
+  function comboMultiplier(count) {
+    return 1 + COMBO_PER * Math.max(0, Math.min(Math.floor(Number(count) || 0), COMBO_CAP));
+  }
+
+  /** Decay the combo when the window between clicks is exceeded. Mutates s. */
+  function comboNow(s, now) {
+    const t = now === undefined ? Date.now() : now;
+    const c = (s.combo = s.combo || { count: 0, lastClickAt: 0, maxCombo: 0 });
+    if (c.count > 0 && t - c.lastClickAt > COMBO_WINDOW_MS) c.count = 0;
+    return c;
+  }
+
+  /** Reset the combo completely (keeps the lifetime maxCombo record). */
+  function resetCombo(s) {
+    const maxCombo = (s.combo && s.combo.maxCombo) || 0;
+    s.combo = { count: 0, lastClickAt: 0, maxCombo };
+  }
+
+  /**
+   * One click on the bud — the CORE of the game.
+   * Adds 100% of the clicked weed to YOUR stock/XP (never filtered into the
+   * chains), sustains the combo and returns what happened for the UI juice.
+   * @param {object} s state (mutated)
+   * @param {number} [now] epoch ms (default Date.now())
+   * @returns {{added:number, mult:number, combo:{count:number,maxCombo:number}, xp:object}}
+   */
+  function clickBud(s, now) {
+    const t = now === undefined ? Date.now() : now;
+    const c = comboNow(s, t);
+    const mult = comboMultiplier(c.count);
+    const ac = Math.max(1, Math.round(perClick(s) * mult));
+    const added = addWeed(s, ac);
+    const xp = earnXp(s, added);
+    s.totalClicks = (s.totalClicks || 0) + 1;
+    c.count += 1;
+    c.lastClickAt = t;
+    c.maxCombo = Math.max(c.maxCombo || 0, c.count);
+    return { added, mult, combo: { count: c.count, maxCombo: c.maxCombo }, xp };
+  }
+
   /**
    * Current purchase price of an upgrade: base cost × COST_GROWTH per level.
    * Growth is gentler than the old x2.1 doubling — no more dead-end walls.
    */
   function upgradeCost(s, id) {
     const u = UPGRADES.find((x) => x.id === id);
+    if (u && u.max && (s.levels[id] || 0) >= u.max) return Infinity;
     const growth = (u && u.growth) || COST_GROWTH;
     return Math.floor(BASE_COST[id] * Math.pow(growth, s.levels[id] - (id === 'harvest' ? 1 : 0)));
   }
@@ -1001,9 +1058,12 @@
    * @returns {number} total cost
    */
   function upgradeBulkCost(s, id, n) {
-    const count = Math.max(1, Math.floor(n || 1));
-    let total = 0;
     const u = UPGRADES.find((x) => x.id === id);
+    const maxLevel = u && u.max ? u.max : Infinity;
+    const remaining = Math.max(0, maxLevel - (s.levels[id] || 0));
+    if (remaining <= 0) return Infinity;
+    const count = Math.max(1, Math.min(Math.floor(n || 1), remaining));
+    let total = 0;
     const growth = (u && u.growth) || COST_GROWTH;
     const base = BASE_COST[id];
     const cur = s.levels[id] - (id === 'harvest' ? 1 : 0);
@@ -1020,11 +1080,14 @@
    * @param {number} n count (1,10,100)
    */
   function buyUpgradeBulk(s, id, n) {
-    const count = Math.max(1, Math.floor(n || 1));
-    const cost = upgradeBulkCost(s, id, count);
-    if (s.money < cost) return { ok: false, reason: 'funds', cost };
     const u = UPGRADES.find((x) => x.id === id);
     if (!u) return { ok: false, reason: 'unknown' };
+    const maxLevel = u.max ? u.max : Infinity;
+    const remaining = Math.max(0, maxLevel - (s.levels[id] || 0));
+    if (remaining <= 0) return { ok: false, reason: 'maxed' };
+    const count = Math.max(1, Math.min(Math.floor(n || 1), remaining));
+    const cost = upgradeBulkCost(s, id, count);
+    if (s.money < cost) return { ok: false, reason: 'funds', cost };
     s.money -= cost;
     s.levels[id] += count;
     return { ok: true, cost, count, name: u.name };
@@ -1041,7 +1104,7 @@
     const need = cost - (s.money || 0);
     if (need <= 0) return 0;
     const ps = perSecond(s);
-    const income = ps * 6; // ~6€/g average via weed sales (approx), plus auto is 0.15 share already
+    const income = ps * 6; // ~6€/g average via weed sales (approx), plus auto is 0.08 share already
     // use perSecond weed * avg price 7 €/g as rough income estimate
     const eps = Math.max(1, ps * 7);
     return Math.ceil(need / eps);
@@ -1053,6 +1116,7 @@
   function buyUpgrade(s, id) {
     const u = UPGRADES.find((x) => x.id === id);
     if (!u) return { ok: false, reason: 'unknown' };
+    if (u.max && s.levels[id] >= u.max) return { ok: false, reason: 'maxed' };
     const cost = upgradeCost(s, id);
     if (s.money < cost) return { ok: false, reason: 'funds' };
     s.money -= cost;
@@ -1065,8 +1129,10 @@
    * (pour le bouton MAX — capé à 500 pour éviter les boucles folles)
    */
   function maxAffordableLevels(s, id) {
+    const u = UPGRADES.find((x) => x.id === id);
+    const maxLevel = u && u.max ? u.max : 500;
     let n = 0;
-    while (n < 500) {
+    while (n < maxLevel) {
       if (upgradeBulkCost(s, id, n + 1) > s.money) break;
       n++;
     }
@@ -1229,8 +1295,8 @@
     return !!(s.auto && s.auto[kind] && s.auto[kind][productId]);
   }
 
-  /** Share of the tick's produced flow each owned chain converts (base 15%). */
-  const CHAIN_FLOW_SHARE = 0.15;
+  /** Share of the tick's AUTO flow each owned chain converts (base 8%). */
+  const CHAIN_FLOW_SHARE = 0.08;
 
   /**
    * Automation tick — runs every second after weed production.
@@ -1464,6 +1530,10 @@
       return d;
     }
      d.levels = { ...DEFAULT_LEVELS, ...(d.levels || {}) };
+     // clamp aux max du catalogue (ex : clicker borné à 7 niveaux)
+     for (const u of UPGRADES) {
+       if (u.max && d.levels[u.id] > u.max) d.levels[u.id] = u.max;
+     }
      // migration: anciens upgrades de stockage -> paliers Distribution (même rang)
      if (d.levels.sbox !== undefined) { d.levels.dist1 = Math.max(0, d.levels.sbox | 0); delete d.levels.sbox; }
      if (d.levels.coldroom !== undefined) { d.levels.dist2 = Math.max(0, d.levels.coldroom | 0); delete d.levels.coldroom; }
@@ -1487,11 +1557,24 @@
      d.weed = typeof d.weed === 'number' && d.weed >= 0 ? d.weed : 0;
      d.xp = typeof d.xp === 'number' && d.xp >= 0 ? d.xp : 0;
      d.totalEarned = typeof d.totalEarned === 'number' && d.totalEarned >= 0 ? d.totalEarned : 0;
+     d.totalClicks = typeof d.totalClicks === 'number' && d.totalClicks >= 0 ? Math.floor(d.totalClicks) : 0;
+     d.combo = {
+       count: Math.max(0, Math.floor(Number(d.combo && d.combo.count) || 0)),
+       lastClickAt: Math.max(0, Math.floor(Number(d.combo && d.combo.lastClickAt) || 0)),
+       maxCombo: Math.max(0, Math.floor(Number(d.combo && d.combo.maxCombo) || 0))
+     };
      if (!d.prices || typeof d.prices !== 'object') d.prices = { weed: 6 };
      else if (typeof d.prices.weed !== 'number') d.prices.weed = 6;
       // drop legacy fields
       delete d.points; delete d.genomes;
       delete d.stock.main; delete d.stock.premium;
+      // champs venus de la tentative #24 (prestige/session/auto-click) — à purger
+      delete d.sessionClicks; delete d.activeSessionBonuses;
+      delete d.prestige; delete d.prestigeLevel; delete d.prestigeBonus; delete d.totalEarnedLifetime;
+      delete d.activePerformanceEvents; delete d.autoClickEnabled; delete d.autoClickLastTime;
+      delete d.power; delete d.crit; delete d.chain; delete d.frenzy; delete d.session;
+      if (d.levels) { delete d.levels.power; delete d.levels.crit; delete d.levels.chain; delete d.levels.frenzy; }
+      // combo legacy #24 portait un champ `multiplier` → recalcul dérivé (rien de stocké)
       // moonrock is now a valid product (was legacy premium), keep it
       d.milestones = Array.isArray(d.milestones)
         ? d.milestones.filter((m) => MILESTONES.some((mi) => mi.id === m))
@@ -1624,6 +1707,14 @@
     achievementBonus,
     perClick,
     perSecond,
+    COMBO_WINDOW_MS,
+    COMBO_PER,
+    COMBO_MAX_MULT,
+    COMBO_CAP,
+    comboMultiplier,
+    comboNow,
+    resetCombo,
+    clickBud,
     upgradeCost,
     buyUpgrade,
     hasAuto,

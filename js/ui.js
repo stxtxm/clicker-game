@@ -23,6 +23,9 @@
     lv: document.getElementById('lv'),
     hl: document.getElementById('cl'),
     stw: document.getElementById('stw'),
+    comboWrap: document.getElementById('combo-wrap'),
+    comboPill: document.getElementById('combo-pill'),
+    comboBar: document.getElementById('combo-bar'),
     marketGrid: document.getElementById('market-grid'),
     sellAll: document.getElementById('sell-all'),
     qtyRow: document.getElementById('qty-row'),
@@ -525,7 +528,7 @@
         b.classList.toggle('active', String(b.dataset.q) === String(upgradeQtyMode));
       });
     }
-    if (el.upgQtyInfo) el.upgQtyInfo.textContent = showHw ? 'Paliers ×2 tous les 40' : 'Chaînes +15%/niveau · MAX = max payable';
+    if (el.upgQtyInfo) el.upgQtyInfo.textContent = showHw ? 'Paliers ×2 tous les 40' : 'Chaînes +8% flux auto/niveau · MAX = max payable';
     if (el.chainSummary) {
       if (!showHw) {
         const activeOwned = Game.AUTOMATION.filter((a) => Game.chainLvl(state, a.productId) > 0).length;
@@ -555,9 +558,13 @@
       const bulk = count > 1 && Game.upgradeBulkCost ? Game.upgradeBulkCost(state, u.id, count) : Game.upgradeCost(state, u.id);
       const costEl = document.getElementById('uc-' + u.id);
       if (costEl) {
-        const time = Game.timeToAfford ? Game.timeToAfford(state, u.id, count > 1 ? count : undefined) : 0;
-        const timeLabel = time > 0 && time < 3600 ? ' (' + (time < 60 ? time + 's' : Math.ceil(time/60) + 'm') + ')' : '';
-        costEl.textContent = fmt(bulk) + ' €' + timeLabel;
+        if (bulk === Infinity) {
+          costEl.textContent = 'MAX ✓';
+        } else {
+          const time = Game.timeToAfford ? Game.timeToAfford(state, u.id, count > 1 ? count : undefined) : 0;
+          const timeLabel = time > 0 && time < 3600 ? ' (' + (time < 60 ? time + 's' : Math.ceil(time/60) + 'm') + ')' : '';
+          costEl.textContent = fmt(bulk) + ' €' + timeLabel;
+        }
       }
       const btn = document.getElementById('ub-' + u.id);
       const card = document.getElementById('ui-' + u.id);
@@ -754,15 +761,34 @@
   }
 
   // --- game actions ----------------------------------------------------------
-  /** Grams produced by clicks since the last automation tick (chain flow). */
-  let clickFlow = 0;
+  /** Dernier compte de combo affiché (détecte l'expiration pour cacher l'UI). */
+  let lastComboCount = 0;
+
+  /** Combo UI : pill dorée + barre de temps (scaleX compositor, WAAPI). */
+  function updateComboUI(reanimateBar) {
+    if (!el.comboWrap || !el.comboPill) return;
+    const c = state.combo || { count: 0 };
+    const count = c.count || 0;
+    const active = count >= 2;
+    el.comboWrap.hidden = !active;
+    if (active) {
+      const mult = Game.comboMultiplier(count);
+      el.comboPill.textContent = count >= Game.COMBO_CAP
+        ? '⚡ Combo MAX — clic ×' + mult.toFixed(1)
+        : '⚡ Combo ×' + count + ' — clic ×' + mult.toFixed(1);
+      if (reanimateBar && el.comboBar && el.comboBar.animate) {
+        el.comboBar.animate(
+          [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }],
+          { duration: Game.COMBO_WINDOW_MS, easing: 'linear' }
+        );
+      }
+    }
+  }
 
   function onHarvest(ev) {
     if (ev && ev.preventDefault) { ev.preventDefault(); ev.stopPropagation(); }
-    const ac = Game.perClick(state);
-    const added = Game.harvestXp(state, ac);
-    clickFlow += added; // chains only process grams produced this tick
-    const xp = Game.xpProgress(state.xp);
+    const res = Game.clickBud(state);
+    lastComboCount = res.combo.count;
     // squash & stretch juice — WAAPI: compositor-driven, restarts cleanly on
     // rapid taps (each new animation replaces the previous, no forced reflow)
     if (el.bc.animate) {
@@ -777,18 +803,19 @@
         { duration: 320, easing: 'cubic-bezier(.34,1.56,.64,1)' }
       );
     }
-    spawnParticle('+' + ac + 'g');
+    spawnParticle('+' + res.added + 'g' + (res.mult > 1 ? ' · ×' + res.mult.toFixed(1) : ''));
     popNum(el.stw);
+    updateComboUI(true);
     refreshStats();
     save();
-    if (xp.leveledUp) {
-      toast('Niveau ' + xp.level + ' !');
-      spawnParticle('⬆️ Niveau ' + xp.level + ' !');
+    if (res.xp.leveledUp) {
+      toast('Niveau ' + res.xp.level + ' !');
+      spawnParticle('⬆️ Niveau ' + res.xp.level + ' !');
       popNum(el.lv);
-      const st = Game.STRAINS.find((x2) => x2.unlock === xp.level && !state.stock.strains.includes(x2.id));
+      const st = Game.STRAINS.find((x2) => x2.unlock === res.xp.level && !state.stock.strains.includes(x2.id));
       if (st) setTimeout(() => toast(st.name + ' débloquée ! 🎉'), 600);
     }
-    for (const mi of xp.milestones) {
+    for (const mi of res.xp.milestones) {
       toast(mi.icon + ' Jalon : ' + mi.name + ' (+' + mi.bonus + '%)');
     }
   }
@@ -980,10 +1007,10 @@
     let addedAuto = 0;
     if (ar > 0) addedAuto = Game.harvestXp(state, ar);
     const awarded = Game.checkAchievements ? Game.checkAchievements(state) : [];
-    // automation hires (Ouvriers/Dealers) craft & sell owned products,
-    // proportionally to what was actually produced this tick
-    const tick = Game.autoTick(state, now, addedAuto + clickFlow);
-    clickFlow = 0;
+    // automation hires (Ouvriers/Dealers) craft & sell their chain's output,
+    // proportionally to the AUTO flow produced this tick ONLY — the player's
+    // clicked weed stays 100% theirs (click-first: jamais aspirée par les chaînes)
+    const tick = Game.autoTick(state, now, addedAuto);
     // contrats : offre / complétion selon la progression des chaînes
     const doneContracts = Game.checkContracts ? Game.checkContracts(state) : [];
     for (const ct of doneContracts) {
@@ -1112,6 +1139,7 @@
     renderStrains();
     switchTab('harvest');
     refreshStats();
+    updateComboUI(false);
     save();
     toast('Nouvelle partie, bon courage 🌱');
   });
@@ -1129,6 +1157,17 @@
   Game.checkAchievements ? Game.checkAchievements(state) : null;
   renderStrains();
   renderBud();
+  updateComboUI(false);
+  lastComboCount = (state.combo && state.combo.count) || 0;
+  // expiration du combo : reset silencieux côté game, l'UI suit le delta
+  setInterval(() => {
+    const count = Game.comboNow(state).count;
+    if (count !== lastComboCount) {
+      lastComboCount = count;
+      updateComboUI(false);
+      if (count === 0) save();
+    }
+  }, 250);
   setInterval(autoProduce, 1000);
   setInterval(save, 10000);
   refreshStats();
