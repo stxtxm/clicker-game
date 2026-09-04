@@ -203,6 +203,39 @@
       align-items: center;
       gap: 6px;
     }
+    /* combo — le cœur du clic : pill dorée + barre de temps (scaleX compositor) */
+    .combo-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .combo-pill {
+      font-size: .85rem;
+      font-weight: 900;
+      color: var(--gold-soft);
+      background: linear-gradient(135deg, rgba(251,191,36,.16), rgba(251,191,36,.05));
+      border: 1px solid rgba(251,191,36,.4);
+      border-radius: 999px;
+      padding: 5px 14px;
+      text-shadow: 0 1px 6px rgba(251,191,36,.35);
+    }
+    .combo-bar {
+      width: min(40vw, 150px);
+      height: 5px;
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .combo-bar-fill {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, var(--gold), var(--gold-soft));
+      transform-origin: left;
+      will-change: transform;
+    }
     .click-fx {
       position: fixed;
       font-size: clamp(1rem, 4.2vw, 1.35rem);
@@ -507,6 +540,11 @@
 
       <div class="bud-container" id="bc" title="Clique !">
         <div id="bs"></div>
+      </div>
+
+      <div class="combo-wrap" id="combo-wrap" hidden>
+        <div class="combo-pill" id="combo-pill">⚡ Combo</div>
+        <div class="combo-bar"><div class="combo-bar-fill" id="combo-bar"></div></div>
       </div>
 
       <div class="strain-badge" id="sb">🌿 Green Dream</div>

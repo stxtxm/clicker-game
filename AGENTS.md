@@ -7,11 +7,14 @@ boucle d'équilibrage économique.
 ## Le projet en 30 secondes
 
 Idle/clicker game mobile « Bud Clicker » : on clique un bud pour récolter du
-weed, on le transforme en 8 produits (joint → live rosin), on vend au Marché
+weed — **le clic est LE cœur du jeu** (combo ×3, chaque gramme cliqué t'appartient
+à 100 %), on le transforme en 14 produits (joint → caviar), on vend au Marché
 dont les prix **fluctuent ±30 %**, on automatise des chaînes craft+vente façon
-AdVenture Capitalist, on débloque 8 variétés de cannabis aux multiplicateurs
-croissants. Zéro dépendance runtime : HTML/CSS/JS statiques servis tels quels
-par GitHub Pages.
+AdVenture Capitalist **en annexe** (elles ne convertissent que le flux auto,
+plafond 40 %), on débloque 12 variétés de cannabis aux multiplicateurs
+croissants. Boutique et upgrades restent **nécessaires pour progresser**,
+mais toujours au service du clic. Zéro dépendance runtime : HTML/CSS/JS
+statiques servis tels quels par GitHub Pages.
 
 - **Jouer** : https://stxtxm.github.io/clicker-game/
 - **Stack** : vanilla JS (UMD), node:test pour les tests, chromium headless pour l'e2e.
@@ -28,7 +31,7 @@ js/bud.js             Rendu SVG procédural du bud (déterministe, seeds fixés)
 sw.js                 Service worker PWA (network-first code, cache-first images)
 manifest.json         Manifest PWA + raccourcis d'app
 icon-*.{svg,png}      Icônes (SVG = source de vérité, PNG régénérés depuis le SVG)
-test/game.test.js     ~81 tests unitaires (économie, catalogues, contrats, paliers, limites, saves)
+test/game.test.js     ~93 tests unitaires (économie, catalogues, contrats, paliers, limites, saves, combo)
 test/playthrough.test.js  Simulateur de joueur optimal — asserte la courbe de pacing
 test/e2e.test.js      E2E chromium : pilote le vrai jeu dans une iframe (13 scénarios)
 test/e2e-runner.html  Page harnais e2e (scénarios décrits en JS, sortie "E2E x: PASS|FAIL")
@@ -114,20 +117,25 @@ Vérifications avant tout commit : `npm test` passe **et** `node --check` sur ch
 L'économie est pilotée par les données, pas au doigt mouillé :
 
 1. Modifie les knobs dans `js/game.js` (dans l'ordre d'impact) :
+   - **Combo clic** (`COMBO_PER` 0.05 → +5 %/clic, `COMBO_MAX_MULT` 3, fenêtre
+     2000 ms) — LE levier du jeu actif : un joueur qui enchaîne les clics
+     multiplie sa weed jusqu'à ×3. `clickBud()` est le seul chemin qui ajoute
+     la weed cliquée (stock + XP) — jamais filtrée vers les chaînes.
+   - **Upgrade `clicker`** (`+3g/clic/niv`, max 30, growth 1.8) — additif borné
+     : fait durer la progression du clic sans snowball exponentiel.
    - **Spoilage doux + paliers Distribution** (`dist1/2/3`, growth ×1.9,
      +3/+6/+10 % de flux converti chacune) — plus aucun cap : la weed
      s'accumule librement et, au-delà d'un plancher (60 s de production),
      le surplus se dégrade à `SPOIL_RATE` (1 %/s). Vendre ou fabriquer
-     reste la bonne idée, sans jamais bloquer. Le revenu idle late-game
-     est gate par la part de flux que les chaînes peuvent convertir —
-     les paliers dist en sont LE levier. L'XP vient des grammes produits
+     reste la bonne idée, sans jamais bloquer. L'XP vient des grammes produits
      (`harvestXp`).
-   - **Chaînes proportionnelles** (`CHAIN_FLOW_SHARE` 0.15) — chaque chaîne
-     transforme max 15 % du flux réellement ajouté au stock ce tick
-     (autoTick reçoit les grammes AJOUTÉS, pas produits), part de flux
-     bornée par `CHAIN_SHARE_MAX` (0.6). Règle gravée : le tas et le
-     stock manuel ne sont JAMAIS drainés par elles. L'argent idle est
-     proportionnel au transformé et affiché en €/s dans le header.
+   - **Chaînes proportionnelles** (`CHAIN_FLOW_SHARE` 0.08) — chaque chaîne
+     transforme max 8 % du flux AUTO réellement ajouté au stock ce tick
+     (l'UI passe `addedAuto` uniquement, JAMAIS les clics), part de flux
+     bornée par `CHAIN_SHARE_MAX` (0.4). Règle gravée : le tas, le stock
+     manuel et la weed cliquée ne sont JAMAIS drainés par elles. L'argent
+     idle est proportionnel au transformé et affiché en €/s dans le header —
+     il reste une annexe.
    - **Paliers de chaîne** (`CHAIN_MILESTONES`) — ×2 rendement aux niveaux
      25/50/75/100/150 de chaque chaîne (puis ×3/×4/×5) : objectif court-terme
      permanent façon AdCap, sans toucher au gate de flux.
@@ -148,7 +156,7 @@ L'économie est pilotée par les données, pas au doigt mouillé :
    achats parfaits). Un joueur réel est 2-4× plus lent.
 3. Ajuste jusqu'à tenir les cibles gravées dans le test (niveau 10 à 5-20 min,
    1 M€ à 4-20 min, gains totaux < 5 P€ en 2h optimale, etc.).
-4. `npm test` — les assertions de pacing + les 81 tests unitaires doivent rester
+4. `npm test` — les assertions de pacing + les 93 tests unitaires doivent rester
    verts. Toute valeur de prix/coût du README doit suivre (tables à jour).
 
 ## PWA / cache — règle de versioning
@@ -171,7 +179,7 @@ pertinente. L'e2e doit rester **sans dépendance** (pas de puppeteer/playwright)
 
 ## Checklist de PR
 
-- [ ] `npm test` vert en local (81 unit + playthrough + e2e)
+- [ ] `npm test` vert en local (93 unit + playthrough + e2e)
 - [ ] `node --check` sur chaque fichier JS touché
 - [ ] Nouvelles données de jeu → sanitisation `deserialize` + test roundtrip
 - [ ] Changement d'économie → sim playthrough relancée, README à jour

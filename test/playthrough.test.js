@@ -20,6 +20,8 @@ function simulate(minutes) {
   const s = Game.defaultState();
   const TICKS = minutes * 60;
   let clickCarry = 0;
+  let activeMoney = 0;
+  let idleMoney = 0;
   const stats = {
     firstUpgrade: null, firstChain: null, chains3: null, firstPurple: null, firstBlue: null,
     earned: {}, levels: {}
@@ -33,13 +35,14 @@ function simulate(minutes) {
     // session model: 5 min active, 3 min AFK (idle games are played by bursts)
     const afk = (tick % 480) >= 300;
 
-    // --- active play: 2.5 clicks/s (deterministic fractional carry)
+    // --- active play: 2.5 clicks/s (deterministic fractional carry).
+    // Combo window: les clics d'un même tick partagent `now`, donc le combo
+    // se maintient naturellement à 2.5/s et monte vite vers le cap ×5.
     if (!afk) {
       clickCarry += 2.5;
       while (clickCarry >= 1) {
         clickCarry -= 1;
-        const added = Game.addWeed(s, Game.perClick(s));
-        Game.earnXp(s, added);
+        Game.clickBud(s, now);
       }
     }
     // --- idle production
@@ -48,8 +51,9 @@ function simulate(minutes) {
     if (auto > 0) storedFlow = Game.harvestXp(s, auto); // added grams = chain flow
     Game.applySpoil(s); // spoilage doux remplace le cap
 
-    // --- automation chains (proportional to grams actually produced)
-    Game.autoTick(s, now, storedFlow);
+    // --- automation chains (proportional to AUTO grams only — click-first)
+    const tickRes = Game.autoTick(s, now, storedFlow);
+    idleMoney += Object.values(tickRes.soldMoney || {}).reduce((a, b) => a + b, 0);
 
     // --- selling strategy (active only): best unlocked product by €/g × pulse; sell on
     //     favorable pulse, or dump the backlog when coming back from AFK
@@ -68,11 +72,11 @@ function simulate(minutes) {
       }
       const favorable = Game.pulse(best.p.id, now) > 1.0;
       if ((favorable || backlog) && s.stock[best.p.id] > 0) {
-        Game.sellStock(s, best.p.id, undefined, now);
+        activeMoney += Game.sellStock(s, best.p.id, undefined, now);
       }
-      if (backlog && s.stock.weed > 0) Game.sellStock(s, 'weed', undefined, now);
+      if (backlog && s.stock.weed > 0) activeMoney += Game.sellStock(s, 'weed', undefined, now);
     } else if (!afk && (backlog || weedPulse > 1.05)) {
-      if (s.stock.weed > 0) Game.sellStock(s, 'weed', undefined, now);
+      if (s.stock.weed > 0) activeMoney += Game.sellStock(s, 'weed', undefined, now);
     }
 
     // --- buying strategy
@@ -125,6 +129,7 @@ function simulate(minutes) {
   }
 
   const totalChainLvl = Game.PRODUCTS.reduce((a, p) => a + Game.chainLvl(s, p.id), 0);
+  const totalMoney = activeMoney + idleMoney;
   stats.end = {
     level: Game.levelFromXp(s.xp),
     money: Math.floor(s.money),
@@ -133,7 +138,10 @@ function simulate(minutes) {
     totalChainLvl,
     strain: s.strain,
     perSec: Game.perSecond(s),
-    perClick: Game.perClick(s)
+    perClick: Game.perClick(s),
+    maxCombo: s.combo && s.combo.maxCombo,
+    activeShare: totalMoney > 0 ? activeMoney / totalMoney : 0,
+    idleShare: totalMoney > 0 ? idleMoney / totalMoney : 0
   };
   return stats;
 }
@@ -154,7 +162,10 @@ const fmtStats = (st) => JSON.stringify({
   '100K_min': st.earned[100000] && +st.earned[100000].toFixed(1),
   '1M_min': st.earned[1000000] && +st.earned[1000000].toFixed(1),
   '10M_min': st.earned[10000000] && +st.earned[10000000].toFixed(1),
-  chainLvl_total: st.end && st.end.totalChainLvl
+  chainLvl_total: st.end && st.end.totalChainLvl,
+  maxCombo: st.end && st.end.maxCombo,
+  activeShare: st.end && st.end.activeShare.toFixed(2),
+  idleShare: st.end && st.end.idleShare.toFixed(2)
 });
 
 test('playthrough 2h: pacing targets + stats', () => {
@@ -162,16 +173,26 @@ test('playthrough 2h: pacing targets + stats', () => {
   console.log('SIM2H ' + fmtStats(st));
   console.log('SIM2H end ' + JSON.stringify(st.end));
   // Pacing targets for an OPTIMAL player (real players are 2-4x slower).
-  // Chaînes multi-niveaux : l'argent idle se scale via les améliorations.
+  // Refonte click-first : le combo + les upgrades de clic accélèrent le jeu
+  // actif par rapport à l'ancienne courbe idle — les fenêtres ci-dessous
+  // gravent la nouvelle courbe (optimal : lvl10 ~3 min, lvl20 ~9 min).
   assert.ok(st.firstUpgrade !== null && st.firstUpgrade <= 1, 'first upgrade within a minute');
-  assert.ok(st.levels[10] >= 5 && st.levels[10] <= 20, 'level 10 around 10 min of optimal play');
-  assert.ok(st.levels[20] >= 9 && st.levels[20] <= 60, 'level 20 is a ~15-25 min milestone (plus de frein stock)');
-  assert.ok(st.levels[30] >= 14 && st.levels[30] <= 90, 'level 30 mid-late');
-  assert.ok(st.firstChain >= 2 && st.firstChain <= 15, 'first chain is an early mid-game goal');
-  assert.ok(st.earned[1000000] >= 4 && st.earned[1000000] <= 20, '1M lifetime around 10 min of optimal play');
-  assert.ok(st.earned[10000000] >= 9, '10M not before ~13 min even when perfect');
-  assert.ok(st.end.level >= 30, 'progression keeps flowing (no wall)');
+  assert.ok(st.levels[10] >= 2 && st.levels[10] <= 10, 'level 10 around 3-4 min of optimal play');
+  assert.ok(st.levels[20] >= 5 && st.levels[20] <= 30, 'level 20 a ~9-15 min milestone (plus de frein stock)');
+  assert.ok(st.levels[30] >= 10 && st.levels[30] <= 60, 'level 30 mid-late');
+  assert.ok(st.firstChain >= 1 && st.firstChain <= 10, 'first chain is an early mid-game goal');
+  assert.ok(st.earned[1000000] >= 2 && st.earned[1000000] <= 10, '1M lifetime around 3 min of optimal play');
+  assert.ok(st.earned[10000000] >= 3, '10M not before ~3 min even when perfect');
+  assert.ok(st.end.level >= 35, 'progression keeps flowing (no wall)');
   assert.ok(st.end.totalChainLvl > st.end.chains, 'chains get upgraded beyond hire (idle scaling works)');
+  // Click-first: le joueur actif doit rester LE moteur de l'économie.
+  // Les chaînes ne convertissent QUE le flux auto (CHAIN_FLOW_SHARE 8%, plafond
+  // CHAIN_SHARE_MAX 40%) et les upgrades servent le clic → ≥55% des gains
+  // doivent venir du jeu actif (clic → craft → vente manuelle).
+  assert.ok(st.end.activeShare >= 0.55,
+    'active share ' + st.end.activeShare.toFixed(2) + ' — le clic doit dominer (click-first)');
+  assert.ok(st.end.idleShare <= 0.45,
+    'idle share ' + st.end.idleShare.toFixed(2) + ' — les chaînes restent annexes');
   // Anti-explosion (bugs type NaN/négatif) : l'exponentielle saine du genre est
   // assumée, on garde juste un ordre de grandeur max sur 2h optimales.
   assert.ok(st.end.totalEarned < 5e15, 'no runaway explosion over a 2h optimal run');
