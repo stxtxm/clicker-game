@@ -203,28 +203,38 @@
       align-items: center;
       gap: 6px;
     }
-    /* combo — le cœur du clic : pill dorée + barre de temps (scaleX compositor) */
+    /* combo — le cœur du clic : pill + barre de temps FLOTTANTES au-dessus du bud.
+   position: absolute → zéro impact sur le layout (le bud ne bouge jamais),
+   pointer-events: none → les taps traversent vers le bud. */
     .combo-wrap {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 10px);
+      transform: translateX(-50%);
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 6px;
-      margin-top: 10px;
+      gap: 5px;
+      pointer-events: none;
+      z-index: 5;
     }
+    .combo-wrap[hidden] { display: none; }
     .combo-pill {
-      font-size: .85rem;
+      font-size: .8rem;
       font-weight: 900;
       color: var(--gold-soft);
-      background: linear-gradient(135deg, rgba(251,191,36,.16), rgba(251,191,36,.05));
+      background: linear-gradient(135deg, rgba(251,191,36,.18), rgba(251,191,36,.06));
       border: 1px solid rgba(251,191,36,.4);
       border-radius: 999px;
-      padding: 5px 14px;
+      padding: 4px 12px;
       text-shadow: 0 1px 6px rgba(251,191,36,.35);
+      white-space: nowrap;
+      box-shadow: 0 4px 14px rgba(0,0,0,.45);
     }
     .combo-bar {
-      width: min(40vw, 150px);
-      height: 5px;
-      background: var(--panel2);
+      width: min(34vw, 120px);
+      height: 4px;
+      background: rgba(7, 10, 7, .75);
       border: 1px solid var(--border);
       border-radius: 999px;
       overflow: hidden;
@@ -540,11 +550,10 @@
 
       <div class="bud-container" id="bc" title="Clique !">
         <div id="bs"></div>
-      </div>
-
-      <div class="combo-wrap" id="combo-wrap" hidden>
-        <div class="combo-pill" id="combo-pill">⚡ Combo</div>
-        <div class="combo-bar"><div class="combo-bar-fill" id="combo-bar"></div></div>
+        <div class="combo-wrap" id="combo-wrap" hidden>
+          <div class="combo-pill" id="combo-pill">⚡ Combo</div>
+          <div class="combo-bar"><div class="combo-bar-fill" id="combo-bar"></div></div>
+        </div>
       </div>
 
       <div class="strain-badge" id="sb">🌿 Green Dream</div>
