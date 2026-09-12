@@ -255,6 +255,28 @@ async function scenario() {
       toastDiamond && specCnt.indexOf('1/') === 0,
       'mps ' + mpsBefore + '->' + mpsAfter + ' 💎=' + toastDiamond + ' count=' + specCnt);
 
+    // 14d. alertes prix (cloche) + sparkline + maîtrise de variété
+    q('.tab-btn[data-tab="sell"]').click();
+    await sleep(120);
+    const bellWeed = await waitFor('#bell-weed');
+    const spark = q('#sl-weed');
+    const ptsNow = spark ? (spark.getAttribute('points') || '').split(' ').filter(Boolean).length : 0;
+    bellWeed.click();
+    await sleep(60);
+    const bellArmed = q('#bell-weed').classList.contains('armed');
+    const armedLabel = q('#bell-weed').textContent;
+    q('#bell-weed').click();
+    await sleep(60);
+    const bellCleared = !q('#bell-weed').classList.contains('armed');
+    q('.tab-btn[data-tab="harvest"]').click();
+    await sleep(1300); // > 1 tick autoProduce : la maîtrise engrange le flux auto
+    const mtyFill = q('#mty-fill');
+    const mtyPct = mtyFill ? parseFloat(mtyFill.style.width) : 0;
+    report('market-spark-alert-mastery', ptsNow >= 20 && bellArmed && bellCleared &&
+      /🔔/.test(armedLabel) && !!mtyFill && mtyPct > 0,
+      'pts=' + ptsNow + ' armed=' + bellArmed + ' cleared=' + bellCleared +
+      ' mtyPct=' + mtyPct + ' label=' + armedLabel.replace(/[^\d%🔔]/g, ''));
+
     // 15. reset dialog: first click arms (animated state), second confirms
     q('.tab-btn[data-tab="progress"]').click();
     await sleep(80);

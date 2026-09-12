@@ -177,7 +177,9 @@
         '<span class="st-icon">' + st.icon + '</span>' +
         '<div class="st-info"><div class="st-name">' + st.name +
           (equipped ? ' <span class="st-badge">Équipée</span>' : '') + '</div>' +
-          '<div class="st-desc">' + st.desc + ' (x' + st.yieldMult + ' rendement, x' + st.priceMult + ' prix)</div></div>' +
+          '<div class="st-desc">' + st.desc + ' (x' + st.yieldMult + ' rendement, x' + st.priceMult + ' prix)</div>' +
+          '<div class="st-mastery"><span class="stm-lvl" id="stm-l-' + st.id + '"></span>' +
+            '<span class="stm-bar"><span class="stm-fill" id="stm-f-' + st.id + '"></span></span></div></div>' +
         '<div class="st-buy">' +
           (owned ? ''
             : locked ? '<span class="st-lock">🔒 Niveau ' + st.unlock + '</span>'
@@ -206,6 +208,43 @@
     return '<span class="trend">→</span>';
   }
 
+  /** Sparkline SVG statique par carte marché — seule la polyline bouge. */
+  function sparklineHtml(marketId) {
+    return '<div class="mc-spark"><svg viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">' +
+      '<polyline id="sl-' + marketId + '" fill="none" stroke="var(--green)" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></polyline>' +
+      '</svg></div>';
+  }
+
+  /** Polyline d'un marché : position dans le cycle pulse (déterministe). */
+  function updateSparkline(marketId) {
+    const poly = document.getElementById('sl-' + marketId);
+    if (!poly) return;
+    const samples = Game.marketSamples(marketId, Date.now(), 36);
+    const min = Math.min.apply(null, samples);
+    const max = Math.max.apply(null, samples);
+    const span = Math.max(0.02, max - min);
+    const pts = [];
+    for (let i = 0; i < samples.length; i++) {
+      const x = (i * 100 / (samples.length - 1)).toFixed(1);
+      const y = (25 - ((samples[i] - min) / span) * 23).toFixed(1);
+      pts.push(x + ',' + y);
+    }
+    poly.setAttribute('points', pts.join(' '));
+    poly.setAttribute('stroke', Game.isSpikeActive(state, marketId) ? 'var(--gold)' : 'var(--green)');
+  }
+
+  /** État de la cloche d'alerte d'un marché (armée → cible affichée). */
+  function updateBell(marketId) {
+    const bell = document.getElementById('bell-' + marketId);
+    if (!bell) return;
+    const target = state.alerts && state.alerts[marketId];
+    bell.textContent = target ? '🔔 ' + Math.round(target * 100) + '%' : '🔔';
+    bell.classList.toggle('armed', !!target);
+    bell.title = target
+      ? 'Alerte armée à ' + Math.round(target * 100) + '% — reclique pour annuler'
+      : 'Me prévenir quand le prix monte encore';
+  }
+
   /* Market rendering — structure built ONCE (stable tap targets), values
      updated in place every tick. Rebuilding innerHTML every second thrashed
      layout on mobile and recreated buttons under the player's finger. */
@@ -219,10 +258,15 @@
     weed.className = 'market-card';
     weed.innerHTML =
       '<div class="mc-top"><div class="mc-title">🌿 Weed Brute</div><div class="mc-price" id="mp-weed"></div></div>' +
+      sparklineHtml('weed') +
       '<div class="mc-stock" id="ms-weed"></div>' +
-      '<div class="mc-actions"><button class="mc-btn sell" data-p="weed" id="mb-weed"></button></div>';
-    weed.querySelector('button').addEventListener('click', () => onSell('weed'));
+      '<div class="mc-actions">' +
+        '<button class="mc-btn bell" id="bell-weed" title="Alerte prix"></button>' +
+        '<button class="mc-btn sell" data-p="weed" id="mb-weed"></button>' +
+      '</div>';
     el.marketGrid.appendChild(weed);
+    document.getElementById('mb-weed').addEventListener('click', () => onSell('weed'));
+    document.getElementById('bell-weed').addEventListener('click', () => onAlert('weed'));
     // Product cards
     for (const p of Game.PRODUCTS) {
       const card = document.createElement('div');
@@ -230,13 +274,16 @@
       card.id = 'mk-' + p.id;
       card.innerHTML =
         '<div class="mc-top"><div class="mc-title">' + p.icon + ' ' + p.name + '<span class="mc-qty" id="mq-' + p.id + '"></span></div><div class="mc-price" id="mp-' + p.id + '"></div></div>' +
+        sparklineHtml(p.id) +
         '<div class="mc-stock" id="ms-' + p.id + '"></div>' +
         '<div class="mc-actions">' +
+          '<button class="mc-btn bell" id="bell-' + p.id + '" title="Alerte prix"></button>' +
           '<button class="mc-btn craft" data-p="' + p.id + '" id="mbc-' + p.id + '"></button>' +
           '<button class="mc-btn sell" data-p="' + p.id + '" id="mbs-' + p.id + '"></button>' +
         '</div>';
       card.querySelector('.craft').addEventListener('click', () => onCraft(p.id));
       card.querySelector('.sell').addEventListener('click', () => onSell(p.id));
+      card.querySelector('.bell').addEventListener('click', () => onAlert(p.id));
       el.marketGrid.appendChild(card);
     }
   }
@@ -267,12 +314,16 @@
       const btn = document.getElementById('mb-weed');
       btn.textContent = 'Vendre ' + (qtyMode === 'max' ? 'tout (' + fmt(have) + 'g)' : 'x' + n + ' (' + fmt(n) + 'g)');
       btn.disabled = n <= 0;
+      updateSparkline('weed');
+      updateBell('weed');
     }
 
     // Product values
     for (const p of Game.PRODUCTS) {
       const locked = level < p.unlock;
       const card = document.getElementById('mk-' + p.id);
+      updateSparkline(p.id);
+      updateBell(p.id);
       card.classList.toggle('locked', locked);
       const priceEl = document.getElementById('mp-' + p.id);
       const stockEl = document.getElementById('ms-' + p.id);
@@ -483,6 +534,46 @@
     }
   }
 
+  /* Maîtrise — barre de la vue Récolte bâtie dans index.html, seuls les
+     textes/largeurs bougent chaque tick (in-place, zéro innerHTML). */
+  function updateMastery() {
+    const fill = document.getElementById('mty-fill');
+    if (!fill) return;
+    const sid = state.strain;
+    const st = Game.getStrain(sid);
+    const cap = Game.MASTERY_MAX_LEVEL || 40;
+    const lvl = Game.masteryLevel ? Game.masteryLevel(state, sid) : 0;
+    const xp = (state.mastery && state.mastery[sid]) || 0;
+    const curT = Game.masteryXpForLevel ? Game.masteryXpForLevel(lvl) : 0;
+    const nextT = Game.masteryXpForLevel ? Game.masteryXpForLevel(lvl + 1) : 0;
+    const pct = lvl >= cap ? 100 : Math.min(100, ((xp - curT) / Math.max(1, nextT - curT)) * 100);
+    const lbl = document.getElementById('mty-lbl');
+    const lvlEl = document.getElementById('mty-lvl');
+    const nextEl = document.getElementById('mty-next');
+    if (lbl) lbl.textContent = '🌱 Maîtrise — ' + (st ? st.name : sid);
+    if (lvlEl) lvlEl.textContent = 'Niv ' + lvl + (lvl >= cap ? ' (MAX)' : ' · +' + Math.round(lvl * 0.5) + '%');
+    fill.style.width = pct + '%';
+    if (nextEl) nextEl.textContent = lvl >= cap ? 'Maîtrise maxée' : fmt(Math.max(0, nextT - xp)) + ' XP';
+  }
+
+  /* Maîtrise dans la vue Variétés — lignes statiques (renderStrains), mises à
+     jour in place ici quand l'onglet est visible. */
+  function updateStrainMastery() {
+    for (const stVar of Game.STRAINS) {
+      const lvlEl = document.getElementById('stm-l-' + stVar.id);
+      const fill = document.getElementById('stm-f-' + stVar.id);
+      if (!lvlEl || !fill) continue;
+      const cap = Game.MASTERY_MAX_LEVEL || 40;
+      const lvl = Game.masteryLevel ? Game.masteryLevel(state, stVar.id) : 0;
+      const xp = (state.mastery && state.mastery[stVar.id]) || 0;
+      const curT = Game.masteryXpForLevel ? Game.masteryXpForLevel(lvl) : 0;
+      const nextT = Game.masteryXpForLevel ? Game.masteryXpForLevel(lvl + 1) : 0;
+      const pct = lvl >= cap ? 100 : Math.min(100, ((xp - curT) / Math.max(1, nextT - curT)) * 100);
+      lvlEl.textContent = lvl > 0 ? 'Niv ' + lvl + ' +' + Math.round(lvl * 0.5) + '%' : '';
+      fill.style.width = pct + '%';
+    }
+  }
+
   /** Sync every dynamic text / disabled state with `state`.
    *  Hidden views are skipped: the per-second tick only writes to the DOM the
    *  player is actually looking at (less style/layout work, smoother on mobile). */
@@ -507,6 +598,9 @@
 
     // PAS de cap : le stock est libre, on affiche juste le total
     if (el.stw) el.stw.textContent = fmt(state.stock.weed) + 'g dispo';
+
+    updateMastery();
+    if (active('strains')) updateStrainMastery();
 
     if (active('sell')) renderMarket();
     if (active('contracts')) updateContracts();
@@ -803,7 +897,10 @@
         { duration: 320, easing: 'cubic-bezier(.34,1.56,.64,1)' }
       );
     }
-    spawnParticle('+' + res.added + 'g' + (res.mult > 1 ? ' · ×' + res.mult.toFixed(1) : ''));
+    spawnParticle(res.crit
+      ? '💥 ' + res.added + 'g CRITIQUE !'
+      : '+' + res.added + 'g' + (res.mult > 1 ? ' · ×' + res.mult.toFixed(1) : ''),
+      res.crit);
     popNum(el.stw);
     updateComboUI(true);
     refreshStats();
@@ -882,6 +979,17 @@
     if (gain > 0) {
       toast('+' + fmt(gain) + ' €');
       popNum(el.m);
+    }
+    refreshStats();
+    save();
+  }
+
+  /** Arme/désarme l'alerte de prix d'un marché (feedback via le retour Game). */
+  function onAlert(marketId) {
+    const res = Game.setPriceAlert(state, marketId);
+    if (res.ok) {
+      if (res.cleared) toast('🔕 Alerte annulée');
+      else toast('🔔 Alerte à ' + Math.round(res.target * 100) + '% du prix de base');
     }
     refreshStats();
     save();
@@ -1002,6 +1110,13 @@
       const name = prod ? prod.name : spiked === 'weed' ? 'Weed Brute' : spiked;
       toast('🔥 Ruée sur ' + name + ' ×1.6 (15s) !');
       spawnParticle('🔥 ' + name + ' ×1.6 !');
+    }
+    // alertes de prix : prévient dès qu'un marché armé atteint sa cible
+    const firedAlerts = Game.checkPriceAlerts ? Game.checkPriceAlerts(state, now) : [];
+    for (const aid of firedAlerts) {
+      const ap = Game.getProduct(aid);
+      const aname = ap ? ap.name : aid === 'weed' ? 'Weed Brute' : aid;
+      toast('🔔 ' + aname + ' a atteint ton prix cible !');
     }
     const ar = Game.perSecond(state);
     let addedAuto = 0;

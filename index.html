@@ -203,6 +203,20 @@
       align-items: center;
       gap: 6px;
     }
+    /* maîtrise de la variété équipée (vue Récolte) */
+    .mastery {
+      width: min(72vw, 38vh, 300px);
+      margin: 8px auto 0;
+      background: linear-gradient(135deg, var(--panel), var(--panel2));
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 12px;
+    }
+    .mastery-head { display: flex; justify-content: space-between; align-items: center; font-size: .72rem; font-weight: 800; color: var(--green-soft); margin-bottom: 5px; }
+    .mastery-head b { color: var(--gold); }
+    .mastery-bar { height: 6px; background: #0a0e0a; border-radius: 999px; overflow: hidden; }
+    .mastery-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--green-dim), var(--green)); border-radius: 999px; transition: width .3s; }
+    .mastery-next { font-size: .62rem; color: var(--muted); margin-top: 3px; }
     /* combo — le cœur du clic : pill + barre de temps FLOTTANTES au-dessus du bud.
    position: absolute → zéro impact sur le layout (le bud ne bouge jamais),
    pointer-events: none → les taps traversent vers le bud. */
@@ -313,6 +327,11 @@
     .mc-btn:active:not(:disabled) { transform: scale(.96); filter: brightness(1.12); }
     .mc-btn.sell { background: linear-gradient(135deg, var(--green-dim), var(--green)); color: #070a07; border: none; font-weight: 800; }
     .mc-btn:disabled { opacity: .4; cursor: not-allowed; }
+    /* sparkline du marché : la position dans le cycle pulse, déterministe */
+    .mc-spark { height: 26px; margin: 6px 0 4px; }
+    .mc-spark svg { width: 100%; height: 100%; display: block; }
+    .mc-btn.bell { flex: 0 0 auto; padding: 10px 10px; font-size: .8rem; color: var(--muted); background: var(--panel2); border: 1px solid var(--border2); }
+    .mc-btn.bell.armed { color: var(--gold); border-color: var(--gold); background: rgba(251,191,36,0.14); }
     .qty-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
     .qty-pill {
       background: var(--panel2);
@@ -419,6 +438,11 @@
     .st-ok { font-size: .68rem; font-weight: 800; color: var(--green-soft); }
     .st-lock { font-size: .7rem; font-weight: 700; color: var(--muted); opacity: .85; white-space: nowrap; }
     .strain.locked { opacity: .55; border-left-color: #444; }
+    /* maîtrise par variété (vue Variétés) */
+    .st-mastery { display: flex; align-items: center; gap: 8px; margin-top: 4px; min-height: 10px; }
+    .stm-lvl { font-size: .64rem; font-weight: 800; color: var(--green-soft); white-space: nowrap; }
+    .stm-bar { flex: 1; height: 5px; background: #0a0e0a; border-radius: 999px; overflow: hidden; }
+    .stm-fill { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--green-dim), var(--green-soft)); border-radius: 999px; }
 
     /* ===== Progression view ===== */
     .xp-card { background: linear-gradient(135deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 10px; }
@@ -557,6 +581,12 @@
       </div>
 
       <div class="strain-badge" id="sb">🌿 Green Dream</div>
+
+      <div class="mastery" id="mastery">
+        <div class="mastery-head"><span id="mty-lbl">🌱 Maîtrise — Green Dream</span><b id="mty-lvl">Niv 0</b></div>
+        <div class="mastery-bar"><div class="mastery-fill" id="mty-fill" style="width:0%"></div></div>
+        <div class="mastery-next" id="mty-next"></div>
+      </div>
     </section>
 
     <!-- Sell / Market -->

@@ -224,6 +224,48 @@ test('clickBud: la fenêtre expire au-delà de COMBO_WINDOW_MS', () => {
   assert.strictEqual(c.maxCombo, 2);
 });
 
+test('crit upgrade: chance bornée par niveau (1,5%/niv, cap 30%)', () => {
+  const s = Game.defaultState();
+  assert.strictEqual(Game.critChance(s), 0);
+  assert.strictEqual(Game.isCritHit(s, 1000), false); // sans upgrade, jamais de crit
+  s.levels.crit = 1;
+  assert.strictEqual(Game.critChance(s), Game.CRIT_CHANCE_PER);
+  s.levels.crit = 20;
+  assert.strictEqual(Game.critChance(s), 0.30);
+  s.levels.crit = 999;
+  assert.strictEqual(Game.critChance(s), 0.30); // clampé même si la save triche
+});
+
+test('crit upgrade: coût ×1.8, bulk MAX borné à 20 niveaux', () => {
+  const s = Game.defaultState();
+  s.levels.crit = 5;
+  assert.strictEqual(Game.upgradeCost(s, 'crit'), Math.floor(1000000 * Math.pow(1.8, 5)));
+  const def = Game.UPGRADES.find((u) => u.id === 'crit');
+  assert.strictEqual(def.max, 20);
+  s.money = 1e12;
+  assert.strictEqual(Game.maxAffordableLevels(s, 'crit'), 20);
+});
+
+test('isCritHit: déterministe, et un clic critique rapporte ×CRIT_MULT', () => {
+  const s = Game.defaultState();
+  s.levels.crit = 20; // 30% — un crit doit exister dans les 20k premières ms
+  let hitNow = -1;
+  for (let t = 0; t < 20000; t++) {
+    if (Game.isCritHit(s, t)) { hitNow = t; break; }
+  }
+  assert.ok(hitNow >= 0, '8 crits attendus sur 20k ms à 30%');
+  assert.strictEqual(Game.isCritHit(s, hitNow), Game.isCritHit(s, hitNow));
+  const noCrit = Game.defaultState();
+  const base = Game.perClick(noCrit); // 1g au niveau 1
+  const r = Game.clickBud(s, hitNow);
+  assert.strictEqual(r.crit, true);
+  assert.strictEqual(r.added, base * Game.CRIT_MULT);
+  assert.strictEqual(s.weed, base * Game.CRIT_MULT);
+  // deux clics consécutifs dans la même ms ne partagent pas le roll (totalClicks)
+  const r2 = Game.clickBud(s, hitNow);
+  assert.strictEqual(typeof r2.crit, 'boolean');
+});
+
 test('clicker upgrade: +3g de weed par clic par niveau, borné à max 30', () => {
   const s = Game.defaultState();
   assert.strictEqual(Game.perClick(s), 1);          // lvl0: (1+0) × 1.08 -> 1
@@ -334,7 +376,7 @@ test('deserialize: sanitizes unknown strain and bad shapes', () => {
 });
 
 test('data catalog is coherent', () => {
-  assert.strictEqual(Game.UPGRADES.length, 15);
+  assert.strictEqual(Game.UPGRADES.length, 16);
   assert.strictEqual(Game.STRAINS.length, 12);
   assert.strictEqual(Game.PRODUCTS.length, 14);
   assert.strictEqual(Game.MILESTONES.length, 13);
@@ -403,6 +445,50 @@ test('productionMult composes level, strains and milestones', () => {
   assert.ok(Math.abs(Game.productionMult(s) - 1.24) < 1e-9);
 });
 
+test('mastery: chaque gramme récolté avec la variété équipée la fait XP', () => {
+  const s = Game.defaultState();
+  s.xp = Game.xpForLevel(4); // débloque purple
+  Game.clickBud(s, 1000); // 1g sur green (équipée par défaut)
+  assert.strictEqual(s.mastery.green, 1);
+  assert.strictEqual(s.mastery.purple, undefined);
+  s.money = 1e9;
+  assert.strictEqual(Game.equipStrain(s, 'purple').ok, true);
+  Game.clickBud(s, 2000); // produit via purple (yield ×1.5 → 2g)
+  assert.strictEqual(s.mastery.green, 1);
+  assert.ok(s.mastery.purple >= 1, 'purple a engrangé sa récolte');
+});
+
+test('mastery: niveau dérivé de la courbe ×1.5, bonus +0,5%/niv borné au cap', () => {
+  const s = Game.defaultState();
+  s.mastery.green = 1;
+  assert.strictEqual(Game.masteryLevel(s, 'green'), 0); // 1 < 750
+  s.mastery.green = Game.masteryXpForLevel(2);
+  assert.strictEqual(Game.masteryLevel(s, 'green'), 2);
+  assert.strictEqual(Game.masteryMult(s, 'green'), 1 + 0.005 * 2);
+  assert.ok(Math.abs(Game.productionMult(s) - 1.08 * (1 + 0.005 * 2)) < 1e-9);
+  s.mastery.green = 1e18;
+  assert.strictEqual(Game.masteryLevel(s, 'green'), Game.MASTERY_MAX_LEVEL);
+  assert.strictEqual(Game.masteryMult(s, 'green'), 1 + 0.005 * Game.MASTERY_MAX_LEVEL);
+});
+
+test('mastery/Alerts: roundtrip + sanitisation (id inconnu, négatif, clamp)', () => {
+  const s = Game.defaultState();
+  s.mastery = { green: 1200, purple: -5, bogus: 99 };
+  s.alerts = { weed: 1.25, joint: 2.5, hash: 0.5, nope: 1.1 };
+  const d = Game.deserialize(Game.serialize(s));
+  assert.strictEqual(d.mastery.green, 1200);
+  assert.strictEqual(d.mastery.purple, undefined);  // négatif → retiré
+  assert.strictEqual(d.mastery.bogus, undefined);
+  assert.strictEqual(d.alerts.weed, 1.25);
+  assert.strictEqual(d.alerts.joint, Game.ALERT_MAX); // 2.5 → clampé à 1.29
+  assert.strictEqual(d.alerts.hash, 1.02);             // 0.5 → clampé UP à 1.02
+  assert.strictEqual(d.alerts.nope, undefined);
+  // vieilles saves sans mastery/alerts → défauts
+  const old = Game.deserialize('{"weed":42}');
+  assert.deepStrictEqual(old.mastery, {});
+  assert.deepStrictEqual(old.alerts, {});
+});
+
 test('perClick/perSecond scale with level', () => {
   const s = Game.defaultState();
   s.levels.harvest = 5;
@@ -437,7 +523,7 @@ test('deserialize: combo + totalClicks sont sanitizés et migrés', () => {
   assert.strictEqual(loaded.sessionClicks, undefined);
   assert.strictEqual(loaded.prestige, undefined);
   assert.strictEqual(loaded.levels.power, undefined);
-  assert.strictEqual(loaded.levels.crit, undefined);
+  assert.strictEqual(loaded.levels.crit, 1); // crit est un upgrade légitime depuis cette version
   assert.strictEqual(loaded.levels.harvest, 3);
 });
 
@@ -701,6 +787,44 @@ test('market trend: matches pulse slope (up between samples)', () => {
     if (Game.trend(id, t) === 1) assert.ok(rising, 'trend up but pulse fell @' + t);
     if (Game.trend(id, t) === -1) assert.ok(!rising, 'trend down but pulse rose @' + t);
   }
+});
+
+test('marketSamples: une période complète, bornée ±30%, déterministe', () => {
+  const a = Game.marketSamples('joint', 100000, 36);
+  assert.strictEqual(a.length, 36);
+  for (const v of a) assert.ok(v >= 0.7 && v <= 1.3);
+  assert.deepStrictEqual(a, Game.marketSamples('joint', 100000, 36));
+  const step = Game.MARKET.periodMs / 36;
+  assert.ok(Math.abs(a[0] - Game.pulse('joint', 100000 - 35 * step)) < 1e-9);
+  assert.ok(Math.abs(a[35] - Game.pulse('joint', 100000)) < 1e-9);
+});
+
+test('setPriceAlert: armage/désarmage + cible clampée, marché inconnu refusé', () => {
+  const s = Game.defaultState();
+  assert.strictEqual(Game.setPriceAlert(s, 'nope').ok, false);
+  const r = Game.setPriceAlert(s, 'joint', 100000);
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.cleared, false);
+  assert.ok(r.target >= 1.05 && r.target <= Game.ALERT_MAX);
+  assert.ok(s.alerts.joint >= 1.05 && s.alerts.joint <= Game.ALERT_MAX);
+  const cleared = Game.setPriceAlert(s, 'joint', 100000);
+  assert.strictEqual(cleared.cleared, true);
+  assert.strictEqual(s.alerts.joint, undefined);
+});
+
+test('checkPriceAlerts: déclenche une fois la cible atteinte en montant', () => {
+  const s = Game.defaultState();
+  const armed = Game.setPriceAlert(s, 'joint', 0);
+  const target = armed.target;
+  let firedAt = -1;
+  for (let t = 0; t < Game.MARKET.periodMs * 2; t += 1000) {
+    const cur = Game.pulse('joint', t) * Game.spikeMult(s, 'joint', t);
+    if (cur >= target && Game.trend('joint', t) >= 0) { firedAt = t; break; }
+  }
+  assert.ok(firedAt >= 0, 'la cible doit être atteignable sur une période');
+  assert.deepStrictEqual(Game.checkPriceAlerts(s, firedAt), ['joint']);
+  assert.strictEqual(s.alerts.joint, undefined);
+  assert.deepStrictEqual(Game.checkPriceAlerts(s, firedAt + 1000), []);
 });
 
 test('equipStrain: re-equipping owned strain is free', () => {
