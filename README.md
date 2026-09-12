@@ -6,13 +6,13 @@ A mobile-friendly idle grower: click the bud, craft products, sell for €, auto
 
 ## How to Play
 
-1. **Click the bud** (or press **Space**) to harvest weed (grams). Clicking is the **heart of the game**: each click feeds YOUR stock 100% — never siphoned by automation — and a **Combo** (2s window) multiplies your click up to **×3** (+5%/clic soutenu). *Doigts Agiles* adds a share of your auto production to every click, and *Clic Multi* adds flat grams per click.
-2. **Watch the market** — every commodity pulses ±30% on a ~2 min cycle (↗ rising / ↘ falling). Time your bulk sales for peaks: that is where the real money is.
+1. **Click the bud** (or press **Space**) to harvest weed (grams). Clicking is the **heart of the game**: each click feeds YOUR stock 100% — never siphoned by automation — and a **Combo** (2s window) multiplies your click up to **×3** (+5%/clic soutenu). *Doigts Agiles* adds a share of your auto production to every click, *Clic Multi* adds flat grams per click, et *Coup Critique* donne une chance bornée de clic démultiplié (💥 ×3).
+2. **Watch the market** — every commodity pulses ±30% on a ~2 min cycle (↗ rising / ↘ falling), visible sur une **sparkline** (un cycle complet par carte). Arme une **🔔 alerte de prix** pour être prévenu quand ton marché atteint sa cible : time your bulk sales for peaks, that is where the real money is.
 3. **Craft** weed into 14 market products in *Marché* — from 🚬 Joint Roulé (2g → 14 €) to 🥂 Caviar Rosin (24 000g → 720 000 €). Higher tiers convert weed at a better €/g but unlock at higher levels.
 4. **Sell** raw weed or crafted products with the **x1/x10/x100/MAX** pills and **💸 Tout vendre**.
 5. **Automate (as a sidekick, never the star)** in *Upgrades*: each **Chaîne** auto-crafts and sells its own product, but converts **only the AUTO-produced flow** (8% per chain level, capped 40%) — your clicked weed and manual stock are sacred.
 6. **Spend cash on upgrades** — click power first, auto-production as a helpful trickle.
-7. **Switch strains** in *Variétés* — 12 genetics with yield/price multipliers, unlocked by level.
+7. **Switch strains** in *Variétés* — 12 genetics with yield/price multipliers, unlocked by level. Chaque variété a sa **maîtrise** : les grammes produits avec elle équipée la font XP (+0,5 % de rendement par niveau, max 40).
 8. **Progress** in *Progression* — level up and collect milestone bonuses. Use *Zone de danger* to hard-reset.
 
 > **Pas de cap de stock** : la weed s'accumule librement, cliquer n'est jamais bloqué. Au-delà d'un plancher (60s de production), le brut se dégrade lentement (1%/s) — vendre ou fabriquer reste la bonne idée, sans mur ni bannière.
@@ -53,7 +53,7 @@ strains and chains when unlocked + affordable — and asserts pacing:
 An optimal sim ≈ 2-4× faster than a real player. Refonte **click-first** : la courbe du haut est celle d'un joueur actif qui enchaîne les clics (`combo` ≤ ×3 + `clicker` additif borné 30 niveaux). Les leviers, par ordre d'impact :
 **combo** (`COMBO_PER` 5%/clic, cap ×3) → **clicker** (`+3g/clic/niv`, max 30, growth 1.8) → **chaînes** (ne convertissent QUE le flux auto, `CHAIN_FLOW_SHARE` 8%, plafond `CHAIN_SHARE_MAX` 40%) → **spoilage doux** (1%/s du surplus) remplace le cap et borne l'économie sans jamais bloquer ;
 **strain costs** (12 variétés) et **XP hybride** (1.42 → 1.28 au-delà du niveau 45) espacent les unlocks ;
-**14 produits** + **15 upgrades** + **13 jalons** + **paliers de chaîne jusqu'au niveau 1000 (×10)** + **16 contrats** rallongent la courbe jusqu'au late-game.
+**14 produits** + **16 upgrades** + **13 jalons** + **paliers de chaîne jusqu'au niveau 1000 (×10)** + **16 contrats** rallongent la courbe jusqu'au late-game.
 
 ## Progression
 
@@ -80,6 +80,7 @@ All bonuses multiply (`level × strain × milestones × tier`).
 | Trimmer Pro | +5g per click | 25 000 € | 1.35 |
 | Équipe de Serre | +15g per second | 25 000 € | 1.35 |
 | **Clic Multi** | **+3g per click (per level, max 30)** | **20 000 €** | **1.8** |
+| **Coup Critique** | **+1,5 % de chance de clic critique ×3 (per level, max 20 → 30 %)** | **1 000 000 €** | **1.8** |
 | Injecteur CO₂ | +15g per second | 180 000 € | 1.35 |
 | Éclairage Turbo | x2 weed production | 90 000 € | 1.35 |
 | Chambre UV | x1.4 production globale | 500 000 € | 1.35 |
@@ -98,9 +99,11 @@ Cost = `BASE_COST * growth^(level - (harvest?1:0))`. Hardware grows ×1.35/level
 
 ## Market Pulse
 
-All prices (weed included) oscillate between **-30% and +30%** of their base on independent ~2 min sine cycles (`MARKET` in `js/game.js`, deterministic in time — no state). The Marché shows each price with its trend (↗ rising / ↘ falling / → peak or trough). Selling a MAX stock at +30% instead of -30% is a 1.86× difference: timing matters more than volume.
+All prices (weed included) oscillate between **-30% and +30%** of their base on independent ~2 min sine cycles (`MARKET` in `js/game.js`, deterministic in time — no state). The Marché shows each price with its trend (↗ rising / ↘ falling / → peak or trough) **et une sparkline** d'un cycle complet par carte (`marketSamples`, déterministe, dorée pendant une ruée) : tu vois où tu es dans le cycle, pas juste la direction. Selling a MAX stock at +30% instead of -30% is a 1.86× difference: timing matters more than volume.
 
-**Ruées (spikes)** — ~1 fois/70s, un marché **débloqué** aléatoire (weed inclus) passe `×1.6` pendant 15s (`SPIKE_*` dans `js/game.js`, état `spikeUntil/spikeProduct/spikeNextAt`, `isSpikeActive/spikeMult/maybeTriggerSpike`). Déclenché dans `autoProduce` (1.4%/s), toast `🔥 Ruée sur X !` + carte dorée `spike` + prix `🔥`. Jamais sur un produit encore verrouillé par le niveau.
+**Alertes de prix** — la cloche 🔔 de chaque carte arme une alerte au pulse courant +8 % (clampé à `ALERT_MAX` 1.29, juste sous le pic pour rester atteignable). `checkPriceAlerts` tourne chaque seconde : quand le prix réel (pulse × ruée) atteint la cible en montant, toast `🔔 X a atteint ton prix cible !` et l'alerte se retire. Recliquer la cloche désarme. État `s.alerts` sanitizé au chargement (marchés connus, cibles 1.02–1.29).
+
+**Ruées (spikes)** — ~1 fois/70s, un marché **débloqué** aléatoire (weed inclus) passe `×1.6` pendant 15s (`SPIKE_*` dans `js/game.js`, état `spikeUntil/spikeProduct/spikeNextAt`, `isSpikeActive/spikeMult/maybeTriggerSpike`). Déclenché dans `autoProduce` (1.4%/s), toast `🔥 Ruée sur X !` + carte dorée `spike` + prix `🔥` + sparkline dorée. Jamais sur un produit encore verrouillé par le niveau.
 
 ## Market Products
 
@@ -183,6 +186,8 @@ Objectifs de **fin de jeu** dans l'onglet 📋 **Contrats** (`CONTRACTS` dans `j
 
 12 genetics (Green Dream → Godfather OG), each with `yieldMult`/`priceMult` and its own bud palette. See `STRAINS` in `js/game.js` (unlocks 1,4,8,13,19,26,34,45,52,62,70,78).
 
+**Maîtrise par variété** — chaque gramme récolté (clic **et** auto) avec une variété équipée ajoute son XP à sa maîtrise (`s.mastery`, accumulé dans `addWeed`). Niveau dérivé d'une courbe ×1.5 (`masteryXpForLevel` : niveau 1 à 750g, niveau 40 ≈ 5 Md g), **+0,5 % de rendement par niveau** appliqué à la variété ÉQUIPÉE dans `productionMult` (donc clic et idle, jamais les prix), cap `MASTERY_MAX_LEVEL` 40 → **+20 % max**. Vu dans Récolte (barre sous le badge) et Variétés (par carte). Motive à faire tourner tes génétiques sans jamais dominer l'économie.
+
 ## Running the Game
 
 No build step. Serve the folder:
@@ -203,12 +208,12 @@ Then open `http://localhost:8000`.
 ## Running the Tests
 
 ```bash
-npm test        # node --test — 75 unit + playthrough + e2e (e2e skips without a browser)
+npm test        # node --test — 113 tests (102 unit + bud + playthrough) + e2e (skip sans navigateur)
 ```
 
-- `test/game.test.js` — economy (costs, sell, craft, storage), strains + level gates, progression (curve, XP, milestones, productionMult), market products (catalog, qty craft/sell, pulse bounds & trends), automation (hires, level gate, autoTick ordering & isolation, save roundtrip), chain specialization (specs cost/buy/clamps), chain milestones, contracts (offer/complete/claim, rewards derived from `claimed`), edge cases & save corruption hardening
+- `test/game.test.js` — economy (costs, sell, craft, storage), strains + level gates, progression (curve, XP, milestones, productionMult, maîtrise), market products (catalog, qty craft/sell, pulse bounds & trends, `marketSamples`), price alerts (arm/fire/sanitize), clicks critiques (chance bornée, déterminisme, ×CRIT_MULT), automation (hires, level gate, autoTick ordering & isolation, save roundtrip), chain specialization (specs cost/buy/clamps), chain milestones, contracts (offer/complete/claim, rewards derived from `claimed`), edge cases & save corruption hardening
 - `test/playthrough.test.js` — simulated optimal player (see « Boucle de progression ») asserting the pacing curve
-- `test/e2e.test.js` — drives the REAL game in headless chromium (12 scenarios: harvest click/space, tabs, market render & trends, sell, qty pills, craft+sell, upgrade buy, automation level lock, no-cap accumulation, save persistence, hard reset). Skips gracefully if no browser; CI provides one.
+- `test/e2e.test.js` — drives the REAL game in headless chromium (20 scenarios: harvest click/space, tabs, market render & trends, sell, qty pills, craft+sell, upgrade buy, automation level lock, no-cap accumulation, save persistence, milestones stability, toast dedup, chain specs, idle stats, **sparkline + 🔔 alertes + maîtrise**, hard reset). Skips gracefully if no browser; CI provides one.
 - `test/bud.test.js` — SVG validity, determinism, `url(#…)` regression, structural counts (72 calyxes, 116 bracts total via rows, fan leaves, sugar leaves)
 
 ## CI & Branch Policy
@@ -234,7 +239,7 @@ clicker-game/
 
 ### Modules
 
-- **`js/game.js`** — no DOM. Exports `UPGRADES`, `STRAINS`, `PRODUCTS`, `AUTOMATION`, `AUTOMATION_GROWTH`, `CHAIN_SHARE_MAX`, `BASE_COST`, `COST_GROWTH`, `STORAGE_GROWTH`, `DEFAULT_LEVELS`, `XP_BASE`, `XP_GROWTH`, `MILESTONES`, `MARKET`, `SPIKE_MULT`, `SPIKE_DURATION`, `SPIKE_COOLDOWN_MIN`, `SPIKE_COOLDOWN_MAX`, `TIER_EVERY`, `XP_GROWTH_LATE`, `XP_LATE_FROM`, `mulberry32`, `addWeed`, `defaultState`, `getStrain`, `getProduct`, `productUnitPrice`, `priceOf`, `pulse`, `trend`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `harvestXp`, `checkMilestones`, `checkAchievements`, `achievementBonus`, `perClick`, `perSecond`, `COMBO_WINDOW_MS`, `COMBO_PER`, `COMBO_MAX_MULT`, `COMBO_CAP`, `comboMultiplier`, `comboNow`, `resetCombo`, `clickBud`, `upgradeCost`, `buyUpgrade`, `hasAuto`, `chainLvl`, `automationCost`, `maxAutomationLevels`, `maxAffordableLevels`, `buyAutomation`, `autoTick`, `craftProduct`, `sellStock`, `equipStrain`, `serialize`, `deserialize`, `tierMult`, `isSpikeActive`, `spikeMult`, `maybeTriggerSpike`, `chainShareOf`, `chainYieldMult`, `chainVolumeMult`, `distShare`, `CHAIN_FLOW_SHARE`, `applySpoil`, `SPOIL_RATE`, `offlineTick`, `upgradeBulkCost`, `buyUpgradeBulk`, `timeToAfford`, `CHAIN_SPECS`, `chainSpecCost`, `maxChainSpecPoints`, `buyChainSpec`, `CHAIN_MILESTONES`, `chainMilestoneMult`, `nextChainMilestone`, `CONTRACTS`, `checkContracts`, `claimContract`, `getContractRewards`, `defaultContracts`. State under localStorage `budClicker` (+ `chainLvl`, `chainSpecs`, `chainStats`, `contracts`, `achievements`, `combo`, `totalClicks`, `lastSeen`, `spike*`).
+- **`js/game.js`** — no DOM. Exports `UPGRADES`, `STRAINS`, `PRODUCTS`, `AUTOMATION`, `AUTOMATION_GROWTH`, `CHAIN_SHARE_MAX`, `BASE_COST`, `COST_GROWTH`, `STORAGE_GROWTH`, `DEFAULT_LEVELS`, `XP_BASE`, `XP_GROWTH`, `MILESTONES`, `MARKET`, `SPIKE_MULT`, `SPIKE_DURATION`, `SPIKE_COOLDOWN_MIN`, `SPIKE_COOLDOWN_MAX`, `TIER_EVERY`, `XP_GROWTH_LATE`, `XP_LATE_FROM`, `mulberry32`, `addWeed`, `defaultState`, `getStrain`, `getProduct`, `productUnitPrice`, `priceOf`, `pulse`, `trend`, `xpForLevel`, `levelFromXp`, `xpProgress`, `productionMult`, `earnXp`, `harvestXp`, `checkMilestones`, `checkAchievements`, `achievementBonus`, `perClick`, `perSecond`, `COMBO_WINDOW_MS`, `COMBO_PER`, `COMBO_MAX_MULT`, `COMBO_CAP`, `comboMultiplier`, `comboNow`, `resetCombo`, `CRIT_CHANCE_PER`, `CRIT_MULT`, `critChance`, `isCritHit`, `clickBud`, `upgradeCost`, `buyUpgrade`, `hasAuto`, `chainLvl`, `automationCost`, `maxAutomationLevels`, `maxAffordableLevels`, `buyAutomation`, `autoTick`, `craftProduct`, `sellStock`, `equipStrain`, `serialize`, `deserialize`, `tierMult`, `isSpikeActive`, `spikeMult`, `maybeTriggerSpike`, `chainShareOf`, `chainYieldMult`, `chainVolumeMult`, `distShare`, `CHAIN_FLOW_SHARE`, `applySpoil`, `SPOIL_RATE`, `offlineTick`, `upgradeBulkCost`, `buyUpgradeBulk`, `timeToAfford`, `CHAIN_SPECS`, `chainSpecCost`, `maxChainSpecPoints`, `buyChainSpec`, `CHAIN_MILESTONES`, `chainMilestoneMult`, `nextChainMilestone`, `CONTRACTS`, `checkContracts`, `claimContract`, `getContractRewards`, `defaultContracts`, `marketSamples`, `ALERT_MAX`, `setPriceAlert`, `checkPriceAlerts`, `MASTERY_MAX_LEVEL`, `masteryXpForLevel`, `masteryLevel`, `masteryMult`. State under localStorage `budClicker` (+ `chainLvl`, `chainSpecs`, `chainStats`, `contracts`, `achievements`, `combo`, `totalClicks`, `lastSeen`, `spike*`, `mastery`, `alerts`).
 - **`js/bud.js`** — `renderBudSvg(strainId)` deterministic (seeds: calyxes 2024, pistils 99, trichomes 777).
 - **`js/ui.js`** — wiring, market rendering (`renderMarket` qty pills), automation hires rendered in the Upgrades view (`renderAutomation`), contracts view (`buildContracts`/`updateContracts`, refreshed when the tab is active), `autoProduce` 1s (weed growth + `autoTick` + `checkContracts` + `applySpoil`), autosave 10s, Space-to-harvest, tabs.
 

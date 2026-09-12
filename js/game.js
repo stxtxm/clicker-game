@@ -57,6 +57,9 @@
     // Cœur du jeu : le clic. Additif borné (pas de ×2 répétable qui fait exploser
     // l'économie) — la boutique/upgrades servent le clic, jamais l'inverse.
     { id: 'clicker', name: 'Clic Multi',     icon: '👆',   desc: '+3g de weed par clic par niveau', cost: 20000, growth: 1.8, max: 30 },
+    // Clics critiques : chance bornée d'un clic démultiplié — dopamine sur le
+    // cœur du jeu sans snowball (probabilité et multiplicateur capés).
+    { id: 'crit',    name: 'Coup Critique',  icon: '💥',   desc: '+1,5 % de chance de clic critique (×3)', cost: 1000000, growth: 1.8, max: 20 },
     // Distribution upgrades: PAS de cap de stock — ces paliers élargissent la
     // part du flux que les chaînes convertissent (le vrai gate late-game).
     { id: 'dist1',   name: 'Réseau Local',   icon: '📦',   desc: '+3% de flux converti par les chaînes',  cost: 4000, growth: 1.9 },
@@ -121,7 +124,7 @@
   const STORAGE_GROWTH = 1.9;
 
   /** Default upgrade levels for a brand new game. */
-  const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, thumb: 0, crew: 0, turbo: 0, mega: 0, dist1: 0, dist2: 0, mist: 0, trim: 0, co2: 0, uv: 0, dist3: 0, clicker: 0 };
+  const DEFAULT_LEVELS = { harvest: 1, auto: 0, expert: 0, thumb: 0, crew: 0, turbo: 0, mega: 0, dist1: 0, dist2: 0, mist: 0, trim: 0, co2: 0, uv: 0, dist3: 0, clicker: 0, crit: 0 };
 
   /**
    * Product catalog — everything sellable at the market.
@@ -643,6 +646,7 @@
     let m = 1 + 0.08 * levelFromXp(s.xp);
     const st = getStrain(s.strain);
     if (st) m *= st.yieldMult;
+    m *= masteryMult(s, s.strain);
     const bonus = MILESTONES.reduce((a, mi) =>
       a + ((s.milestones || []).includes(mi.id) ? mi.bonus : 0), 0);
     m *= 1 + bonus / 100;
@@ -701,6 +705,32 @@
       const ach = ACHIEVEMENTS.find((a) => a.id === id);
       return sum + (ach ? ach.bonus : 0);
     }, 0);
+  }
+
+  /* ---- maîtrise par variété ------------------------------------------------ */
+  /** Niveau max de maîtrise — le bonus reste borné (+0,5 %/niv, +20 % max). */
+  const MASTERY_MAX_LEVEL = 40;
+
+  /** XP cumulée requise pour ATTEINDRE `level` d'une variété (courbe ×1.5). */
+  function masteryXpForLevel(level) {
+    return Math.round(500 * Math.pow(1.5, Math.max(0, level)));
+  }
+
+  /** Niveau de maîtrise d'une variété (0 = pas cultivée). */
+  function masteryLevel(s, strainId) {
+    const xp = (s.mastery && s.mastery[strainId]) || 0;
+    let lvl = 0;
+    while (lvl < MASTERY_MAX_LEVEL && xp >= masteryXpForLevel(lvl + 1)) lvl++;
+    return lvl;
+  }
+
+  /**
+   * Bonus de rendement de la variété ÉQUIPÉE : chaque niveau de maîtrise ajoute
+   * +0,5 % à sa production (appliqué dans productionMult → clic ET idle, jamais
+   * aux prix). Petit motivateur à varier les génétiques, borné par le cap.
+   */
+  function masteryMult(s, strainId) {
+    return 1 + 0.005 * masteryLevel(s, strainId);
   }
 
   /**
@@ -854,6 +884,8 @@
       totalEarned: 0,
       totalClicks: 0,
       combo: { count: 0, lastClickAt: 0, maxCombo: 0 },
+      mastery: {},
+      alerts: {},
       lastSeen: 0,
       spikeUntil: 0,
       spikeProduct: null,
@@ -905,6 +937,68 @@
   function trend(marketId, now) {
     const d = Math.cos(now * (2 * Math.PI / MARKET.periodMs) + _phase(marketId));
     return d > 0.001 ? 1 : d < -0.001 ? -1 : 0;
+  }
+
+  /**
+   * `n` dernières valeurs de pulse pour un marché, espacées régulièrement sur
+   * une période complète (la sparkline montre la position dans le cycle).
+   * Déterministe en `now` — aucun état à sauvegarder, identique à la lecture.
+   * @returns {number[]} `n` multiplicateurs dans [1-swing, 1+swing]
+   */
+  function marketSamples(marketId, now, n) {
+    const count = Math.max(2, Math.floor(n || 36));
+    const step = MARKET.periodMs / count;
+    const t = now === undefined ? Date.now() : now;
+    const out = [];
+    for (let i = 0; i < count; i++) {
+      out.push(pulse(marketId, t - (count - 1 - i) * step));
+    }
+    return out;
+  }
+
+  /* ---- alertes de prix : le Marché te prévient quand ton timing est bon ---- */
+  /** Seuil max praticable : juste sous le pic (1.30) pour être atteignable avec
+   *  un échantillonnage à 1 s (le sommet exact du sinus peut être sauté). */
+  const ALERT_MAX = 1.29;
+
+  /**
+   * Arme (ou désarme) une alerte sur un marché : elle se déclenchera quand le
+   * prix réel (pulse × spike) atteindra `target` en montant. Target = pulse
+   * courant + 8 % (clampé à ALERT_MAX) — réarmable, retourne l'état.
+   * @returns {{ok:boolean, cleared?:boolean, target?:number, reason?:string}}
+   */
+  function setPriceAlert(s, marketId, now) {
+    const known = marketId === 'weed' || !!getProduct(marketId);
+    if (!known) return { ok: false, reason: 'unknown' };
+    s.alerts = s.alerts || {};
+    if (s.alerts[marketId]) {
+      delete s.alerts[marketId];
+      return { ok: true, cleared: true };
+    }
+    const t = now === undefined ? Date.now() : now;
+    const cur = pulse(marketId, t) * spikeMult(s, marketId, t);
+    const target = Math.round(Math.min(ALERT_MAX, Math.max(1.05, cur + 0.08)) * 100) / 100;
+    s.alerts[marketId] = target;
+    return { ok: true, cleared: false, target };
+  }
+
+  /**
+   * Vérifie les alertes armées : toute alerte dont le prix a atteint la cible en
+   * montant est déclenchée (retournée dans le tableau ET retirée de state).
+   * @returns {string[]} market ids qui viennent de se déclencher
+   */
+  function checkPriceAlerts(s, now) {
+    const t = now === undefined ? Date.now() : now;
+    const fired = [];
+    if (!s.alerts) return fired;
+    for (const marketId of Object.keys(s.alerts)) {
+      const cur = pulse(marketId, t) * spikeMult(s, marketId, t);
+      if (cur >= s.alerts[marketId] && trend(marketId, t) >= 0) {
+        fired.push(marketId);
+        delete s.alerts[marketId];
+      }
+    }
+    return fired;
   }
 
   /**
@@ -1017,26 +1111,56 @@
     s.combo = { count: 0, lastClickAt: 0, maxCombo };
   }
 
+  /* ---- clics critiques ------------------------------------------------------ */
+  /** Chance de crit par niveau d'upgrade `crit` (capée à 30 %). */
+  const CRIT_CHANCE_PER = 0.015;
+  /** Multiplicateur d'un clic critique. */
+  const CRIT_MULT = 3;
+
+  /** Chance de clic critique d'un état (0 sans upgrade, ≤ 30 %). */
+  function critChance(s) {
+    const lvl = Math.max(0, Math.floor((s.levels && s.levels.crit) || 0));
+    return Math.min(0.30, lvl * CRIT_CHANCE_PER);
+  }
+
+  /**
+   * Un clic critique a-t-il lieu ? Hash déterministe (now, totalClicks) :
+   * les tests, le playthrough et les saves restent reproductibles, et deux
+   * clics dans la même milliseconde ne partagent jamais le même roll
+   * (totalClicks croît à chaque clic).
+   */
+  function isCritHit(s, now) {
+    const chance = critChance(s);
+    if (chance <= 0) return false;
+    const t = now === undefined ? Date.now() : now;
+    let h = (t | 0) ^ ((s.totalClicks || 0) * 2654435761) ^ 0x9e3779b9;
+    h = Math.imul(h ^ (h >>> 13), 0x5bd1e995);
+    h = (h ^ (h >>> 15)) >>> 0;
+    return h / 4294967296 < chance;
+  }
+
   /**
    * One click on the bud — the CORE of the game.
    * Adds 100% of the clicked weed to YOUR stock/XP (never filtered into the
    * chains), sustains the combo and returns what happened for the UI juice.
    * @param {object} s state (mutated)
    * @param {number} [now] epoch ms (default Date.now())
-   * @returns {{added:number, mult:number, combo:{count:number,maxCombo:number}, xp:object}}
+   * @returns {{added:number, mult:number, crit:boolean, combo:{count:number,maxCombo:number}, xp:object}}
    */
   function clickBud(s, now) {
     const t = now === undefined ? Date.now() : now;
     const c = comboNow(s, t);
     const mult = comboMultiplier(c.count);
-    const ac = Math.max(1, Math.round(perClick(s) * mult));
+    const crit = isCritHit(s, t);
+    let ac = Math.max(1, Math.round(perClick(s) * mult));
+    if (crit) ac *= CRIT_MULT;
     const added = addWeed(s, ac);
     const xp = earnXp(s, added);
     s.totalClicks = (s.totalClicks || 0) + 1;
     c.count += 1;
     c.lastClickAt = t;
     c.maxCombo = Math.max(c.maxCombo || 0, c.count);
-    return { added, mult, combo: { count: c.count, maxCombo: c.maxCombo }, xp };
+    return { added, mult, crit, combo: { count: c.count, maxCombo: c.maxCombo }, xp };
   }
 
   /**
@@ -1469,6 +1593,9 @@
     const sid = s.strain;
     if (!s.stock.weedByStrain) s.stock.weedByStrain = {};
     s.stock.weedByStrain[sid] = (s.stock.weedByStrain[sid] || 0) + toAdd;
+    // maîtrise : chaque gramme récolté avec cette variété équipée la fait XP
+    s.mastery = s.mastery || {};
+    s.mastery[sid] = (s.mastery[sid] || 0) + toAdd;
     return toAdd;
   }
 
@@ -1573,7 +1700,7 @@
       delete d.prestige; delete d.prestigeLevel; delete d.prestigeBonus; delete d.totalEarnedLifetime;
       delete d.activePerformanceEvents; delete d.autoClickEnabled; delete d.autoClickLastTime;
       delete d.power; delete d.crit; delete d.chain; delete d.frenzy; delete d.session;
-      if (d.levels) { delete d.levels.power; delete d.levels.crit; delete d.levels.chain; delete d.levels.frenzy; }
+      if (d.levels) { delete d.levels.power; delete d.levels.chain; delete d.levels.frenzy; }
       // combo legacy #24 portait un champ `multiplier` → recalcul dérivé (rien de stocké)
       // moonrock is now a valid product (was legacy premium), keep it
       d.milestones = Array.isArray(d.milestones)
@@ -1659,6 +1786,28 @@
       d.spikeUntil = typeof d.spikeUntil === 'number' && d.spikeUntil >= 0 ? d.spikeUntil : 0;
       d.spikeProduct = typeof d.spikeProduct === 'string' && (d.spikeProduct === 'weed' || PRODUCTS.some((p) => p.id === d.spikeProduct)) ? d.spikeProduct : null;
       d.spikeNextAt = typeof d.spikeNextAt === 'number' && d.spikeNextAt >= 0 ? d.spikeNextAt : 0;
+      // maîtrise par variété : clés connues uniquement, entiers ≥ 0 (cap anti-corruption)
+      if (!d.mastery || typeof d.mastery !== 'object') d.mastery = {};
+      else {
+        const clean = {};
+        for (const st of STRAINS) {
+          const v = d.mastery[st.id];
+          if (typeof v === 'number' && v > 0) clean[st.id] = Math.min(1e15, Math.floor(v));
+        }
+        d.mastery = clean;
+      }
+      // alertes de prix : marchés connus uniquement, cibles clampées à [1.02, 1.30]
+      if (!d.alerts || typeof d.alerts !== 'object') d.alerts = {};
+      else {
+        const clean = {};
+        for (const [id, v] of Object.entries(d.alerts)) {
+          const known = id === 'weed' || PRODUCTS.some((p) => p.id === id);
+          if (known && typeof v === 'number') {
+            clean[id] = Math.min(ALERT_MAX, Math.max(1.02, Math.round(v * 100) / 100));
+          }
+        }
+        d.alerts = clean;
+      }
       // drop removed fields (golden, prestige)
       delete d.goldenUntil;
       delete d.goldenNextAt;
@@ -1696,11 +1845,19 @@
     productUnitPrice,
     pulse,
     trend,
+    marketSamples,
+    ALERT_MAX,
+    setPriceAlert,
+    checkPriceAlerts,
     priceOf,
     xpForLevel,
     levelFromXp,
     xpProgress,
     productionMult,
+    MASTERY_MAX_LEVEL,
+    masteryXpForLevel,
+    masteryLevel,
+    masteryMult,
     earnXp,
     checkMilestones,
     checkAchievements,
@@ -1714,6 +1871,10 @@
     comboMultiplier,
     comboNow,
     resetCombo,
+    CRIT_CHANCE_PER,
+    CRIT_MULT,
+    critChance,
+    isCritHit,
     clickBud,
     upgradeCost,
     buyUpgrade,
