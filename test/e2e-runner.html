@@ -277,6 +277,49 @@ async function scenario() {
       'pts=' + ptsNow + ' armed=' + bellArmed + ' cleared=' + bellCleared +
       ' mtyPct=' + mtyPct + ' label=' + armedLabel.replace(/[^\d%🔔]/g, ''));
 
+    // 14e. crit juice : burst doré (.click-fx.crit) + shake sous clicks à 30% —
+    // le crit est rare mais visible (borné à 30 % de chance par clic)
+    w.localStorage.setItem('budClicker', JSON.stringify({
+      weed: 0, money: 0, strain: 'green',
+      stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 },
+      levels: { harvest: 1, auto: 0, crit: 20 }, xp: 0, totalEarned: 1000
+    }));
+    await reloadGame();
+    let critSeen = false;
+    for (let i = 0; i < 25 && !critSeen; i++) {
+      q('#bs').click();
+      await sleep(90);
+      critSeen = !!gameDoc().querySelector('#fx .click-fx.crit');
+    }
+    report('crit-ui', critSeen, 'burst doré observé sur ≤25 clics (30%/clic)');
+
+        // 14f. session + streak + achievements (vue Progression) — grille construite
+    // une fois et mise à jour in place ; la session est volatile (non persistée)
+    q('.tab-btn[data-tab="harvest"]').click();
+    await sleep(80);
+    // clics vivants dans la session courante pour un compte rendu non trivial
+    for (let i = 0; i < 8; i++) q('#bs').click();
+    await sleep(300);
+    q('.tab-btn[data-tab="progress"]').click();
+    await sleep(120);
+    const achCards = gameDoc().querySelectorAll('#ach .ach-card').length;
+    const achDoneBefore = gameDoc().querySelectorAll('#ach .ach-card.done').length;
+    const sesClicks = parseInt((q('#ses-clicks').textContent || '0').replace(/[^\d]/g, ''), 10) || 0;
+    const sesEarnedTxt = (q('#ses-earned').textContent || '').trim();
+    const streakLvl = q('#streak-lvl').textContent || '';
+    // la session est VOLATILE : un reload remet les compteurs à zéro
+    await reloadGame();
+    q('.tab-btn[data-tab="progress"]').click();
+    await sleep(120);
+    const achDoneAfter = gameDoc().querySelectorAll('#ach .ach-card.done').length;
+    const sesEarnedAfter = (q('#ses-earned').textContent || '').trim();
+    report('session-streak-ach-ui',
+      achCards === gameWin().BudGame.ACHIEVEMENTS.length && achDoneBefore >= 1 && achDoneAfter >= 1 &&
+      sesClicks >= 8 && /€/.test(sesEarnedTxt) && streakLvl.includes('Jour') &&
+      sesEarnedAfter.indexOf('+0') === 0,
+      'ach=' + achCards + ' done(' + achDoneBefore + '->' + achDoneAfter + ') clicks=' + sesClicks +
+        ' earned="' + sesEarnedTxt + '" afterReload="' + sesEarnedAfter + '" streak="' + streakLvl + '"');
+
     // 15. reset dialog: first click arms (animated state), second confirms
     q('.tab-btn[data-tab="progress"]').click();
     await sleep(80);
