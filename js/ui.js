@@ -49,7 +49,21 @@
     xpnext: document.getElementById('xpnext'),
     ms: document.getElementById('ms'),
     rb: document.getElementById('rb'),
-    cv: document.getElementById('cv')
+    cv: document.getElementById('cv'),
+    ach: document.getElementById('ach'),
+    achCount: document.getElementById('ach-count'),
+    sesEarned: document.getElementById('ses-earned'),
+    sesPerMin: document.getElementById('ses-permin'),
+    sesIdle: document.getElementById('ses-idle'),
+    sesClicks: document.getElementById('ses-clicks'),
+    sesCrits: document.getElementById('ses-crits'),
+    sesCombo: document.getElementById('ses-combo'),
+    sesPeaks: document.getElementById('ses-peaks'),
+    sesBig: document.getElementById('ses-big'),
+    streakLvl: document.getElementById('streak-lvl'),
+    streakMult: document.getElementById('streak-mult'),
+    streakFill: document.getElementById('streak-fill'),
+    streakNext: document.getElementById('streak-next')
   };
 
   let state = Game.defaultState();
@@ -103,6 +117,13 @@
       [{ transform: 'scale(1)' }, { transform: 'scale(1.16)' }, { transform: 'scale(1)' }],
       { duration: 180, easing: 'cubic-bezier(.34,1.56,.64,1)' }
     );
+  }
+
+  /** Toast de streak (jour 2+ seulement — le jour 1 ne fait pas de tapage). */
+  function streakToast(roll) {
+    if (roll && roll.rolled && roll.count > 1) {
+      toast('🔥 Streak jour ' + roll.count + ' — +' + Math.round((roll.mult - 1) * 100) + '% de production !', true);
+    }
   }
 
   // --- rendering -------------------------------------------------------------
@@ -574,6 +595,72 @@
     }
   }
 
+  /* Achievements (vue Progression) — grille construite une fois, mise à jour
+     in place (classes/textContent) à chaque tick où l'onglet est visible. */
+  function buildAchievements() {
+    if (!el.ach) return;
+    el.ach.innerHTML = '';
+    for (const a of Game.ACHIEVEMENTS) {
+      const card = document.createElement('div');
+      card.className = 'ach-card';
+      card.id = 'ach-' + a.id;
+      card.innerHTML =
+        '<span class="ach-icon">' + a.icon + '</span>' +
+        '<div class="ach-info"><div class="ach-name">' + a.name + '</div>' +
+        '<div class="ach-desc">' + a.desc + '</div></div>' +
+        '<span class="ach-bonus" id="achb-' + a.id + '"></span>';
+      el.ach.appendChild(card);
+    }
+  }
+
+  function updateAchievements() {
+    if (!el.ach) return;
+    if (el.ach.children.length !== Game.ACHIEVEMENTS.length) buildAchievements();
+    const got = state.achievements || [];
+    let totalBonus = 0;
+    for (const a of Game.ACHIEVEMENTS) {
+      const done = got.includes(a.id);
+      if (done) totalBonus += a.bonus;
+      const card = document.getElementById('ach-' + a.id);
+      if (card) card.classList.toggle('done', done);
+      const bonus = document.getElementById('achb-' + a.id);
+      if (bonus) bonus.textContent = done ? '+' + a.bonus + '%' : '🔒';
+    }
+    if (el.achCount) {
+      el.achCount.textContent = got.length + '/' + Game.ACHIEVEMENTS.length + ' débloqués · +' + totalBonus + '% de production';
+    }
+  }
+
+  /** Stats de session (€/min, part idle, crits, ventes au pic) — pure lecture. */
+  function updateSessionCard() {
+    if (!el.sesEarned || !Game.sessionStats) return;
+    const st = Game.sessionStats(state);
+    el.sesEarned.textContent = '+' + fmt(st.earned) + ' €';
+    el.sesPerMin.textContent = fmt(st.perMin) + ' €/min';
+    el.sesIdle.textContent = Math.round(st.idleShare * 100) + '%';
+    el.sesClicks.textContent = fmt(st.clicks);
+    el.sesCrits.textContent = st.clicks > 0 ? st.crits + ' (' + st.critRate.toFixed(1) + '%)' : '0';
+    el.sesCombo.textContent = '×' + Game.comboMultiplier(st.maxCombo).toFixed(1) + ' (' + st.maxCombo + ' clics)';
+    el.sesPeaks.textContent = String(st.peakSales);
+    el.sesBig.textContent = fmt(st.biggestSale) + ' €';
+  }
+
+  /** Carte streak : jour courant + bonus actif + progression vers le cap. */
+  function updateStreakCard() {
+    if (!el.streakLvl) return;
+    const maxDays = Game.STREAK_MAX_DAYS || 10;
+    const per = Game.STREAK_PER || 0.04;
+    const count = (state.streak && state.streak.count) || 0;
+    const mult = Game.streakMult ? Game.streakMult(state) : 1;
+    const active = mult > 1;
+    el.streakLvl.textContent = count > 0 ? 'Jour ' + count + (active ? '' : ' (en pause)') : 'Aucun streak';
+    el.streakMult.textContent = active ? '+' + Math.round((mult - 1) * 100) + '% prod' : '+0%';
+    el.streakFill.style.width = Math.min(100, (count / maxDays) * 100) + '%';
+    el.streakNext.textContent = count >= maxDays ? 'Streak maxé' :
+      count > 0 ? 'Reviens demain : +' + Math.round(Math.min(maxDays, count + 1) * per * 100) + '%' :
+      'Joue aujourd\'hui pour démarrer';
+  }
+
   /** Sync every dynamic text / disabled state with `state`.
    *  Hidden views are skipped: the per-second tick only writes to the DOM the
    *  player is actually looking at (less style/layout work, smoother on mobile). */
@@ -605,6 +692,11 @@
     if (active('sell')) renderMarket();
     if (active('contracts')) updateContracts();
     if (active('progress') || active('harvest')) renderProgress();
+    if (active('progress')) {
+      updateSessionCard();
+      updateStreakCard();
+      updateAchievements();
+    }
     if (!active('upgrades')) return;
 
     // sub-tab Matériel / Chaînes : on ne met à jour que la liste visible
@@ -883,24 +975,45 @@
     if (ev && ev.preventDefault) { ev.preventDefault(); ev.stopPropagation(); }
     const res = Game.clickBud(state);
     lastComboCount = res.combo.count;
-    // squash & stretch juice — WAAPI: compositor-driven, restarts cleanly on
-    // rapid taps (each new animation replaces the previous, no forced reflow)
-    if (el.bc.animate) {
-      el.bc.animate(
-        [
-          { transform: 'scale(1, 1)' },
-          { transform: 'scale(0.955, 1.045)', offset: 0.22 },
-          { transform: 'scale(1.055, 0.955)', offset: 0.42 },
-          { transform: 'scale(0.99, 1.015)', offset: 0.68 },
-          { transform: 'scale(1, 1)' }
-        ],
-        { duration: 320, easing: 'cubic-bezier(.34,1.56,.64,1)' }
-      );
+    if (res.crit) {
+      // 💥 Juice critique : shake plus fort que le squash, pluie d'étincelles
+      // dorées + haptique — le moment rare (borné à 30 %) doit se SENTIR.
+      if (el.bc.animate) {
+        el.bc.animate(
+          [
+            { transform: 'scale(1) rotate(0deg)' },
+            { transform: 'scale(1.12, 0.88) rotate(-1.6deg)', offset: 0.2 },
+            { transform: 'scale(0.9, 1.12) rotate(1.6deg)', offset: 0.45 },
+            { transform: 'scale(1.07, 0.96)', offset: 0.7 },
+            { transform: 'scale(1) rotate(0deg)' }
+          ],
+          { duration: 420, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+        );
+      }
+      spawnParticle('💥 +' + res.added + 'g CRITIQUE !', false, undefined, 'crit');
+      for (let i = 0; i < 4; i++) {
+        setTimeout(() => spawnParticle('✦', false, undefined, 'crit'), 70 + i * 80);
+      }
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        try { navigator.vibrate(30); } catch (e) { /* unsupported */ }
+      }
+    } else {
+      // squash & stretch juice — WAAPI: compositor-driven, restarts cleanly on
+      // rapid taps (each new animation replaces the previous, no forced reflow)
+      if (el.bc.animate) {
+        el.bc.animate(
+          [
+            { transform: 'scale(1, 1)' },
+            { transform: 'scale(0.955, 1.045)', offset: 0.22 },
+            { transform: 'scale(1.055, 0.955)', offset: 0.42 },
+            { transform: 'scale(0.99, 1.015)', offset: 0.68 },
+            { transform: 'scale(1, 1)' }
+          ],
+          { duration: 320, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+        );
+      }
+      spawnParticle('+' + res.added + 'g' + (res.mult > 1 ? ' · ×' + res.mult.toFixed(1) : ''));
     }
-    spawnParticle(res.crit
-      ? '💥 ' + res.added + 'g CRITIQUE !'
-      : '+' + res.added + 'g' + (res.mult > 1 ? ' · ×' + res.mult.toFixed(1) : ''),
-      res.crit);
     popNum(el.stw);
     updateComboUI(true);
     refreshStats();
@@ -929,7 +1042,7 @@
     (el.bc ? el.bc.parentElement : document.body).appendChild(el.fx);
     return el.fx;
   }
-  function spawnParticle(text, warn, anchor) {
+  function spawnParticle(text, warn, anchor, cls) {
     const layer = fxLayer();
     let p = FX_POOL.find((n) => !n._busy);
     if (!p) {
@@ -937,7 +1050,7 @@
       else { p = document.createElement('div'); FX_POOL.push(p); layer.appendChild(p); }
     }
     p._busy = true;
-    p.className = 'click-fx' + (warn ? ' warn' : '');
+    p.className = 'click-fx' + (cls ? ' ' + cls : warn ? ' warn' : '');
     p.textContent = text;
     // anchor to the target's current rect (bud by default) — fixed particles
     // get their own compositor layers, the viewed node's layer is untouched
@@ -979,6 +1092,18 @@
     if (gain > 0) {
       toast('+' + fmt(gain) + ' €');
       popNum(el.m);
+    }
+    // achievements: context dépendant (vente pendant une ruée)
+    const now = Date.now();
+    const checkTypes = type === 'all'
+      ? ['weed'].concat(Game.PRODUCTS ? Game.PRODUCTS.map((p) => p.id) : [])
+      : [type];
+    if (Game.isSpikeActive && checkTypes.some((t) => Game.isSpikeActive(state, t, now))) {
+      const awarded = Game.checkAchievements ? Game.checkAchievements(state, { spikeSale: true }) : [];
+      for (const a of awarded) {
+        toast('🏅 ' + a.name + ' (+' + a.bonus + '%) !');
+        spawnParticle(a.icon + ' ' + a.name + ' !', true);
+      }
     }
     refreshStats();
     save();
@@ -1104,6 +1229,8 @@
   /** One auto-production tick (every second): weed growth, then automation. */
   function autoProduce() {
     const now = Date.now();
+    // streak quotidien : idempotent — un jour nouveau démarre le bonus
+    if (Game.rollStreak) streakToast(Game.rollStreak(state, now));
     const spiked = Game.maybeTriggerSpike && Game.maybeTriggerSpike(state, now);
     if (spiked) {
       const prod = Game.getProduct(spiked);
@@ -1122,10 +1249,22 @@
     let addedAuto = 0;
     if (ar > 0) addedAuto = Game.harvestXp(state, ar);
     const awarded = Game.checkAchievements ? Game.checkAchievements(state) : [];
+    for (const a of awarded) {
+      toast('🏅 ' + a.name + ' (+' + a.bonus + '%) !');
+      spawnParticle(a.icon + ' ' + a.name + ' !', true);
+    }
     // automation hires (Ouvriers/Dealers) craft & sell their chain's output,
     // proportionally to the AUTO flow produced this tick ONLY — the player's
     // clicked weed stays 100% theirs (click-first: jamais aspirée par les chaînes)
     const tick = Game.autoTick(state, now, addedAuto);
+    // achievements: vente pendant une ruée (auto)
+    if (Game.isSpikeActive && Object.keys(tick.soldMoney || {}).some((pid) => Game.isSpikeActive(state, pid, now))) {
+      const awarded = Game.checkAchievements ? Game.checkAchievements(state, { spikeSale: true }) : [];
+      for (const a of awarded) {
+        toast('🏅 ' + a.name + ' (+' + a.bonus + '%) !');
+        spawnParticle(a.icon + ' ' + a.name + ' !', true);
+      }
+    }
     // contrats : offre / complétion selon la progression des chaînes
     const doneContracts = Game.checkContracts ? Game.checkContracts(state) : [];
     for (const ct of doneContracts) {
@@ -1156,12 +1295,23 @@
     try {
       state = Game.deserialize(localStorage.getItem(SAVE_KEY));
       lastEarnStep = earnStep(state.totalEarned || 0); // pas de toast au boot
+      // session de jeu : volatiles (compteurs de la save jamais repris)
+      if (Game.newSession) Game.newSession(state);
+      // streak quotidien : marque le jour (toast si le streak progresse)
+      if (Game.rollStreak) streakToast(Game.rollStreak(state));
       // offline earnings (AdvCap 50%, 8h cap)
       if (state.lastSeen) {
         const secs = Math.floor((Date.now() - state.lastSeen) / 1000);
         if (secs > 30 && secs < 28800) {
           const off = Game.offlineTick ? Game.offlineTick(state, secs) : { weed: 0, money: 0 };
           if (off.weed > 0 || off.money > 0) {
+            // achievements: gains hors-ligne (ex: 10K € en idle)
+            if (Game.checkAchievements) {
+              const awarded = Game.checkAchievements(state, { offlineMoney: off.money });
+              for (const a of awarded) {
+                setTimeout(() => toast('🏅 ' + a.name + ' (+' + a.bonus + '%) !'), 1300);
+              }
+            }
             setTimeout(() => toast('💤 Hors-ligne ' + Math.floor(secs/60) + 'min : +' + fmt(off.weed) + 'g +' + fmt(off.money) + '€'), 600);
           }
         }
@@ -1249,6 +1399,7 @@
     try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
     state = Game.defaultState();
     lastEarnStep = 0;
+    if (Game.newSession) Game.newSession(state);
     renderBud();
     renderUpgrades();
     renderStrains();

@@ -638,11 +638,12 @@
   }
 
   /**
-   * Total production multiplier from level, strain yieldMult
-   * and awarded milestones.
+   * Total production multiplier from level, strain yieldMult,
+   * awarded milestones and the active daily streak.
    * @param {object} s state
+   * @param {number} [now] epoch ms for the streak day check (default Date.now())
    */
-  function productionMult(s) {
+  function productionMult(s, now) {
     let m = 1 + 0.08 * levelFromXp(s.xp);
     const st = getStrain(s.strain);
     if (st) m *= st.yieldMult;
@@ -652,6 +653,7 @@
     m *= 1 + bonus / 100;
     const achBonus = achievementBonus(s);
     m *= 1 + achBonus / 100;
+    m *= streakMult(s, now);
     return m;
   }
 
@@ -731,6 +733,50 @@
    */
   function masteryMult(s, strainId) {
     return 1 + 0.005 * masteryLevel(s, strainId);
+  }
+
+  /* ---- streak quotidien ----------------------------------------------------- */
+  /** Bonus de production par jour consécutif — borné, comme tout le système. */
+  const STREAK_PER = 0.04;
+  /** Nombre max de jours comptés : le bonus plafonne à +40 %. */
+  const STREAK_MAX_DAYS = 10;
+
+  /** Clé de jour locale d'un instant (YYYY-MM-DD) — déterministe en `now`. */
+  function dayKey(now) {
+    const d = new Date(now === undefined ? Date.now() : now);
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  /**
+   * Bonus de production du streak : actif UNIQUEMENT si le jour enregistré est
+   * aujourd'hui (déterministe en `now`, neutre sur toute save sans streak ou
+   * périmée). Le compteur est clampé même si la save triche.
+   */
+  function streakMult(s, now) {
+    const st = s.streak;
+    if (!st || !st.lastDay || !(st.count > 0)) return 1;
+    if (st.lastDay !== dayKey(now)) return 1;
+    return 1 + STREAK_PER * Math.min(STREAK_MAX_DAYS, st.count);
+  }
+
+  /**
+   * Marque la venue du jour (idempotent) : un jour consécutif incrémente le
+   * streak, un jour sauté le remet à 1. Rien d'autre n'est stocké que
+   * {lastDay, count} — le bonus lui-même reste dérivé (streakMult).
+   */
+  function rollStreak(s, now) {
+    const t = now === undefined ? Date.now() : now;
+    const today = dayKey(t);
+    s.streak = s.streak || { lastDay: null, count: 0 };
+    const cur = s.streak.count || 0;
+    if (s.streak.lastDay === today) {
+      return { rolled: false, count: cur, mult: streakMult(s, t) };
+    }
+    const yesterday = dayKey(t - 86400000);
+    const count = s.streak.lastDay === yesterday ? Math.min(STREAK_MAX_DAYS, cur + 1) : 1;
+    s.streak.lastDay = today;
+    s.streak.count = count;
+    return { rolled: true, count, mult: streakMult(s, t) };
   }
 
   /**
@@ -884,8 +930,10 @@
       totalEarned: 0,
       totalClicks: 0,
       combo: { count: 0, lastClickAt: 0, maxCombo: 0 },
+      streak: { lastDay: null, count: 0 },
       mastery: {},
       alerts: {},
+      session: { startedAt: 0, earned: 0, idleEarned: 0, clicks: 0, crits: 0, maxCombo: 0, peakSales: 0, biggestSale: 0 },
       lastSeen: 0,
       spikeUntil: 0,
       spikeProduct: null,
@@ -1030,13 +1078,13 @@
     const t = now === undefined ? Date.now() : now;
     const secs = Math.max(0, Math.min(28800, Math.floor(seconds || 0)));
     if (secs <= 0) return { weed: 0, money: 0 };
-    const ps = perSecond(s);
+    const ps = perSecond(s, t);
     const weed = Math.floor(ps * secs * 0.5);
     const added = harvestXp(s, weed);
     // auto-sell a share via chains at 50% rate
     const flow = added;
     const res = autoTick(s, t, flow);
-    applySpoil(s); // le surplus hors-ligne se dégrade aussi
+    applySpoil(s, t); // le surplus hors-ligne se dégrade aussi
     const money = Object.values(res.soldMoney).reduce((a, b) => a + b, 0);
     return { weed: added, money };
   }
@@ -1054,8 +1102,10 @@
    * `thumb` only ADDS a share of your idle production into each click — the
    * idle feeds the click (5%/level), never the reverse. Tier bonus: every
    * 40 levels → ×2 per upgrade.
+   * @param {object} s state
+   * @param {number} [now] epoch ms for the streak day check (default Date.now())
    */
-  function perClick(s) {
+  function perClick(s, now) {
     const h = (s.levels.harvest || 0) * tierMult(s.levels.harvest || 0);
     const e = (s.levels.expert || 0) * 5 * tierMult(s.levels.expert || 0);
     const t = (s.levels.trim || 0) * 5 * tierMult(s.levels.trim || 0);
@@ -1065,16 +1115,18 @@
     if (s.levels.mega > 0) pc *= 2 * tierMult(s.levels.mega || 0);
     const ck = s.levels.clicker || 0;
     pc += ck * 3; // Clic Multi : +3g/clic par niveau (additif borné)
-    let total = pc * productionMult(s);
-    total += perSecond(s) * (s.levels.thumb || 0) * 0.05; // +5%/niveau de la prod/s
+    let total = pc * productionMult(s, now);
+    total += perSecond(s, now) * (s.levels.thumb || 0) * 0.05; // +5%/niveau de la prod/s
     return Math.round(total);
   }
 
   /**
    * Weed gained per second (auto production), scaled by production multiplier.
    * Tier bonus applies per upgrade. Progression lissée: mist/co2.
+   * @param {object} s state
+   * @param {number} [now] epoch ms for the streak day check (default Date.now())
    */
-  function perSecond(s) {
+  function perSecond(s, now) {
     const a = (s.levels.auto || 0) * tierMult(s.levels.auto || 0);
     const mi = (s.levels.mist || 0) * 2 * tierMult(s.levels.mist || 0);
     const c = (s.levels.crew || 0) * 15 * tierMult(s.levels.crew || 0);
@@ -1083,7 +1135,7 @@
     if (s.levels.uv > 0) base *= 1.4 * tierMult(s.levels.uv || 0);
     if (s.levels.mega > 0) base *= 2 * tierMult(s.levels.mega || 0);
     // turbo does not affect perSecond (only click weed)
-    return Math.round(base * productionMult(s));
+    return Math.round(base * productionMult(s, now));
   }
 
   /* ---- combo (la mécanique signature du clic) ------------------------------ */
@@ -1139,6 +1191,57 @@
     return h / 4294967296 < chance;
   }
 
+  /* ---- stats de session (volontairement non persistées) ---------------------- */
+  /** Pulse × spike ≥ cette valeur = vente « au pic » (pics exploitables ≈ 1.15+). */
+  const PEAK_SALE_MULT = 1.15;
+
+  /** Ouvre une session neuve (l'UI l'appelle au boot / hard reset). */
+  function newSession(s, now) {
+    const t = now === undefined ? Date.now() : now;
+    s.session = { startedAt: t, earned: 0, idleEarned: 0, clicks: 0, crits: 0, maxCombo: 0, peakSales: 0, biggestSale: 0 };
+  }
+
+  /**
+   * Enregistre une vente dans la session : € cumulés (flag `idle` pour les
+   * chaînes — la part idle est séparée), plus grosse vente manuelle, et
+   * comptage des ventes au pic (pulse × spike ≥ PEAK_SALE_MULT). No-op si
+   * pas de session en cours.
+   */
+  function sessionTrackSale(s, marketId, gain, now, idle) {
+    if (!s.session || !(gain > 0)) return;
+    const t = now === undefined ? Date.now() : now;
+    const S = s.session;
+    S.earned += gain;
+    if (idle) S.idleEarned = (S.idleEarned || 0) + gain;
+    else S.biggestSale = Math.max(S.biggestSale || 0, gain);
+    if (pulse(marketId, t) * spikeMult(s, marketId, t) >= PEAK_SALE_MULT) {
+      S.peakSales = (S.peakSales || 0) + 1;
+    }
+  }
+
+  /**
+   * Vue pure des stats de session : €/min, part idle, taux de crit, combo max,
+   * ventes au pic. Aucune mutation — l'UI n'affiche que ça.
+   */
+  function sessionStats(s, now) {
+    const t = now === undefined ? Date.now() : now;
+    const S = s.session || { startedAt: t, earned: 0, idleEarned: 0, clicks: 0, crits: 0, maxCombo: 0, peakSales: 0, biggestSale: 0 };
+    const minutes = Math.max(0, (t - (S.startedAt || t)) / 60000);
+    const earned = S.earned || 0;
+    return {
+      minutes,
+      earned,
+      perMin: minutes > 0 ? earned / minutes : 0,
+      idleShare: earned > 0 ? (S.idleEarned || 0) / earned : 0,
+      clicks: S.clicks || 0,
+      crits: S.crits || 0,
+      critRate: (S.clicks || 0) > 0 ? ((S.crits || 0) / S.clicks) * 100 : 0,
+      maxCombo: S.maxCombo || 0,
+      peakSales: S.peakSales || 0,
+      biggestSale: S.biggestSale || 0
+    };
+  }
+
   /**
    * One click on the bud — the CORE of the game.
    * Adds 100% of the clicked weed to YOUR stock/XP (never filtered into the
@@ -1160,6 +1263,11 @@
     c.count += 1;
     c.lastClickAt = t;
     c.maxCombo = Math.max(c.maxCombo || 0, c.count);
+    if (s.session) {
+      s.session.clicks = (s.session.clicks || 0) + 1;
+      if (crit) s.session.crits = (s.session.crits || 0) + 1;
+      s.session.maxCombo = Math.max(s.session.maxCombo || 0, c.count);
+    }
     return { added, mult, crit, combo: { count: c.count, maxCombo: c.maxCombo }, xp };
   }
 
@@ -1479,6 +1587,7 @@
       s.stock[p.id] -= made;
       s.money += gain;
       s.totalEarned = (s.totalEarned || 0) + gain;
+      sessionTrackSale(s, p.id, gain, now, true);
       res.soldMoney[p.id] = gain;
       chainMoneyThisTick += gain;
       chainGramsThisTick += made * prod.cost;
@@ -1581,6 +1690,7 @@
     }
     s.money += gain;
     s.totalEarned = (s.totalEarned || 0) + gain;
+    sessionTrackSale(s, type, gain, now);
     return gain;
   }
 
@@ -1608,8 +1718,8 @@
    * @returns {number} grams lost this call
    */
   const SPOIL_RATE = 0.01;
-  function applySpoil(s) {
-    const floor = Math.max(500, perSecond(s) * 60);
+  function applySpoil(s, now) {
+    const floor = Math.max(500, perSecond(s, now) * 60);
     const stock = s.stock.weed || 0;
     if (stock <= floor) return 0;
     const loss = Math.min(stock - floor, Math.ceil((stock - floor) * SPOIL_RATE));
@@ -1695,7 +1805,9 @@
       // drop legacy fields
       delete d.points; delete d.genomes;
       delete d.stock.main; delete d.stock.premium;
-      // champs venus de la tentative #24 (prestige/session/auto-click) — à purger
+      // champs venus de la tentative #24 (prestige/auto-click) — à purger ;
+      // `session` est purgée ci-dessus puis réinjectée NEUVE en fin de fonction :
+      // données volatiles (stats de session), jamais restaurées
       delete d.sessionClicks; delete d.activeSessionBonuses;
       delete d.prestige; delete d.prestigeLevel; delete d.prestigeBonus; delete d.totalEarnedLifetime;
       delete d.activePerformanceEvents; delete d.autoClickEnabled; delete d.autoClickLastTime;
@@ -1808,11 +1920,20 @@
         }
         d.alerts = clean;
       }
+      // streak quotidien : jour bien formé ou null, compteur entier dans [0, MAX]
+      if (!d.streak || typeof d.streak !== 'object') d.streak = { lastDay: null, count: 0 };
+      else {
+        d.streak.lastDay = typeof d.streak.lastDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.streak.lastDay) ? d.streak.lastDay : null;
+        d.streak.count = typeof d.streak.count === 'number' && d.streak.count > 0 ? Math.min(STREAK_MAX_DAYS, Math.floor(d.streak.count)) : 0;
+      }
       // drop removed fields (golden, prestige)
       delete d.goldenUntil;
       delete d.goldenNextAt;
       delete d.prestige;
       delete d.lifetimeEarned;
+      // session : volatiles — forme neuve à chaque chargement (l'UI ouvre la
+      // sienne via newSession) ; les compteurs de la save ne sont JAMAIS repris
+      d.session = { startedAt: 0, earned: 0, idleEarned: 0, clicks: 0, crits: 0, maxCombo: 0, peakSales: 0, biggestSale: 0 };
      return d;
    }
 
@@ -1858,6 +1979,16 @@
     masteryXpForLevel,
     masteryLevel,
     masteryMult,
+    ACHIEVEMENTS,
+    STREAK_PER,
+    STREAK_MAX_DAYS,
+    dayKey,
+    streakMult,
+    rollStreak,
+    PEAK_SALE_MULT,
+    newSession,
+    sessionTrackSale,
+    sessionStats,
     earnXp,
     checkMilestones,
     checkAchievements,

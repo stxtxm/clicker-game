@@ -273,6 +273,7 @@
       text-shadow: 0 2px 8px rgba(0,0,0,.8);
     }
     .click-fx.warn { background: linear-gradient(180deg, #fecaca, #f87171); -webkit-background-clip: text; background-clip: text; }
+    .click-fx.crit { background: linear-gradient(180deg, #fef08a, #f59e0b); -webkit-background-clip: text; background-clip: text; font-size: clamp(1.2rem, 5.5vw, 1.8rem); }
     #fx { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 60; }
       pointer-events: none;
       will-change: transform, opacity;
@@ -471,6 +472,22 @@
     .ms-fill { height: 100%; background: var(--green); border-radius: 999px; transition: width .3s; }
     .ms-xp { font-size: .7rem; color: var(--muted); flex-shrink: 0; }
 
+    /* session, streak et achievements (vue Progression) */
+    .session-card { background: linear-gradient(135deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+    .ses-row { display: flex; justify-content: space-between; align-items: center; font-size: .8rem; color: var(--muted); }
+    .ses-row b { color: var(--text); font-weight: 800; }
+    #streak-fill { background: linear-gradient(90deg, var(--gold), var(--gold-soft)); }
+    .ach-count { font-size: .74rem; color: var(--muted); margin-bottom: 8px; }
+    .ach-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .ach-card { display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; opacity: .5; transition: border-color .3s, opacity .3s; min-width: 0; }
+    .ach-card.done { opacity: 1; border-color: rgba(251,191,36,.5); }
+    .ach-icon { font-size: 1.2rem; flex-shrink: 0; }
+    .ach-info { min-width: 0; flex: 1; }
+    .ach-name { font-size: .78rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ach-card.done .ach-name { color: var(--gold); }
+    .ach-desc { font-size: .64rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ach-bonus { font-size: .72rem; font-weight: 900; color: var(--gold-soft); flex-shrink: 0; }
+
     /* ===== Contracts view ===== */
     .contracts { display: flex; flex-direction: column; gap: 10px; }
     .ct-card { background: linear-gradient(135deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 14px; padding: 14px; transition: border-color .3s, box-shadow .3s; }
@@ -644,6 +661,29 @@
 
       <div class="panel-head sub"><h2>Jalons</h2><p>Bonus permanents sur ta production totale</p></div>
       <div class="milestones" id="ms"></div>
+
+      <div class="panel-head sub"><h2>Session en cours</h2><p>Ta session actuelle — remise à zéro à chaque lancement</p></div>
+      <div class="session-card">
+        <div class="ses-row"><span>💶 Gains</span><b id="ses-earned">+0 €</b></div>
+        <div class="ses-row"><span>⏱️ Rythme</span><b id="ses-permin">0 €/min</b></div>
+        <div class="ses-row"><span>⚙️ Part idle</span><b id="ses-idle">0%</b></div>
+        <div class="ses-row"><span>👆 Clics</span><b id="ses-clicks">0</b></div>
+        <div class="ses-row"><span>💥 Critiques</span><b id="ses-crits">0</b></div>
+        <div class="ses-row"><span>⚡ Combo max</span><b id="ses-combo">×1.0 (0 clics)</b></div>
+        <div class="ses-row"><span>📈 Ventes au pic</span><b id="ses-peaks">0</b></div>
+        <div class="ses-row"><span>🏆 Plus grosse vente</span><b id="ses-big">0 €</b></div>
+      </div>
+
+      <div class="panel-head sub"><h2>🔥 Streak</h2><p>Chaque jour consécutif : +4 % de production (max +40 %)</p></div>
+      <div class="xp-card">
+        <div class="xp-top"><b id="streak-lvl">Aucun streak</b><span id="streak-mult">+0%</span></div>
+        <div class="xp-bar"><div class="xp-fill" id="streak-fill"></div></div>
+        <div class="xp-bottom"><span id="streak-next">Joue aujourd'hui pour démarrer</span><span>max +40% · 10 jours</span></div>
+      </div>
+
+      <div class="panel-head sub"><h2>🏅 Achievements</h2><p>Bonus permanents pour tes accomplissements</p></div>
+      <div class="ach-count" id="ach-count"></div>
+      <div class="ach-grid" id="ach"></div>
 
       <div class="danger-card" id="pwa-card" style="margin-top:16px; display:none;">
         <div class="dc-title">📱 Application PWA</div>

@@ -1402,4 +1402,221 @@ test('chainSpecImpact: texte par branche conforme au catalogue + delta €/s du 
   assert.strictEqual(Game.chainSpecImpact(s, 'joint', 'branche'), null);
 });
 
+// ---- streak quotidien (bonus journalier capé, déterministe en now) ----------
+
+test('dayKey: format YYYY-MM-DD local, déterministe', () => {
+  assert.strictEqual(Game.dayKey(0), '1970-01-01');
+  assert.match(Game.dayKey(1700000000000), /^\d{4}-\d{2}-\d{2}$/);
+  assert.strictEqual(Game.dayKey(1700000000000), Game.dayKey(1700000000000));
+});
+
+test('rollStreak: jour 1, consécutif +1, jour sauté → reset, idempotent même jour', () => {
+  const s = Game.defaultState();
+  // midi local : aucun des décalages du test ne peut traverser minuit
+  const day0 = new Date(1700000000000);
+  day0.setHours(12, 0, 0, 0);
+  const T0 = day0.getTime();
+  let r = Game.rollStreak(s, T0);
+  assert.strictEqual(r.rolled, true);
+  assert.strictEqual(r.count, 1);
+  // même jour : idempotent (pas de double comptage)
+  r = Game.rollStreak(s, T0 + 3600000);
+  assert.strictEqual(r.rolled, false);
+  assert.strictEqual(r.count, 1);
+  // lendemain : jour 2
+  r = Game.rollStreak(s, T0 + 86400000);
+  assert.strictEqual(r.rolled, true);
+  assert.strictEqual(r.count, 2);
+  // un jour sauté : reset à 1
+  r = Game.rollStreak(s, T0 + 3 * 86400000);
+  assert.strictEqual(r.rolled, true);
+  assert.strictEqual(r.count, 1);
+});
+
+test('rollStreak: compteur capé à STREAK_MAX_DAYS', () => {
+  const s = Game.defaultState();
+  const day0 = new Date(1700000000000);
+  day0.setHours(12, 0, 0, 0);
+  const T0 = day0.getTime();
+  let last = null;
+  for (let d = 0; d < Game.STREAK_MAX_DAYS + 5; d++) {
+    last = Game.rollStreak(s, T0 + d * 86400000);
+  }
+  assert.strictEqual(last.count, Game.STREAK_MAX_DAYS);
+});
+
+test('streakMult: actif seulement le jour courant, bonus borné même si la save triche', () => {
+  const s = Game.defaultState();
+  assert.strictEqual(Game.streakMult(s, 123456), 1); // pas de streak → neutre
+  const day0 = new Date(1700000000000);
+  day0.setHours(12, 0, 0, 0);
+  const T0 = day0.getTime();
+  Game.rollStreak(s, T0);
+  assert.strictEqual(Game.streakMult(s, T0), 1 + Game.STREAK_PER);
+  // le lendemain, avant re-roll : inactif (lastDay ≠ aujourd'hui)
+  assert.strictEqual(Game.streakMult(s, T0 + 86400000), 1);
+  // save tricheuse : count hors bornes → clampé au cap
+  s.streak = { lastDay: Game.dayKey(T0), count: 999 };
+  assert.strictEqual(Game.streakMult(s, T0), 1 + Game.STREAK_PER * Game.STREAK_MAX_DAYS);
+  // vieux jour (save périmée ou forgée) → inactif
+  s.streak = { lastDay: '2000-01-01', count: 5 };
+  assert.strictEqual(Game.streakMult(s, T0), 1);
+});
+
+test('productionMult intègre le streak actif (clic et idle via perClick/perSecond)', () => {
+  const s = Game.defaultState();
+  const day0 = new Date(1700000000000);
+  day0.setHours(12, 0, 0, 0);
+  const T = day0.getTime();
+  const base = Game.productionMult(s, T);
+  Game.rollStreak(s, T);
+  assert.ok(Math.abs(Game.productionMult(s, T) - base * (1 + Game.STREAK_PER)) < 1e-9);
+  s.levels.harvest = 30; // sous le premier palier ×2 (TIER_EVERY 40)
+  assert.strictEqual(Game.perClick(s, T), 34); // 30 × 1.08 × 1.04 = 33.7
+  const noStreak = JSON.parse(JSON.stringify(s));
+  noStreak.streak = { lastDay: '2000-01-01', count: 3 };
+  assert.strictEqual(Game.perClick(noStreak, T), 32); // 30 × 1.08 = 32.4
+  assert.ok(Game.perSecond(s, T) >= Game.perSecond(noStreak, T));
+});
+
+// ---- stats de session (volatiles : jamais restaurées) -----------------------
+
+test('newSession/sessionStats: €/min, part idle, taux de crit — calcul pur', () => {
+  const s = Game.defaultState();
+  const t0 = 1700000000000;
+  Game.newSession(s, t0);
+  s.session.earned = 12000;
+  s.session.idleEarned = 3000;
+  s.session.clicks = 200;
+  s.session.crits = 50;
+  s.session.maxCombo = 37;
+  s.session.peakSales = 4;
+  s.session.biggestSale = 5000;
+  const st = Game.sessionStats(s, t0 + 600000); // 10 min
+  assert.strictEqual(st.minutes, 10);
+  assert.strictEqual(st.perMin, 1200);
+  assert.ok(Math.abs(st.idleShare - 0.25) < 1e-9);
+  assert.strictEqual(st.critRate, 25);
+  assert.strictEqual(st.maxCombo, 37);
+  assert.strictEqual(st.peakSales, 4);
+  assert.strictEqual(st.biggestSale, 5000);
+  // état sans session ouverte : stats à zéro, AUCUNE mutation (fonction pure)
+  const fresh = Game.defaultState();
+  const z = Game.sessionStats(fresh, t0);
+  assert.strictEqual(z.earned, 0);
+  assert.strictEqual(z.minutes, 0);
+  assert.strictEqual(z.critRate, 0);
+});
+
+test('sessionTrackSale: pic compté (pulse ≥ 1.15), biggestSale manuel, part idle séparée', () => {
+  const s = Game.defaultState();
+  Game.newSession(s, 0);
+  // un instant au pic du marché weed (≥ PEAK_SALE_MULT) et un autre en creux
+  let peakT = -1, lowT = -1;
+  for (let t = 0; t < 120000; t += 500) {
+    if (peakT < 0 && Game.pulse('weed', t) >= Game.PEAK_SALE_MULT) peakT = t;
+    if (lowT < 0 && Game.pulse('weed', t) <= 0.85) lowT = t;
+    if (peakT >= 0 && lowT >= 0) break;
+  }
+  assert.ok(peakT >= 0 && lowT >= 0, 'un pic et un creux existent dans un cycle');
+  Game.sessionTrackSale(s, 'weed', 500, peakT);
+  Game.sessionTrackSale(s, 'weed', 1000, lowT);
+  assert.strictEqual(s.session.peakSales, 1);
+  assert.strictEqual(s.session.biggestSale, 1000);
+  assert.strictEqual(s.session.earned, 1500);
+  Game.sessionTrackSale(s, 'joint', 2500, lowT, true); // vente idle via chaîne
+  assert.strictEqual(s.session.idleEarned, 2500);
+  assert.strictEqual(s.session.biggestSale, 1000); // l'idle ne compte pas comme vente manuelle
+  Game.sessionTrackSale(s, 'weed', 0, peakT); // gain nul : no-op
+  assert.strictEqual(s.session.earned, 4000);
+});
+
+test('clickBud nourrit la session (clics, crits, combo max) ; ventes manuelles/idle trackées', () => {
+  const s = Game.defaultState();
+  Game.newSession(s, 0);
+  s.levels.crit = 20;
+  let hitT = -1;
+  for (let t = 100; t < 20000; t++) {
+    if (Game.isCritHit(s, t)) { hitT = t; break; }
+  }
+  assert.ok(hitT > 0);
+  Game.clickBud(s, hitT);
+  Game.clickBud(s, hitT);
+  assert.strictEqual(s.session.clicks, 2);
+  // deux clics dans la même ms : le 2e roll (totalClicks changé) peut ne pas crit
+  assert.ok(s.session.crits >= 1);
+  assert.ok(s.session.maxCombo >= 2);
+  // vente manuelle : earned + biggestSale, PAS idle
+  s.stock.weed = 10;
+  s.stock.weedByStrain[s.strain] = 10;
+  const gained = Game.sellStock(s, 'weed', undefined, 123456);
+  assert.ok(gained > 0);
+  assert.ok(s.session.earned >= gained);
+  assert.strictEqual(s.session.idleEarned, 0);
+  assert.strictEqual(s.session.biggestSale, gained);
+  // vente idle (chaîne) : idleEarned, pas biggestSale
+  s.xp = Game.xpForLevel(10);
+  s.money = 1e9;
+  assert.ok(Game.buyAutomation(s, 'auto-joint', 1).ok);
+  s.levels.auto = 10;
+  const flow = Game.perSecond(s);
+  s.stock.weed = (s.stock.weed || 0) + flow;
+  const tick = Game.autoTick(s, 123456, flow);
+  const idleMoney = Object.values(tick.soldMoney || {}).reduce((a, b) => a + b, 0);
+  assert.ok(idleMoney > 0, 'la chaîne a vendu ce tick');
+  assert.strictEqual(s.session.idleEarned, idleMoney);
+});
+
+test('roundtrip: streak persiste (sanitisé), session reste volatile', () => {
+  const s = Game.defaultState();
+  Game.newSession(s, 0);
+  s.session.earned = 12345;
+  Game.rollStreak(s, 1700000000000);
+  const d = Game.deserialize(Game.serialize(s));
+  assert.strictEqual(d.streak.count, 1);
+  assert.strictEqual(d.streak.lastDay, Game.dayKey(1700000000000));
+  assert.strictEqual(d.session.earned, 0); // volatiles : jamais restaurées
+  // save corrompue : streak borné + jour invalide → null, session purgée
+  const bad = Game.deserialize(JSON.stringify({ streak: { lastDay: 'oops', count: -5 }, session: { earned: 999 } }));
+  assert.strictEqual(bad.streak.lastDay, null);
+  assert.strictEqual(bad.streak.count, 0);
+  assert.strictEqual(bad.session.earned, 0);
+});
+
+test('ACHIEVEMENTS exporté (grille UI) : catalogue cohérent', () => {
+  assert.ok(Array.isArray(Game.ACHIEVEMENTS) && Game.ACHIEVEMENTS.length >= 15);
+  for (const a of Game.ACHIEVEMENTS) {
+    assert.ok(a.id && a.name && a.desc, 'champs affichage présents pour ' + a.id);
+    assert.strictEqual(typeof a.bonus, 'number');
+    assert.strictEqual(typeof a.condition, 'function');
+  }
+});
+
+test('ach_spike_master: context-dépendant (ctx.spikeSale), pas sans', () => {
+  const s = Game.defaultState();
+  // sans contexte: pas de déblocage (condition nécessite ctx.spikeSale truthy)
+  assert.ok(!Game.checkAchievements(s).some((a) => a.id === 'ach_spike_master'));
+  assert.ok(!Game.checkAchievements(s, {}).some((a) => a.id === 'ach_spike_master'));
+  // avec ctx.spikeSale truthy: débloqué
+  const got = Game.checkAchievements(s, { spikeSale: true });
+  assert.ok(got.some((a) => a.id === 'ach_spike_master'));
+  assert.strictEqual(got.find((a) => a.id === 'ach_spike_master').bonus, 5);
+  // idempotent: seconde passe ne récompense pas à nouveau
+  assert.strictEqual(Game.checkAchievements(s, { spikeSale: true }).length, 0);
+});
+
+test('ach_idle_1h: context-dépendant (ctx.offlineMoney), seuil 10K €', () => {
+  const s = Game.defaultState();
+  // pas assez d'argent hors-ligne: pas de déblocage
+  assert.ok(!Game.checkAchievements(s, { offlineMoney: 9999 }).some((a) => a.id === 'ach_idle_1h'));
+  assert.ok(!Game.checkAchievements(s, { offlineMoney: 0 }).some((a) => a.id === 'ach_idle_1h'));
+  assert.ok(!Game.checkAchievements(s, {}).some((a) => a.id === 'ach_idle_1h'));
+  // 10K € exactement ou plus: débloqué (état frais: pas encore award)
+  const s2 = Game.defaultState();
+  assert.ok(Game.checkAchievements(s2, { offlineMoney: 10000 }).some((a) => a.id === 'ach_idle_1h'));
+  const s3 = Game.defaultState();
+  assert.ok(Game.checkAchievements(s3, { offlineMoney: 50000 }).some((a) => a.id === 'ach_idle_1h'));
+  assert.strictEqual(Game.ACHIEVEMENTS.find((a) => a.id === 'ach_idle_1h').bonus, 8);
+});
+
 
