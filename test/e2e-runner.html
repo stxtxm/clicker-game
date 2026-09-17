@@ -10,7 +10,7 @@
 <script>
 const results = [];
 function report(name, ok, detail) {
-  results.push('E2E ' + name + ': ' + (ok ? 'PASS' : 'FAIL') + (detail ? ' — ' + detail : ''));
+  results.push('E2E ' + name + ': ' + (ok ? 'PASS' : 'FAIL') + (detail ? ' \u2014 ' + detail : ''));
 }
 function q(sel) { return gameDoc().querySelector(sel); }
 function gameDoc() { return document.getElementById('game').contentDocument; }
@@ -367,6 +367,53 @@ async function scenario() {
       /\d/.test(dailyCountTxt) && /\d/.test(dailyCountAfter) && /🔒|🎁|✓/.test(btnLabel),
       'cards=' + dailyCards + ' sameNode=' + dailySameNode + ' count="' +
       dailyCountTxt + '->' + dailyCountAfter + '" btn="' + btnLabel + '"');
+
+    // 14h. Progression FULL : seed riche (xp/streak/daily/milestones) → on vérifie
+    // que XP card, jalons, streak, défis, session, achievements sont tous rendus
+    // et que les compteurs live réagissent aux clics + à la réclamation d'un défi.
+    // (date locale, même convention que Game.dayKey)
+    const today = (() => { const d = new Date(); return d.getFullYear() + '-' +
+      ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); })();
+    w.localStorage.setItem('budClicker', JSON.stringify({
+      weed: 0, money: 5000, strain: 'green',
+      stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 },
+      levels: { harvest: 1, auto: 0 }, xp: 6000, totalEarned: 60000, totalClicks: 200,
+      streak: { lastDay: today, count: 3 },
+      daily: { day: today,
+        base: { clicks: 0, crits: 0, crafted: 0, earned: 0, peaks: 0, xp: 0 },
+        done: [], claimed: [] },
+      milestones: ['m1', 'm2'], achievements: ['ach_first_sell']
+    }));
+    await reloadGame();
+    q('.tab-btn[data-tab="progress"]').click();
+    await sleep(120);
+    const xpLevel = (q('#xplv').textContent || '');
+    const msDone = gameDoc().querySelectorAll('#ms .ms-item.done').length;
+    const streakTxt = (q('#streak-lvl').textContent || '') + (q('#streak-mult').textContent || '');
+    const dailyCards2 = gameDoc().querySelectorAll('#daily .daily-card').length;
+    const claimableBtns = [...gameDoc().querySelectorAll('#daily .daily-btn')].filter((b) => b.textContent.includes('Réclamer'));
+    const moneyBeforeClaim = money();
+    if (claimableBtns.length > 0) claimableBtns[0].click();
+    await sleep(150);
+    const moneyAfterClaim = money();
+    const claimGave = moneyAfterClaim >= moneyBeforeClaim;
+    // session live : 50 clics → les compteurs doivent bouger
+    q('.tab-btn[data-tab="harvest"]').click();
+    await sleep(80);
+    for (let i = 0; i < 50; i++) q('#bs').click();
+    await sleep(300);
+    q('.tab-btn[data-tab="progress"]').click();
+    await sleep(120);
+    const sesClicks2 = parseInt((q('#ses-clicks').textContent || '0').replace(/[^\d]/g, ''), 10) || 0;
+    const sesEarned2 = (q('#ses-earned').textContent || '').trim();
+    report('progression-full',
+      /Niveau 4/.test(xpLevel) && msDone === 2 && /Jour 3/.test(streakTxt) &&
+      /12%/.test(streakTxt) && dailyCards2 === 3 && claimableBtns.length > 0 &&
+      claimGave && sesClicks2 >= 50 && /€/.test(sesEarned2),
+      'xp=' + xpLevel + ' msDone=' + msDone + ' streak="' + streakTxt + '" ' +
+      'daily=' + dailyCards2 + ' claimable=' + claimableBtns.length +
+      ' claim ' + moneyBeforeClaim + '->' + moneyAfterClaim +
+      ' sesClicks=' + sesClicks2 + ' sesEarned="' + sesEarned2 + '"');
 
     // 15. reset dialog: first click arms (animated state), second confirms
     q('.tab-btn[data-tab="progress"]').click();

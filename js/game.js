@@ -907,10 +907,11 @@
       : branch === 'yield' ? '+' + pct + '% prix'
       : '+' + pct + '% max';
     const before = chainEarnRate(s).per[productId] || 0;
-    const next = JSON.parse(JSON.stringify(s)); // clone léger, achat simulé
-    next.chainSpecs = next.chainSpecs || defaultChainSpecs();
-    next.chainSpecs[productId] = next.chainSpecs[productId] || { speed: 0, yield: 0, volume: 0 };
-    next.chainSpecs[productId][branch] = cur + 1;
+    // shallow clone — chainEarnRate is pure and never mutates state, so shared
+    // references (levels, chainLvl, contracts…) are safe; only chainSpecs differ.
+    const specs = Object.assign({}, s.chainSpecs || defaultChainSpecs());
+    specs[productId] = Object.assign({ speed: 0, yield: 0, volume: 0 }, specs[productId], { [branch]: cur + 1 });
+    const next = Object.assign({}, s, { chainSpecs: specs });
     const after = chainEarnRate(next).per[productId] || 0;
     return { pctText, epsDelta: after - before, lvl: cur + 1, max: specDef.max };
   }
@@ -1620,6 +1621,7 @@
 
   /** Check and complete contracts. */
   function checkContracts(s, ctx) {
+    if (!s.contracts || typeof s.contracts !== 'object') s.contracts = defaultContracts();
     const completed = [];
     const level = levelFromXp(s.xp);
     for (const ct of CONTRACTS) {
@@ -1643,9 +1645,10 @@
     return completed;
   }
 
-  /** Claim a completed contract. Rewards are DERIVED from the claimed list
-   *  (getContractRewards) — nothing multiplicative is stored in the save. */
+/** Claim a completed contract. Rewards are DERIVED from the claimed list
+    *  (getContractRewards) — nothing multiplicative is stored in the save. */
   function claimContract(s, contractId) {
+    if (!s.contracts || typeof s.contracts !== 'object') s.contracts = defaultContracts();
     const ct = CONTRACTS.find((c) => c.id === contractId);
     if (!ct) return { ok: false, reason: 'unknown' };
     if (!s.contracts.completed.includes(contractId)) return { ok: false, reason: 'not_completed' };
