@@ -68,6 +68,34 @@ async function scenario() {
     report('boot', !!bud && q('#m').textContent.includes('€') &&
       q('#sb').textContent.includes('Green Dream'), 'svg=' + !!bud);
 
+    // 1b. accessibilite : onglets role=tab + aria-selected sync, bud focusable,
+    //     bouton son togglable (persiste dans localStorage)
+    const tabBtns = gameDoc().querySelectorAll('.bottom-nav .tab-btn');
+    const allTabs = tabBtns.length === 6 && Array.from(tabBtns).every((b) => b.getAttribute('role') === 'tab');
+    const selBefore = q('.tab-btn[data-tab="harvest"]').getAttribute('aria-selected');
+    q('.tab-btn[data-tab="sell"]').click();
+    await sleep(80);
+    const selAfter = q('.tab-btn[data-tab="sell"]').getAttribute('aria-selected');
+    const selCleared = q('.tab-btn[data-tab="harvest"]').getAttribute('aria-selected');
+    q('.tab-btn[data-tab="harvest"]').click();
+    await sleep(60);
+    const budFocusable = q('#bc').getAttribute('tabindex') === '0' && q('#bc').getAttribute('role') === 'button';
+    const soundBtn = q('#sound-btn');
+    const soundBefore = soundBtn.getAttribute('aria-pressed');
+    soundBtn.click();
+    await sleep(60);
+    const soundAfter = soundBtn.getAttribute('aria-pressed');
+    const soundPersist = (() => { try { return w.localStorage.getItem('budClickerSound'); } catch (e) { return 'ERR'; } })();
+    soundBtn.click();
+    await sleep(60);
+    const soundRestored = soundBtn.getAttribute('aria-pressed') === soundBefore;
+    report('a11y-sound-ui',
+      allTabs && selBefore === 'true' && selAfter === 'true' && selCleared === 'false' &&
+      budFocusable && soundBefore === 'true' && soundAfter === 'false' &&
+      soundPersist === 'off' && soundRestored,
+      'tabs=' + tabBtns.length + ' sel=' + selBefore + '/' + selAfter + '/' + selCleared +
+      ' bud=' + budFocusable + ' sound=' + soundBefore + '->' + soundAfter + ' store=' + soundPersist);
+
     // 2. clicking harvests weed + xp
     const before = weedStock();
     q('#bs').click(); q('#bs').click(); q('#bs').click();
