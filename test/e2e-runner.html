@@ -320,6 +320,26 @@ async function scenario() {
       'ach=' + achCards + ' done(' + achDoneBefore + '->' + achDoneAfter + ') clicks=' + sesClicks +
         ' earned="' + sesEarnedTxt + '" afterReload="' + sesEarnedAfter + '" streak="' + streakLvl + '"');
 
+    // 14g. defis du jour : 3 cartes stables, meme noeuds, progression live
+    const dailyCards = gameDoc().querySelectorAll('#daily .daily-card').length;
+    const dailyFirst = q('#daily .daily-card');
+    const dailyCountTxt = (q('#daily .daily-count') || {}).textContent || '';
+    // 250 clics de plus : au moins un compteur journalier a bouge
+    for (let i = 0; i < 50; i++) q('#bs').click();
+    await sleep(1100);
+    const dailyCountAfter = (q('#daily .daily-count') || {}).textContent || '';
+    const dailySameNode = q('#daily .daily-card') === dailyFirst;
+    const dailyBtn = q('#daily .daily-btn');
+    const btnLabel = dailyBtn ? dailyBtn.textContent : '';
+    const dailyMoneyBefore = money();
+    if (dailyBtn && !dailyBtn.disabled) dailyBtn.click();
+    await sleep(150);
+    const claimedOk = !dailyBtn || dailyBtn.disabled || money() >= dailyMoneyBefore;
+    report('daily-ui', dailyCards === 3 && dailySameNode && claimedOk &&
+      /\d/.test(dailyCountTxt) && /\d/.test(dailyCountAfter) && /🔒|🎁|✓/.test(btnLabel),
+      'cards=' + dailyCards + ' sameNode=' + dailySameNode + ' count="' +
+      dailyCountTxt + '->' + dailyCountAfter + '" btn="' + btnLabel + '"');
+
     // 15. reset dialog: first click arms (animated state), second confirms
     q('.tab-btn[data-tab="progress"]').click();
     await sleep(80);

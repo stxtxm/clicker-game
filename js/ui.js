@@ -60,6 +60,7 @@
     sesCombo: document.getElementById('ses-combo'),
     sesPeaks: document.getElementById('ses-peaks'),
     sesBig: document.getElementById('ses-big'),
+    daily: document.getElementById('daily'),
     streakLvl: document.getElementById('streak-lvl'),
     streakMult: document.getElementById('streak-mult'),
     streakFill: document.getElementById('streak-fill'),
@@ -661,6 +662,83 @@
       'Joue aujourd\'hui pour démarrer';
   }
 
+  /** Label compact d'une récompense de défi (+1.5Kg, +25K €). */
+  function dailyRewardLabel(def) {
+    const parts = [];
+    if (def.reward.weed) parts.push('+' + fmt(def.reward.weed) + 'g');
+    if (def.reward.money) parts.push('+' + fmt(def.reward.money) + ' €');
+    return parts.join(' · ');
+  }
+
+  /* Défis du jour (vue Progression) — cartes construites une fois par jour,
+     mises à jour in place (barres/boutons) à chaque tick où l'onglet est
+     visible. Le tirage est seedé par jour : même set toute la journée. */
+  let dailyBuiltDay = null;
+
+  function buildDaily() {
+    if (!el.daily || !Game.dailyForDay) return;
+    Game.rollDaily(state);
+    el.daily.innerHTML = '';
+    for (const def of Game.dailyForDay(state.daily.day)) {
+      const card = document.createElement('div');
+      card.className = 'daily-card';
+      card.id = 'daily-' + def.id;
+      card.innerHTML =
+        '<span class="daily-icon">' + def.icon + '</span>' +
+        '<div class="daily-info"><div class="daily-name">' + def.name + '</div>' +
+        '<div class="daily-desc">' + def.desc + ' · 🎁 ' + dailyRewardLabel(def) + '</div>' +
+        '<div class="daily-bar"><div class="daily-fill" id="dailyf-' + def.id + '"></div></div></div>' +
+        '<span class="daily-count" id="dailyc-' + def.id + '"></span>' +
+        '<button class="daily-btn" id="dailyb-' + def.id + '">🎁</button>';
+      el.daily.appendChild(card);
+      card.querySelector('.daily-btn').addEventListener('click', () => {
+        const res = Game.claimDaily(state, def.id);
+        if (res.ok) {
+          const bits = [];
+          if (res.gained.weed) bits.push('+' + fmt(res.gained.weed) + 'g');
+          if (res.gained.money) bits.push('+' + fmt(res.gained.money) + ' €');
+          toast('📅 ' + def.name + ' : ' + bits.join(' · ') + ' !', true);
+          spawnParticle('📅 ' + def.icon + ' ' + bits.join(' · ') + ' !', true);
+          popNum(el.m);
+        } else if (res.reason === 'already_claimed') {
+          toast('Défi déjà réclamé');
+        } else {
+          toast('Défi pas encore terminé');
+        }
+        refreshStats();
+        save();
+      });
+    }
+    dailyBuiltDay = state.daily.day;
+  }
+
+  function updateDaily() {
+    if (!el.daily || !Game.dailyForDay) return;
+    Game.rollDaily(state);
+    if (dailyBuiltDay !== state.daily.day || el.daily.children.length !== Game.DAILY_COUNT) buildDaily();
+    const done = (state.daily && state.daily.done) || [];
+    const claimed = (state.daily && state.daily.claimed) || [];
+    for (const def of Game.dailyForDay(state.daily.day)) {
+      const p = Game.dailyProgress(state, def);
+      const card = document.getElementById('daily-' + def.id);
+      const fill = document.getElementById('dailyf-' + def.id);
+      const count = document.getElementById('dailyc-' + def.id);
+      const btn = document.getElementById('dailyb-' + def.id);
+      const isDone = done.includes(def.id) || p.done;
+      const isClaimed = claimed.includes(def.id);
+      if (card) {
+        card.classList.toggle('done', isDone);
+        card.classList.toggle('claimed', isClaimed);
+      }
+      if (fill) fill.style.width = Math.min(100, Math.round((p.value / p.target) * 100)) + '%';
+      if (count) count.textContent = fmt(p.value) + '/' + fmt(p.target);
+      if (btn) {
+        btn.disabled = !isDone || isClaimed;
+        btn.textContent = isClaimed ? '✓' : isDone ? '🎁 Réclamer' : '🔒';
+      }
+    }
+  }
+
   /** Sync every dynamic text / disabled state with `state`.
    *  Hidden views are skipped: the per-second tick only writes to the DOM the
    *  player is actually looking at (less style/layout work, smoother on mobile). */
@@ -695,6 +773,7 @@
     if (active('progress')) {
       updateSessionCard();
       updateStreakCard();
+      updateDaily();
       updateAchievements();
     }
     if (!active('upgrades')) return;
@@ -1016,6 +1095,7 @@
     }
     popNum(el.stw);
     updateComboUI(true);
+    if (Game.checkDaily) dailyToast(Game.checkDaily(state));
     refreshStats();
     save();
     if (res.xp.leveledUp) {
@@ -1079,6 +1159,7 @@
     if (res.ok) {
       toast(prod.icon + ' ' + res.amount + 'x ' + prod.name + ' fabriqué' + (res.amount > 1 ? 's' : '') + ' !');
       if (el.stw) popNum(el.stw);
+      if (Game.checkDaily) dailyToast(Game.checkDaily(state));
     } else {
       toast('Pas assez de weed (' + (prod ? prod.cost + 'g' : '') + ' requis)');
     }
@@ -1105,6 +1186,7 @@
         spawnParticle(a.icon + ' ' + a.name + ' !', true);
       }
     }
+    if (Game.checkDaily) dailyToast(Game.checkDaily(state, now));
     refreshStats();
     save();
   }
@@ -1226,11 +1308,21 @@
     save();
   }
 
+  /** Toast + particule pour chaque défi du jour qui vient de se terminer. */
+  function dailyToast(awarded) {
+    for (const def of awarded) {
+      toast('📅 Défi terminé : ' + def.name + ' — réclame ta récompense !', true);
+      spawnParticle('📅 ' + def.icon + ' ' + def.name + ' !', true);
+    }
+  }
+
   /** One auto-production tick (every second): weed growth, then automation. */
   function autoProduce() {
     const now = Date.now();
     // streak quotidien : idempotent — un jour nouveau démarre le bonus
     if (Game.rollStreak) streakToast(Game.rollStreak(state, now));
+    // défis du jour : nouveau jour → photo des compteurs (silencieux)
+    if (Game.rollDaily) Game.rollDaily(state, now);
     const spiked = Game.maybeTriggerSpike && Game.maybeTriggerSpike(state, now);
     if (spiked) {
       const prod = Game.getProduct(spiked);
@@ -1270,6 +1362,8 @@
     for (const ct of doneContracts) {
       toast('📋 ' + ct.name + ' accompli — récupère ta récompense !');
     }
+    // défis du jour : constat silencieux chaque seconde (toast si nouveau)
+    if (Game.checkDaily) dailyToast(Game.checkDaily(state, now));
     // spoilage doux (remplace le cap) : le surplus au-dessus du plancher se dégrade
     const spoiled = Game.applySpoil ? Game.applySpoil(state) : 0;
     // juice paliers de gains totaux : chaque puissance de 10 franchie célèbre
@@ -1299,6 +1393,8 @@
       if (Game.newSession) Game.newSession(state);
       // streak quotidien : marque le jour (toast si le streak progresse)
       if (Game.rollStreak) streakToast(Game.rollStreak(state));
+      // défis du jour : photo des compteurs au boot (silencieux)
+      if (Game.rollDaily) Game.rollDaily(state);
       // offline earnings (AdvCap 50%, 8h cap)
       if (state.lastSeen) {
         const secs = Math.floor((Date.now() - state.lastSeen) / 1000);
