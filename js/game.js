@@ -931,6 +931,7 @@
       totalClicks: 0,
       combo: { count: 0, lastClickAt: 0, maxCombo: 0 },
       streak: { lastDay: null, count: 0 },
+      daily: defaultDaily(),
       mastery: {},
       alerts: {},
       session: { startedAt: 0, earned: 0, idleEarned: 0, clicks: 0, crits: 0, maxCombo: 0, peakSales: 0, biggestSale: 0 },
@@ -1189,6 +1190,163 @@
     h = Math.imul(h ^ (h >>> 13), 0x5bd1e995);
     h = (h ^ (h >>> 15)) >>> 0;
     return h / 4294967296 < chance;
+  }
+
+  /* ---- défis quotidiens ------------------------------------------------------ */
+  /**
+   * Pool de défis journaliers : 3 tirés par jour (seed = jour), chacun avec
+   * un compteur dérivé de l'état courant (jamais de compteur stocké — la
+   * progression se lit sur totalClicks / xp / totalEarned / pic détecté).
+   * Les récompenses sont des GAINS PONCTUELS bornés (€/weed immédiats),
+   * jamais de multiplicateur : l'économie reste dominée par clic + marché.
+   */
+  const DAILY_CHALLENGES = [
+    { id: 'daily_clicks_200',   name: 'Échauffement',     desc: 'Cliquer 200 fois',                icon: '👆', target: 200,    reward: { weed: 1500 },              metric: 'clicks' },
+    { id: 'daily_clicks_1000',  name: 'Doigts de Fée',    desc: 'Cliquer 1 000 fois',              icon: '⚡', target: 1000,   reward: { weed: 12000 },             metric: 'clicks' },
+    { id: 'daily_combo_20',     name: 'Enchaîné',         desc: 'Atteindre un combo de 20 clics',  icon: '🔥', target: 20,     reward: { weed: 4000 },              metric: 'combo' },
+    { id: 'daily_crit_3',       name: 'Main Chanceuse',   desc: 'Réussir 3 clics critiques',       icon: '💥', target: 3,      reward: { money: 25000 },            metric: 'crits' },
+    { id: 'daily_craft_5',      name: 'Petites Mains',    desc: 'Fabriquer 5 produits',            icon: '🛠️', target: 5,       reward: { money: 15000 },            metric: 'crafted' },
+    { id: 'daily_sell_50k',     name: 'Marchand',         desc: 'Gagner 50 000 € (ventes)',        icon: '💰', target: 50000,  reward: { money: 10000 },            metric: 'earned' },
+    { id: 'daily_peak_1',       name: 'Timing Parfait',   desc: 'Vendre une fois au pic (≥115 %)', icon: '📈', target: 1,      reward: { money: 20000 },            metric: 'peaks' },
+    { id: 'daily_xp_5k',        name: 'En Herbe',         desc: 'Gagner 5 000 XP',                 icon: '🌱', target: 5000,   reward: { weed: 8000 },              metric: 'xp' }
+  ];
+
+  /** Nombre de défis proposés chaque jour. */
+  const DAILY_COUNT = 3;
+
+  /**
+   * Seed entier stable d'une clé de jour (YYYY-MM-DD) — le tirage du jour est
+   * identique pour tous les joueurs et reproductible dans les tests.
+   */
+  function _dailySeed(day) {
+    let h = 0;
+    for (let i = 0; i < day.length; i++) h = (Math.imul(h, 31) + day.charCodeAt(i)) | 0;
+    return h | 0;
+  }
+
+  /**
+   * Les 3 défis du jour (tirage sans remise, seed = jour). Pur : aucun état.
+   */
+  function dailyForDay(day) {
+    const rng = mulberry32(_dailySeed(day));
+    const pool = DAILY_CHALLENGES.slice();
+    const out = [];
+    while (out.length < Math.min(DAILY_COUNT, pool.length)) {
+      out.push(pool.splice(Math.floor(rng() * pool.length), 1)[0]);
+    }
+    return out;
+  }
+
+  /** État quotidien vierge : jour couvert + photo des compteurs au lever. */
+  function defaultDaily() {
+    return { day: null, base: null, done: [], claimed: [] };
+  }
+
+  /**
+   * Assure que `s.daily` couvre aujourd'hui : nouveau jour → photo des
+   * compteurs (base) et listes vidées ; même jour → état conservé.
+   * Idempotent — à appeler au boot, à chaque tick et dans chaque mutation
+   * suivie (clic / craft / vente / XP).
+   */
+  function rollDaily(s, now) {
+    const t = now === undefined ? Date.now() : now;
+    const today = dayKey(t);
+    if (!s.daily || typeof s.daily !== 'object') s.daily = defaultDaily();
+    const d = s.daily;
+    if (d.day === today && d.base) return { rolled: false, day: today };
+    d.day = today;
+    d.done = [];
+    d.claimed = [];
+    d.base = {
+      clicks: s.totalClicks || 0,
+      crits: (s.session && s.session.crits) || 0,
+      crafted: _dailyCraftedTotal(s),
+      earned: s.totalEarned || 0,
+      peaks: (s.session && s.session.peakSales) || 0,
+      xp: s.xp || 0
+    };
+    return { rolled: true, day: today };
+  }
+
+  /** Total d'unités fabriquées (manuel + chaînes), tous produits confondus. */
+  function _dailyCraftedTotal(s) {
+    let total = 0;
+    for (const p of PRODUCTS) total += (s.stock && s.stock[p.id]) || 0;
+    if (s.chainStats && typeof s.chainStats === 'object') {
+      for (const p of PRODUCTS) {
+        const st = s.chainStats[p.id];
+        if (st && typeof st.sold === 'number') total += st.sold;
+      }
+    }
+    return total;
+  }
+
+  /** Compteur courant d'une métrique de défi (jamais négatif). */
+  function _dailyCurrent(s, metric) {
+    switch (metric) {
+      case 'clicks': return s.totalClicks || 0;
+      case 'combo': return (s.combo && s.combo.maxCombo) || 0;
+      case 'crits': return (s.session && s.session.crits) || 0;
+      case 'crafted': return _dailyCraftedTotal(s);
+      case 'earned': return s.totalEarned || 0;
+      case 'peaks': return (s.session && s.session.peakSales) || 0;
+      case 'xp': return s.xp || 0;
+      default: return 0;
+    }
+  }
+
+  /**
+   * Progression d'un défi du jour : {value, target, done} — pur (roll inclus).
+   * Le combo lit le record absolu (pas de base journalière) ; le reste mesure
+   * le delta depuis le lever du jour.
+   */
+  function dailyProgress(s, def, now) {
+    rollDaily(s, now);
+    const base = (s.daily.base && s.daily.base[def.metric]) || 0;
+    const value = def.metric === 'combo'
+      ? _dailyCurrent(s, def.metric)
+      : Math.max(0, _dailyCurrent(s, def.metric) - base);
+    return { value, target: def.target, done: value >= def.target || (s.daily.done || []).includes(def.id) };
+  }
+
+  /**
+   * Marque les défis du jour atteints (idempotent). Retourne les nouveaux.
+   */
+  function checkDaily(s, now) {
+    rollDaily(s, now);
+    const awarded = [];
+    s.daily.done = s.daily.done || [];
+    for (const def of dailyForDay(s.daily.day)) {
+      if (s.daily.done.includes(def.id)) continue;
+      if (dailyProgress(s, def, now).done) {
+        s.daily.done.push(def.id);
+        awarded.push(def);
+      }
+    }
+    return awarded;
+  }
+
+  /**
+   * Réclame la récompense bornée d'un défi terminé (weed et/ou € immédiats).
+   */
+  function claimDaily(s, id, now) {
+    rollDaily(s, now);
+    const def = DAILY_CHALLENGES.find((x) => x.id === id);
+    if (!def) return { ok: false, reason: 'unknown' };
+    if (dailyForDay(s.daily.day).every((x) => x.id !== id)) return { ok: false, reason: 'not_today' };
+    if (!dailyProgress(s, def, now).done) return { ok: false, reason: 'not_done' };
+    s.daily.claimed = s.daily.claimed || [];
+    if (s.daily.claimed.includes(id)) return { ok: false, reason: 'already_claimed' };
+    s.daily.claimed.push(id);
+    const gained = {};
+    if (def.reward.weed) gained.weed = addWeed(s, def.reward.weed);
+    if (def.reward.money) {
+      s.money = (s.money || 0) + def.reward.money;
+      s.totalEarned = (s.totalEarned || 0) + def.reward.money;
+      if (s.session) s.session.earned = (s.session.earned || 0) + def.reward.money;
+      gained.money = def.reward.money;
+    }
+    return { ok: true, def, gained };
   }
 
   /* ---- stats de session (volontairement non persistées) ---------------------- */
@@ -1920,6 +2078,25 @@
         }
         d.alerts = clean;
       }
+      // défis quotidiens : jour bien formé, base de compteurs saine, listes
+      // filtrées aux ids du catalogue (jamais de multiplicateur stocké)
+      if (!d.daily || typeof d.daily !== 'object') d.daily = defaultDaily();
+      else {
+        d.daily.day = typeof d.daily.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.daily.day) ? d.daily.day : null;
+        const ids = DAILY_CHALLENGES.map((x) => x.id);
+        d.daily.done = Array.isArray(d.daily.done) ? d.daily.done.filter((x) => ids.includes(x)) : [];
+        d.daily.claimed = Array.isArray(d.daily.claimed) ? d.daily.claimed.filter((x) => ids.includes(x)) : [];
+        const b = d.daily.base;
+        d.daily.base = b && typeof b === 'object' ? {
+          clicks: Math.max(0, Math.floor(b.clicks || 0)),
+          crits: Math.max(0, Math.floor(b.crits || 0)),
+          crafted: Math.max(0, Math.floor(b.crafted || 0)),
+          earned: Math.max(0, Math.floor(b.earned || 0)),
+          peaks: Math.max(0, Math.floor(b.peaks || 0)),
+          xp: Math.max(0, Math.floor(b.xp || 0))
+        } : null;
+        if (!d.daily.day || !d.daily.base) { d.daily.day = null; d.daily.done = []; d.daily.claimed = []; d.daily.base = null; }
+      }
       // streak quotidien : jour bien formé ou null, compteur entier dans [0, MAX]
       if (!d.streak || typeof d.streak !== 'object') d.streak = { lastDay: null, count: 0 };
       else {
@@ -1985,6 +2162,14 @@
     dayKey,
     streakMult,
     rollStreak,
+    DAILY_CHALLENGES,
+    DAILY_COUNT,
+    dailyForDay,
+    defaultDaily,
+    rollDaily,
+    dailyProgress,
+    checkDaily,
+    claimDaily,
     PEAK_SALE_MULT,
     newSession,
     sessionTrackSale,

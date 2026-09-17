@@ -1605,18 +1605,136 @@ test('ach_spike_master: context-dépendant (ctx.spikeSale), pas sans', () => {
   assert.strictEqual(Game.checkAchievements(s, { spikeSale: true }).length, 0);
 });
 
-test('ach_idle_1h: context-dépendant (ctx.offlineMoney), seuil 10K €', () => {
+test('ach_idle_1h: context-dependant (ctx.offlineMoney), seuil 10K', () => {
   const s = Game.defaultState();
-  // pas assez d'argent hors-ligne: pas de déblocage
   assert.ok(!Game.checkAchievements(s, { offlineMoney: 9999 }).some((a) => a.id === 'ach_idle_1h'));
   assert.ok(!Game.checkAchievements(s, { offlineMoney: 0 }).some((a) => a.id === 'ach_idle_1h'));
   assert.ok(!Game.checkAchievements(s, {}).some((a) => a.id === 'ach_idle_1h'));
-  // 10K € exactement ou plus: débloqué (état frais: pas encore award)
   const s2 = Game.defaultState();
   assert.ok(Game.checkAchievements(s2, { offlineMoney: 10000 }).some((a) => a.id === 'ach_idle_1h'));
   const s3 = Game.defaultState();
   assert.ok(Game.checkAchievements(s3, { offlineMoney: 50000 }).some((a) => a.id === 'ach_idle_1h'));
   assert.strictEqual(Game.ACHIEVEMENTS.find((a) => a.id === 'ach_idle_1h').bonus, 8);
 });
+
+test('DAILY catalogue: 3/jour, gains bornes sans multiplicateur', () => {
+  assert.ok(Array.isArray(Game.DAILY_CHALLENGES) && Game.DAILY_CHALLENGES.length >= 6);
+  assert.strictEqual(Game.DAILY_COUNT, 3);
+  for (const d of Game.DAILY_CHALLENGES) {
+    assert.ok(d.id && d.name && d.desc && d.icon, 'affichage ' + d.id);
+    assert.ok(Number.isInteger(d.target) && d.target > 0, 'cible ' + d.id);
+    assert.ok(d.reward && (d.reward.weed > 0 || d.reward.money > 0), 'gain ' + d.id);
+    assert.ok((d.reward.weed || 0) <= 12000 && (d.reward.money || 0) <= 25000, 'borne ' + d.id);
+    assert.ok(!d.reward.mult && !d.bonus, 'pas de multiplicateur ' + d.id);
+  }
+});
+
+test('dailyForDay: deterministe, 3 defis, sans remise', () => {
+  const a = Game.dailyForDay('2026-09-17').map((d) => d.id);
+  const b = Game.dailyForDay('2026-09-17').map((d) => d.id);
+  assert.deepStrictEqual(a, b);
+  assert.strictEqual(a.length, 3);
+  assert.strictEqual(new Set(a).size, 3);
+  assert.strictEqual(Game.dailyForDay('2026-09-18').length, 3);
+});
+
+test('rollDaily: photo au lever, idempotent meme jour', () => {
+  const s = Game.defaultState();
+  const T0 = new Date(2026, 8, 17, 12, 0, 0).getTime();
+  Game.newSession(s, T0);
+  s.totalClicks = 50;
+  s.totalEarned = 7000;
+  let r = Game.rollDaily(s, T0);
+  assert.strictEqual(r.rolled, true);
+  assert.strictEqual(r.day, Game.dayKey(T0));
+  assert.strictEqual(s.daily.base.clicks, 50);
+  s.totalClicks = 80;
+  r = Game.rollDaily(s, T0 + 3600000);
+  assert.strictEqual(r.rolled, false);
+  assert.strictEqual(s.daily.base.clicks, 50);
+  r = Game.rollDaily(s, T0 + 86400000);
+  assert.strictEqual(r.rolled, true);
+  assert.strictEqual(s.daily.base.clicks, 80);
+  assert.deepStrictEqual(s.daily.done, []);
+});
+
+test('dailyProgress + checkDaily: delta journalier, combo record absolu', () => {
+  const s = Game.defaultState();
+  const T0 = new Date(2026, 8, 17, 12, 0, 0).getTime();
+  Game.newSession(s, T0);
+  Game.rollDaily(s, T0);
+  const keyOf = (m) => m;
+  const setCounter = (metric, v) => {
+    if (metric === 'clicks') s.totalClicks = v;
+    else if (metric === 'earned') s.totalEarned = v;
+    else if (metric === 'xp') s.xp = v;
+    else if (metric === 'crafted') s.stock.joint = v;
+    else if (metric === 'crits' && s.session) s.session.crits = v;
+    else if (metric === 'peaks' && s.session) s.session.peakSales = v;
+  };
+  const today = Game.dailyForDay(Game.dayKey(T0));
+  const clicks = today[0];
+  const key = keyOf(clicks.metric);
+  setCounter(key, 30);
+  s.daily.base[key] = 30;
+  assert.strictEqual(Game.dailyProgress(s, clicks, T0).value, 0);
+  setCounter(key, 30 + clicks.target + 5);
+  assert.strictEqual(Game.dailyProgress(s, clicks, T0).value, clicks.target + 5);
+  assert.strictEqual(Game.dailyProgress(s, clicks, T0).done, true);
+  assert.ok(Game.checkDaily(s, T0).some((d) => d.id === clicks.id));
+  assert.strictEqual(Game.checkDaily(s, T0).filter((d) => d.id === clicks.id).length, 0);
+  const combo = Game.DAILY_CHALLENGES.find((d) => d.id === 'daily_combo_20');
+  s.combo.maxCombo = 25;
+  assert.strictEqual(Game.dailyProgress(s, combo, T0).value, 25);
+  assert.strictEqual(Game.dailyProgress(s, combo, T0).done, true);
+});
+
+test('claimDaily: gain unique, erreurs couvertes', () => {
+  const s = Game.defaultState();
+  const T0 = new Date(2026, 8, 17, 12, 0, 0).getTime();
+  Game.newSession(s, T0);
+  Game.rollDaily(s, T0);
+  const today = Game.dailyForDay(Game.dayKey(T0)).map((d) => d.id);
+  assert.strictEqual(Game.claimDaily(s, 'nope', T0).ok, false);
+  const outside = Game.DAILY_CHALLENGES.map((d) => d.id).find((id) => !today.includes(id));
+  assert.strictEqual(Game.claimDaily(s, outside, T0).reason, 'not_today');
+  const target = Game.dailyForDay(Game.dayKey(T0))[0];
+  assert.strictEqual(Game.claimDaily(s, target.id, T0).reason, 'not_done');
+  s.totalEarned = 1e12;
+  s.totalClicks = 1e6;
+  s.xp = 1e9;
+  s.combo.maxCombo = 999;
+  s.stock.joint = 999;
+  if (s.session) { s.session.crits = 99; s.session.peakSales = 99; }
+  assert.ok(Game.checkDaily(s, T0).some((d) => d.id === target.id));
+  const weed0 = s.stock.weed;
+  const money0 = s.money;
+  const res = Game.claimDaily(s, target.id, T0);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(Game.claimDaily(s, target.id, T0).reason, 'already_claimed');
+  assert.ok(s.stock.weed >= weed0 && s.money >= money0);
+  assert.ok(s.daily.claimed.includes(target.id));
+});
+
+test('roundtrip daily: persiste, corrompu regenere, vieux migre', () => {
+  const s = Game.defaultState();
+  const T0 = new Date(2026, 8, 17, 12, 0, 0).getTime();
+  Game.newSession(s, T0);
+  s.totalClicks = 100;
+  Game.rollDaily(s, T0);
+  s.totalClicks = 150;
+  Game.checkDaily(s, T0);
+  const d = Game.deserialize(Game.serialize(s));
+  assert.strictEqual(d.daily.day, Game.dayKey(T0));
+  assert.strictEqual(d.daily.base.clicks, 100);
+  assert.deepStrictEqual(d.daily.done, s.daily.done);
+  const bad = Game.deserialize(JSON.stringify({ daily: { day: 'oops', base: { clicks: -3 }, done: ['daily_clicks_200', 'bogus'], claimed: 'nope' } }));
+  assert.strictEqual(bad.daily.day, null);
+  assert.deepStrictEqual(bad.daily.done, []);
+  const old = Game.deserialize(JSON.stringify({ money: 42 }));
+  assert.strictEqual(old.daily.day, null);
+  assert.deepStrictEqual(old.daily.done, []);
+});
+
 
 

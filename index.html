@@ -487,6 +487,22 @@
     .ach-card.done .ach-name { color: var(--gold); }
     .ach-desc { font-size: .64rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .ach-bonus { font-size: .72rem; font-weight: 900; color: var(--gold-soft); flex-shrink: 0; }
+    /* défis quotidiens (vue Progression) */
+    .daily-list { display: flex; flex-direction: column; gap: 8px; }
+    .daily-card { display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+    .daily-card.done { border-color: rgba(74,222,128,.5); }
+    .daily-card.claimed { opacity: .55; }
+    .daily-icon { font-size: 1.4rem; flex-shrink: 0; }
+    .daily-info { flex: 1; min-width: 0; }
+    .daily-name { font-size: .85rem; font-weight: 800; }
+    .daily-desc { font-size: .7rem; color: var(--muted); }
+    .daily-bar { height: 6px; background: #0a0e0a; border-radius: 999px; margin-top: 5px; overflow: hidden; }
+    .daily-fill { height: 100%; background: var(--green); border-radius: 999px; }
+    .daily-card.done .daily-fill { background: linear-gradient(90deg, var(--gold-dim, #a16207), var(--gold)); }
+    .daily-count { font-size: .72rem; font-weight: 800; color: var(--gold-soft); white-space: nowrap; }
+    .daily-btn { flex-shrink: 0; background: linear-gradient(135deg, var(--green-dim), var(--green)); color: #0a0e0a; border: 1px solid var(--green); border-radius: 10px; padding: 8px 12px; font-size: .75rem; font-weight: 800; cursor: pointer; }
+    .daily-btn:disabled { background: #1a1a1a; color: var(--muted); border-color: #333; cursor: not-allowed; }
+    @media (prefers-reduced-motion: reduce) { .daily-btn { transition: none; } }
 
     /* ===== Contracts view ===== */
     .contracts { display: flex; flex-direction: column; gap: 10px; }
@@ -680,6 +696,9 @@
         <div class="xp-bar"><div class="xp-fill" id="streak-fill"></div></div>
         <div class="xp-bottom"><span id="streak-next">Joue aujourd'hui pour démarrer</span><span>max +40% · 10 jours</span></div>
       </div>
+
+      <div class="panel-head sub"><h2>📅 Défis du jour</h2><p>3 défis tirés chaque jour — récompenses immédiates à réclamer</p></div>
+      <div class="daily-list" id="daily"></div>
 
       <div class="panel-head sub"><h2>🏅 Achievements</h2><p>Bonus permanents pour tes accomplissements</p></div>
       <div class="ach-count" id="ach-count"></div>
