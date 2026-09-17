@@ -853,7 +853,20 @@
         const totalShare = Game.distShare ? Game.distShare(state) : 0;
         const idleEst = earn.total > 0 ? '+' + fmt(earn.total) + ' €/s idle' : '';
         el.chainSummary.style.display = 'block';
-        el.chainSummary.innerHTML = '<b>⚙️ ' + activeOwned + '/' + Game.AUTOMATION.length + ' chaînes</b> · Niv total ' + totalLvl + (totalShare ? ' · +' + Math.round(totalShare*100) + '% dist' : '') + (idleEst ? ' · ' + idleEst : '') + ' <span style="float:right;color:var(--gold);font-weight:800;">' + fmt(state.money) + ' €</span>';
+        // spans stables : textContent only, zéro innerHTML (structure built once)
+        const csOwned = document.getElementById('cs-owned');
+        const csTotal = document.getElementById('cs-total');
+        const csDist = document.getElementById('cs-dist');
+        const csIdle = document.getElementById('cs-idle');
+        const csMoney = document.getElementById('cs-money');
+        if (csOwned) csOwned.textContent = activeOwned + '/' + Game.AUTOMATION.length;
+        if (csTotal) csTotal.textContent = totalLvl;
+        if (csDist) {
+          if (totalShare > 0) { csDist.style.display = ''; csDist.textContent = ' · +' + Math.round(totalShare*100) + '% dist'; }
+          else csDist.style.display = 'none';
+        }
+        if (csIdle) csIdle.textContent = idleEst ? ' · ' + idleEst : '';
+        if (csMoney) csMoney.textContent = fmt(state.money) + ' €';
       } else {
         el.chainSummary.style.display = 'none';
       }
