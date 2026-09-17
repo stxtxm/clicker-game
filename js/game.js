@@ -120,6 +120,15 @@
    *  B1 rebalance: 1.35 (was 1.85) — more frequent purchases, less wall. */
   const COST_GROWTH = 1.35;
 
+  /**
+   * Late-game : au-delà de COST_SOFT_FROM niveaux d'un upgrade, la croissance
+   * ralentit (1.35 → COST_GROWTH_LATE) — sinon les multis ×2 (turbo/mega/uv)
+   * deviennent mathématiquement impayables vers le niv 60+ (ROI à 46h+).
+   * L'early (niveaux 0-50) est inchangé au centime près.
+   */
+  const COST_GROWTH_LATE = 1.22;
+  const COST_SOFT_FROM = 50;
+
   /** Growth for distribution upgrades (was storage, same sink role). */
   const STORAGE_GROWTH = 1.9;
 
@@ -505,12 +514,13 @@
   const XP_GROWTH = 1.42;
   /**
    * Late-game rebalance : au-delà du niveau XP_LATE_FROM, la croissance du
-   * coût XP ralentit (1.42 → 1.28) sinon le contenu débloqué à 60/68/75 est
-   * mathématiquement inatteignable. L'early/mid-game (<= 45) est inchangé
-   * au centigramme près — les cibles de pacing du playthrough tiennent toujours.
+   * coût XP ralentit (1.42 → 1.22) sinon le contenu débloqué à 60/78/88 est
+   * mathématiquement inatteignable (audit 8h : mur vers lvl 58, lvl78 à
+   * ~1900h au rythme 2h). L'early/mid-game (<= 40) est inchangé au
+   * centigramme près — les cibles de pacing du playthrough tiennent toujours.
    */
-  const XP_GROWTH_LATE = 1.28;
-  const XP_LATE_FROM = 45;
+  const XP_GROWTH_LATE = 1.22;
+  const XP_LATE_FROM = 40;
 
   /** Milestones: permanent production bonuses granted at lifetime-XP thresholds. */
   const MILESTONES = [
@@ -1430,18 +1440,39 @@
   }
 
   /**
-   * Current purchase price of an upgrade: base cost × COST_GROWTH per level.
-   * Growth is gentler than the old x2.1 doubling — no more dead-end walls.
+   * Exposant de coût effectif d'un upgrade à un niveau d'achat donné : growth
+   * custom s'il existe (clicker/crit/dist), sinon 1.35 → COST_GROWTH_LATE au-
+   * delà de COST_SOFT_FROM niveaux. Soft late-game : les multis ×2 (turbo/mega/uv)
+   * restent rachetables (audit 8h : mur mathématique vers le niv 60+ en growth pur).
+   */
+  function _costGrowthAt(id, purchaseIndex) {
+    const u = UPGRADES.find((x) => x.id === id);
+    if (u && u.growth) return u.growth;
+    return purchaseIndex >= COST_SOFT_FROM ? COST_GROWTH_LATE : COST_GROWTH;
+  }
+
+  /**
+   * Current purchase price of an upgrade: base cost × composed growth.
+   * `purchaseIndex` = nombre d'achats déjà faits (0 pour harvest lvl 1).
+   * Le palier late ne s'applique qu'à la PORTION au-delà de COST_SOFT_FROM.
    */
   function upgradeCost(s, id) {
     const u = UPGRADES.find((x) => x.id === id);
     if (u && u.max && (s.levels[id] || 0) >= u.max) return Infinity;
-    const growth = (u && u.growth) || COST_GROWTH;
-    return Math.floor(BASE_COST[id] * Math.pow(growth, s.levels[id] - (id === 'harvest' ? 1 : 0)));
+    const cur = s.levels[id] - (id === 'harvest' ? 1 : 0);
+    return Math.floor(BASE_COST[id] * _growthFactor(id, cur));
+  }
+
+  /** Facteur de croissance composé pour `n` achats (produit des growths). */
+  function _growthFactor(id, n) {
+    let factor = 1;
+    for (let i = 1; i <= n; i++) factor *= _costGrowthAt(id, i);
+    return factor;
   }
 
   /**
-   * Bulk cost for buying `n` levels at once (geometric sum). Returns total €.
+   * Bulk cost for buying `n` levels at once (somme segmentée, growth degressif).
+   * Returns total €.
    * @param {object} s state
    * @param {string} id upgrade id
    * @param {number} n how many to buy
@@ -1454,11 +1485,11 @@
     if (remaining <= 0) return Infinity;
     const count = Math.max(1, Math.min(Math.floor(n || 1), remaining));
     let total = 0;
-    const growth = (u && u.growth) || COST_GROWTH;
     const base = BASE_COST[id];
-    const cur = s.levels[id] - (id === 'harvest' ? 1 : 0);
+    let cur = s.levels[id] - (id === 'harvest' ? 1 : 0);
     for (let i = 0; i < count; i++) {
-      total += Math.floor(base * Math.pow(growth, cur + i));
+      total += Math.floor(base * _growthFactor(id, cur));
+      cur++;
     }
     return total;
   }
@@ -2121,6 +2152,8 @@
     AUTOMATION,
     BASE_COST,
     COST_GROWTH,
+    COST_GROWTH_LATE,
+    COST_SOFT_FROM,
     STORAGE_GROWTH,
     DEFAULT_LEVELS,
     MARKET,

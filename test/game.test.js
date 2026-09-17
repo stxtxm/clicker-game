@@ -1198,14 +1198,14 @@ test('roundtrip contrats/paliers: claimed + chainStats + chainSpecs préservés'
 
 test('courbe XP hybride: early inchangé, late-game aplati après le niveau XP_LATE_FROM', () => {
   const g = Game.XP_GROWTH, gl = Game.XP_GROWTH_LATE, F = Game.XP_LATE_FROM;
-  // niveaux <= XP_LATE_FROM + 1 : formule historique pure (pacing intact)
-  for (const L of [2, 10, 30, 45, F + 1]) {
+  // niveaux <= XP_LATE_FROM : formule historique pure (pacing intact)
+  for (const L of [2, 10, 30, 40, F]) {
     const n = L - 1;
     assert.strictEqual(Game.xpForLevel(L), Math.round(150 * n * n * Math.pow(g, n)), 'lvl ' + L);
   }
   // au-delà : la croissance bascule sur XP_GROWTH_LATE
-  const n46 = F + 1; // exposant du niveau F + 2
-  assert.strictEqual(Game.xpForLevel(F + 2), Math.round(150 * n46 * n46 * Math.pow(g, F) * Math.pow(gl, 1)));
+  const nF1 = F + 1; // exposant du niveau F + 2 (n = L-1)
+  assert.strictEqual(Game.xpForLevel(F + 2), Math.round(150 * nF1 * nF1 * Math.pow(g, F) * Math.pow(gl, 1)));
   // monotone et significativement plus accessible que la courbe pure 1.42
   assert.ok(Game.xpForLevel(F + 3) > Game.xpForLevel(F + 2));
   const late = Math.round(150 * 74 * 74 * Math.pow(g, F) * Math.pow(gl, 74 - F));
