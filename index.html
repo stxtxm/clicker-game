@@ -84,6 +84,11 @@
       gap: 5px;
     }
     .h-stat b { color: var(--gold); }
+    .sound-btn { background: var(--panel2); border: 1px solid var(--border); border-radius: 999px; width: 34px; height: 34px; font-size: .95rem; line-height: 1; cursor: pointer; color: var(--text); padding: 0; display: flex; align-items: center; justify-content: center; }
+    .sound-btn[aria-pressed="false"] { opacity: .5; }
+    .sound-btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+    .tab-btn:focus-visible, .bb:focus-visible, .mc-btn:focus-visible, .daily-btn:focus-visible, .ct-btn:focus-visible, .qty-pill:focus-visible, .bud-container:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+    .bud-container:focus-visible { border-radius: 50%; }
     main {
       flex: 1 1 0%;
       min-height: 0;
@@ -591,6 +596,7 @@
       <span>Bud Clicker</span>
     </div>
     <div class="header-stats">
+      <button class="sound-btn" id="sound-btn" type="button" aria-pressed="true" title="Activer/désactiver le son" aria-label="Activer ou désactiver le son">🔊</button>
       <div class="h-stat"><span>LVL</span><b id="lv">1</b></div>
       <div class="h-stat"><b id="m">0 €</b><small id="mps" style="display:block;font-size:.6rem;color:var(--green-soft);opacity:.85;line-height:1;"></small></div>
     </div>
@@ -598,14 +604,14 @@
 
   <main>
     <!-- Harvest -->
-    <section class="view view-harvest active" id="v-harvest">
+    <section class="view view-harvest active" id="v-harvest" role="tabpanel" aria-label="Récolte">
       <div class="stats-bar">
-        <div class="stat-pill"><div class="label">Clic</div><div class="val" id="cl">1g</div></div>
+        <div class="stat-pill"><div class="label">Clic</div><div class="val" id="cl" aria-live="off">1g</div></div>
         <div class="stat-pill"><div class="label">Sec</div><div class="val" id="sec">0g</div></div>
         <div class="stat-pill"><div class="label">Stock Weed</div><div class="val" id="stw">0g dispo</div></div>
       </div>
 
-      <div class="bud-container" id="bc" title="Clique !">
+      <div class="bud-container" id="bc" title="Clique !" role="button" tabindex="0" aria-label="Récolter le bud (Espace)">
         <div id="bs"></div>
         <div class="combo-wrap" id="combo-wrap" hidden>
           <div class="combo-pill" id="combo-pill">⚡ Combo</div>
@@ -724,13 +730,13 @@
     </section>
   </main>
 
-  <nav class="bottom-nav">
-    <button class="tab-btn active" data-tab="harvest"><span>🌿</span><span>Récolte</span></button>
-    <button class="tab-btn" data-tab="sell"><span>💰</span><span>Marché</span></button>
-    <button class="tab-btn" data-tab="upgrades"><span>🚀</span><span>Upgrades</span></button>
-    <button class="tab-btn" data-tab="strains"><span>🌱</span><span>Variétés</span></button>
-    <button class="tab-btn" data-tab="progress"><span>📈</span><span>Progression</span></button>
-    <button class="tab-btn" data-tab="contracts"><span>📜</span><span>Contrats</span></button>
+  <nav class="bottom-nav" role="tablist" aria-label="Navigation principale">
+    <button class="tab-btn active" role="tab" aria-selected="true" aria-label="Récolte" data-tab="harvest"><span aria-hidden="true">🌿</span><span>Récolte</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" aria-label="Marché" data-tab="sell"><span aria-hidden="true">💰</span><span>Marché</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" aria-label="Upgrades" data-tab="upgrades"><span aria-hidden="true">🚀</span><span>Upgrades</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" aria-label="Variétés" data-tab="strains"><span aria-hidden="true">🌱</span><span>Variétés</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" aria-label="Progression" data-tab="progress"><span aria-hidden="true">📈</span><span>Progression</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" aria-label="Contrats" data-tab="contracts"><span aria-hidden="true">📜</span><span>Contrats</span></button>
   </nav>
 </div>
 
