@@ -14,18 +14,18 @@
   <style>
     :root {
       --bg: #070a07;
-      --panel: #0e140e;
-      --panel2: #141f14;
+      --panel: #0b110b;
+      --panel2: #111a11;
       --green: #4ade80;
       --green-dim: #166534;
       --green-soft: #86efac;
       --gold: #fbbf24;
       --gold-soft: #fde047;
       --text: #f0fdf4;
-      --muted: #8faa92;
-      --border: rgba(74, 222, 128, 0.15);
-      --border2: rgba(74, 222, 128, 0.35);
-      --sh: 0 8px 32px rgba(0, 0, 0, 0.5);
+      --muted: #7a8e7a;
+      --border: rgba(74, 222, 128, 0.12);
+      --border2: rgba(74, 222, 128, 0.3);
+      --sh: 0 2px 12px rgba(0, 0, 0, 0.45);
       --sat: env(safe-area-inset-top, 0px);
       --sab: env(safe-area-inset-bottom, 0px);
     }
@@ -61,9 +61,7 @@
       justify-content: space-between;
       align-items: center;
       padding: calc(12px + var(--sat)) 16px 12px;
-      background: rgba(7, 10, 7, 0.85);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      background: var(--bg);
       border-bottom: 1px solid var(--border);
       position: sticky;
       top: 0;
@@ -84,6 +82,11 @@
       gap: 5px;
     }
     .h-stat b { color: var(--gold); }
+    .sound-btn { background: var(--panel2); border: 1px solid var(--border); border-radius: 999px; width: 34px; height: 34px; font-size: .95rem; line-height: 1; cursor: pointer; color: var(--text); padding: 0; display: flex; align-items: center; justify-content: center; }
+    .sound-btn[aria-pressed="false"] { opacity: .5; }
+    .sound-btn:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+    .tab-btn:focus-visible, .bb:focus-visible, .mc-btn:focus-visible, .daily-btn:focus-visible, .ct-btn:focus-visible, .qty-pill:focus-visible, .bud-container:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+    .bud-container:focus-visible { border-radius: 50%; }
     main {
       flex: 1 1 0%;
       min-height: 0;
@@ -114,10 +117,8 @@
       overflow-x: hidden;
       -webkit-overflow-scrolling: touch;
       overscroll-behavior: contain;
-      animation: fadeIn .24s cubic-bezier(.2,.8,.2,1);
     }
     .view.active { display: flex; width: 100%; max-width: 100vw; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px) scale(.997); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
     /* ===== Harvest view ===== */
     .view-harvest { align-items: center; justify-content: space-between; flex: 1; text-align: center; padding-top: 10px; }
@@ -149,20 +150,41 @@
       cursor: pointer;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
-      will-change: transform;
       transform-origin: center bottom;
-      transition: filter .12s;
+    }
+    .bud-container::before {
+      content: '';
+      position: absolute;
+      inset: -12%;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(74,222,128,0.18) 0%, rgba(74,222,128,0.05) 55%, transparent 70%);
+      pointer-events: none;
     }
     .bud-container:active { filter: none; }
-    #bs { display: block; width: 100%; height: 100%; animation: budSway 5.5s ease-in-out infinite; transform-origin: 50% 88%; will-change: transform; }
+    #bs { display: block; width: 100%; height: 100%; transform-origin: 50% 88%; animation: budSway 5.5s ease-in-out infinite; }
     @keyframes budSway { 0%, 100% { transform: rotate(-1.4deg); } 50% { transform: rotate(1.4deg); } }
     @media (prefers-reduced-motion: reduce) { #bs { animation: none; } }
+
+    /* maîtrise de la variété équipée (vue Récolte) */
+    .mastery {
+      width: min(72vw, 38vh, 300px);
+      margin: 8px auto 0;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 8px 12px;
+    }
+    .mastery-head { display: flex; justify-content: space-between; align-items: center; font-size: .72rem; font-weight: 800; color: var(--green-soft); margin-bottom: 5px; }
+    .mastery-head b { color: var(--gold); }
+    .mastery-bar { height: 6px; background: #0a0e0a; border-radius: 999px; overflow: hidden; }
+    .mastery-fill { height: 100%; width: 0%; background: var(--green); border-radius: 999px; }
+    .mastery-next { font-size: .62rem; color: var(--muted); margin-top: 3px; }
 
     .upgrade.tier-ready { border-color: var(--gold) !important; box-shadow: 0 0 12px rgba(251,191,36,0.25); }
     .upgrade.popping { animation: upgradePop .35s cubic-bezier(.34,1.56,.64,1); }
     @keyframes upgradePop { 0% { transform: scale(1); } 30% { transform: scale(1.03); } 100% { transform: scale(1); } }
     .chain-bar { height: 6px; background: #0a0e0a; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; margin-top: 6px; }
-    .chain-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-soft)); border-radius: 999px; transition: width .3s; }
+    .chain-fill { height: 100%; background: var(--gold); border-radius: 999px; }
     /* juice chaînes : halo doré après achat, flash de la barre de flux */
     .upgrade.chain-juiced { animation: chainJuice .6s ease-out; }
     @keyframes chainJuice {
@@ -181,14 +203,6 @@
       font-size: .62rem;
     }
     .chain-specs .bb:active:not(:disabled) { transform: scale(.92); filter: brightness(1.18); }
-    .bud-container::before {
-      content: '';
-      position: absolute;
-      inset: -12%;
-      border-radius: 50%;
-      background: radial-gradient(circle, rgba(74,222,128,0.18) 0%, rgba(74,222,128,0.05) 55%, transparent 70%);
-      pointer-events: none;
-    }
     .bud-container svg { width: 100%; height: 100%; display: block; }
     .strain-badge {
       background: var(--panel2);
@@ -203,20 +217,6 @@
       align-items: center;
       gap: 6px;
     }
-    /* maîtrise de la variété équipée (vue Récolte) */
-    .mastery {
-      width: min(72vw, 38vh, 300px);
-      margin: 8px auto 0;
-      background: linear-gradient(135deg, var(--panel), var(--panel2));
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 8px 12px;
-    }
-    .mastery-head { display: flex; justify-content: space-between; align-items: center; font-size: .72rem; font-weight: 800; color: var(--green-soft); margin-bottom: 5px; }
-    .mastery-head b { color: var(--gold); }
-    .mastery-bar { height: 6px; background: #0a0e0a; border-radius: 999px; overflow: hidden; }
-    .mastery-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--green-dim), var(--green)); border-radius: 999px; transition: width .3s; }
-    .mastery-next { font-size: .62rem; color: var(--muted); margin-top: 3px; }
     /* combo — le cœur du clic : pill + barre de temps FLOTTANTES au-dessus du bud.
    position: absolute → zéro impact sur le layout (le bud ne bouge jamais),
    pointer-events: none → les taps traversent vers le bud. */
@@ -237,11 +237,10 @@
       font-size: .8rem;
       font-weight: 900;
       color: var(--gold-soft);
-      background: linear-gradient(135deg, rgba(251,191,36,.18), rgba(251,191,36,.06));
+      background: rgba(251,191,36,0.15);
       border: 1px solid rgba(251,191,36,.4);
       border-radius: 999px;
       padding: 4px 12px;
-      text-shadow: 0 1px 6px rgba(251,191,36,.35);
       white-space: nowrap;
       box-shadow: 0 4px 14px rgba(0,0,0,.45);
     }
@@ -256,7 +255,7 @@
     .combo-bar-fill {
       height: 100%;
       width: 100%;
-      background: linear-gradient(90deg, var(--gold), var(--gold-soft));
+      background: var(--gold);
       transform-origin: left;
       will-change: transform;
     }
@@ -266,20 +265,21 @@
       font-weight: 900;
       letter-spacing: .3px;
       color: #fff;
-      background: linear-gradient(180deg, #fff8cc, var(--gold));
+      background: var(--gold);
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
       text-shadow: 0 2px 8px rgba(0,0,0,.8);
     }
-    .click-fx.warn { background: linear-gradient(180deg, #fecaca, #f87171); -webkit-background-clip: text; background-clip: text; }
-    .click-fx.crit { background: linear-gradient(180deg, #fef08a, #f59e0b); -webkit-background-clip: text; background-clip: text; font-size: clamp(1.2rem, 5.5vw, 1.8rem); }
+    .click-fx.warn { background: #f87171; -webkit-background-clip: text; background-clip: text; }
+    .click-fx.crit { background: #fbbf24; -webkit-background-clip: text; background-clip: text; font-size: clamp(1.2rem, 5.5vw, 1.8rem); }
     #fx { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 60; }
-      pointer-events: none;
+    .click-fx {
+      position: absolute;
       will-change: transform, opacity;
-      animation: floatUp .7s cubic-bezier(.2,.7,.3,1) forwards;
       z-index: 50;
       white-space: nowrap;
+      animation: floatUp .7s cubic-bezier(.2,.7,.3,1) forwards;
     }
     @keyframes floatUp {
       0%   { opacity: 0; transform: translate(-50%, 8px) scale(.7); }
@@ -293,7 +293,7 @@
     .market-grid { display: flex; flex-direction: column; gap: 12px; }
     .market-card {
       contain: content;
-      background: linear-gradient(135deg, var(--panel), var(--panel2));
+      background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 14px;
       padding: 14px;
@@ -321,12 +321,11 @@
       font-size: .82rem;
       font-weight: 700;
       cursor: pointer;
-      transition: background .15s;
+      touch-action: manipulation;
     }
-    .mc-btn { touch-action: manipulation; }
     .mc-btn:hover { background: rgba(74,222,128,0.1); }
     .mc-btn:active:not(:disabled) { transform: scale(.96); filter: brightness(1.12); }
-    .mc-btn.sell { background: linear-gradient(135deg, var(--green-dim), var(--green)); color: #070a07; border: none; font-weight: 800; }
+    .mc-btn.sell { background: var(--green); color: #070a07; border: none; font-weight: 800; }
     .mc-btn:disabled { opacity: .4; cursor: not-allowed; }
     /* sparkline du marché : la position dans le cycle pulse, déterministe */
     .mc-spark { height: 26px; margin: 6px 0 4px; }
@@ -343,7 +342,6 @@
       font-size: .8rem;
       font-weight: 700;
       cursor: pointer;
-      transition: all .15s;
       touch-action: manipulation;
     }
     .qty-pill:active { transform: scale(.94); }
@@ -355,7 +353,8 @@
     [hidden] { display: none !important; }
     .upgrades { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 100%; }
     .upgrade {
-      background: linear-gradient(135deg, var(--panel), var(--panel2));
+      contain: layout;
+      background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 14px;
       padding: 14px;
@@ -367,14 +366,8 @@
       min-width: 0;
       box-sizing: border-box;
       overflow: hidden;
-      width: 100%;
-      max-width: 100%;
-      min-width: 0;
-      box-sizing: border-box;
-      overflow: hidden;
-      transition: border-color .15s, background .15s;
     }
-    .upgrade.affordable { border-color: var(--border2); background: linear-gradient(135deg, rgba(74,222,128,.08), var(--panel2)); }
+    .upgrade.affordable { border-color: var(--border2); background: rgba(74,222,128,.08); }
     .up-icon { font-size: 1.8rem; flex-shrink: 0; }
     .up-info { flex: 1; min-width: 0; overflow: hidden; }
     .up-name { font-size: .9rem; font-weight: 800; margin-bottom: 2px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -384,7 +377,7 @@
     .up-cost { font-size: .88rem; font-weight: 800; color: var(--gold); white-space: nowrap; }
     .upgrade:not(.affordable) .up-cost { color: #666; }
     .up-buy .bb, .st-buy .bb {
-      background: linear-gradient(135deg, var(--green-dim), var(--green));
+      background: var(--green);
       color: #070a07;
       border: none;
       min-width: 76px;
@@ -394,7 +387,7 @@
       font-size: .82rem;
       font-weight: 800;
       cursor: pointer;
-      transition: transform .12s, filter .12s, background .15s;
+      transition: transform .12s, filter .12s;
       touch-action: manipulation;
       -webkit-tap-highlight-color: transparent;
       white-space: nowrap;
@@ -417,7 +410,7 @@
     /* ===== Strains view ===== */
     .strains, .shop-storage, .shop-strains { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 100%; width: 100%; box-sizing: border-box; }
     .strain {
-      background: linear-gradient(135deg, var(--panel), var(--panel2));
+      background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 14px;
       padding: 12px 14px;
@@ -443,43 +436,43 @@
     .st-mastery { display: flex; align-items: center; gap: 8px; margin-top: 4px; min-height: 10px; }
     .stm-lvl { font-size: .64rem; font-weight: 800; color: var(--green-soft); white-space: nowrap; }
     .stm-bar { flex: 1; height: 5px; background: #0a0e0a; border-radius: 999px; overflow: hidden; }
-    .stm-fill { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--green-dim), var(--green-soft)); border-radius: 999px; }
+    .stm-fill { display: block; height: 100%; width: 0%; background: var(--green); border-radius: 999px; }
 
     /* ===== Progression view ===== */
-    .xp-card { background: linear-gradient(135deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 10px; }
+    .xp-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; margin-bottom: 10px; }
     .xp-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     .xp-top b { font-size: 1.05rem; color: var(--green-soft); }
     .xp-top span { font-size: .82rem; font-weight: 800; color: var(--gold); }
     .xp-bar { height: 12px; background: #0a0e0a; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
-    .xp-fill { height: 100%; background: linear-gradient(90deg, var(--green-dim), var(--green)); border-radius: 999px; transition: width .3s cubic-bezier(.4,0,.2,1); min-width: 0; }
+    .xp-fill { height: 100%; background: var(--green); border-radius: 999px; }
     .xp-bottom { display: flex; justify-content: space-between; font-size: .72rem; color: var(--muted); margin-top: 6px; }
 
     .danger-card { background: linear-gradient(135deg, rgba(255,71,87,.06), var(--panel2)); border: 1px solid rgba(255,71,87,.3); border-radius: 14px; padding: 14px; margin-top: 16px; }
     .dc-title { font-weight: 800; color: #ff8a95; }
-    .danger-btn { background: #2c1215; color: #ff6b7a; border: 1px solid rgba(255,71,87,.45); border-radius: 12px; padding: 12px; font-size: .9rem; font-weight: 800; cursor: pointer; width: 100%; margin-top: 10px; transition: all .2s; }
+    .danger-btn { background: #2c1215; color: #ff6b7a; border: 1px solid rgba(255,71,87,.45); border-radius: 12px; padding: 12px; font-size: .9rem; font-weight: 800; cursor: pointer; width: 100%; margin-top: 10px; }
     .danger-btn.armed { background: linear-gradient(135deg,#c22736,#ff4757); color:#fff; border-color:#ff4757; animation:armPulse .5s ease-in-out infinite alternate; }
     @keyframes armPulse { from { opacity: .82; } to { opacity: 1; } }
 
     .panel-head.sub { margin-top: 16px; margin-bottom: 10px; }
     .milestones { display: flex; flex-direction: column; gap: 8px; }
-    .ms-item { display: flex; align-items: center; gap: 12px; background: linear-gradient(135deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; opacity: .55; transition: background .3s, border-color .3s, opacity .3s; }
+    .ms-item { display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; opacity: .55; }
     .ms-item.done { opacity: 1; border-color: var(--border2); }
     .ms-icon { font-size: 1.3rem; flex-shrink: 0; }
     .ms-info { flex: 1; min-width: 0; }
     .ms-name { font-size: .85rem; font-weight: 800; }
     .ms-badge { background: var(--gold); color: #1a1200; padding: 1px 6px; border-radius: 999px; font-size: .6rem; font-weight: 800; margin-left: 4px; }
     .ms-bar { height: 6px; background: #0a0e0a; border-radius: 999px; margin-top: 5px; overflow: hidden; }
-    .ms-fill { height: 100%; background: var(--green); border-radius: 999px; transition: width .3s; }
+    .ms-fill { height: 100%; background: var(--green); border-radius: 999px; }
     .ms-xp { font-size: .7rem; color: var(--muted); flex-shrink: 0; }
 
     /* session, streak et achievements (vue Progression) */
-    .session-card { background: linear-gradient(135deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+    .session-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
     .ses-row { display: flex; justify-content: space-between; align-items: center; font-size: .8rem; color: var(--muted); }
     .ses-row b { color: var(--text); font-weight: 800; }
     #streak-fill { background: linear-gradient(90deg, var(--gold), var(--gold-soft)); }
     .ach-count { font-size: .74rem; color: var(--muted); margin-bottom: 8px; }
     .ach-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-    .ach-card { display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; opacity: .5; transition: border-color .3s, opacity .3s; min-width: 0; }
+    .ach-card { display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; opacity: .5; min-width: 0; }
     .ach-card.done { opacity: 1; border-color: rgba(251,191,36,.5); }
     .ach-icon { font-size: 1.2rem; flex-shrink: 0; }
     .ach-info { min-width: 0; flex: 1; }
@@ -489,7 +482,7 @@
     .ach-bonus { font-size: .72rem; font-weight: 900; color: var(--gold-soft); flex-shrink: 0; }
     /* défis quotidiens (vue Progression) */
     .daily-list { display: flex; flex-direction: column; gap: 8px; }
-    .daily-card { display: flex; align-items: center; gap: 10px; background: linear-gradient(135deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+    .daily-card { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
     .daily-card.done { border-color: rgba(74,222,128,.5); }
     .daily-card.claimed { opacity: .55; }
     .daily-icon { font-size: 1.4rem; flex-shrink: 0; }
@@ -498,7 +491,7 @@
     .daily-desc { font-size: .7rem; color: var(--muted); }
     .daily-bar { height: 6px; background: #0a0e0a; border-radius: 999px; margin-top: 5px; overflow: hidden; }
     .daily-fill { height: 100%; background: var(--green); border-radius: 999px; }
-    .daily-card.done .daily-fill { background: linear-gradient(90deg, var(--gold-dim, #a16207), var(--gold)); }
+    .daily-card.done .daily-fill { background: linear-gradient(90deg, #a16207, var(--gold)); }
     .daily-count { font-size: .72rem; font-weight: 800; color: var(--gold-soft); white-space: nowrap; }
     .daily-btn { flex-shrink: 0; background: linear-gradient(135deg, var(--green-dim), var(--green)); color: #0a0e0a; border: 1px solid var(--green); border-radius: 10px; padding: 8px 12px; font-size: .75rem; font-weight: 800; cursor: pointer; }
     .daily-btn:disabled { background: #1a1a1a; color: var(--muted); border-color: #333; cursor: not-allowed; }
@@ -506,7 +499,7 @@
 
     /* ===== Contracts view ===== */
     .contracts { display: flex; flex-direction: column; gap: 10px; }
-    .ct-card { background: linear-gradient(135deg, var(--panel), var(--panel2)); border: 1px solid var(--border); border-radius: 14px; padding: 14px; transition: border-color .3s, box-shadow .3s; }
+    .ct-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; transition: border-color .3s, box-shadow .3s; }
     .ct-card.locked { opacity: .55; border-color: #444; }
     .ct-card.offered { border-color: var(--gold); box-shadow: 0 0 12px rgba(255,196,0,.15); }
     .ct-card.completed { border-color: var(--green); box-shadow: 0 0 12px rgba(46,204,113,.2); }
@@ -518,10 +511,10 @@
     .ct-target { font-size: .7rem; color: var(--gold); background: rgba(255,196,0,.1); padding: 2px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap; }
     .ct-progress { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
     .ct-bar { flex: 1; height: 8px; background: #0a0e0a; border-radius: 999px; overflow: hidden; min-width: 0; }
-    .ct-fill { height: 100%; background: linear-gradient(90deg, var(--gold-dim), var(--gold)); border-radius: 999px; transition: width .3s; }
+    .ct-fill { height: 100%; background: linear-gradient(90deg, #a16207, var(--gold)); border-radius: 999px; transition: width .3s; }
     .ct-pct { font-size: .7rem; font-weight: 800; color: var(--gold); min-width: 45px; text-align: right; }
     .ct-reward { font-size: .72rem; color: var(--green-soft); margin-top: 8px; padding: 8px; background: rgba(46,204,113,.1); border-radius: 8px; border-left: 3px solid var(--green); }
-    .ct-btn { width: 100%; margin-top: 10px; padding: 12px; font-size: .85rem; font-weight: 800; border-radius: 12px; cursor: pointer; transition: all .2s; }
+    .ct-btn { width: 100%; margin-top: 10px; padding: 12px; font-size: .85rem; font-weight: 800; border-radius: 12px; cursor: pointer; transition: background .15s, box-shadow .15s; }
     .ct-btn:disabled { opacity: .5; cursor: not-allowed; }
     .ct-btn.claim { background: linear-gradient(135deg, var(--green-dim), var(--green)); color: #0a0e0a; border: 1px solid var(--green); animation: ctPulse 1.6s ease-in-out infinite; }
     .ct-btn.claim:hover:not(:disabled) { box-shadow: 0 0 16px rgba(46,204,113,.4); }
@@ -562,7 +555,6 @@
       cursor: pointer;
       padding: 4px 8px;
       border-radius: 10px;
-      transition: color .15s, transform .12s;
       touch-action: manipulation;
     }
     .tab-btn:active { transform: scale(.92); }
@@ -591,6 +583,7 @@
       <span>Bud Clicker</span>
     </div>
     <div class="header-stats">
+      <button class="sound-btn" id="sound-btn" type="button" aria-pressed="true" title="Activer/désactiver le son" aria-label="Activer ou désactiver le son">🔊</button>
       <div class="h-stat"><span>LVL</span><b id="lv">1</b></div>
       <div class="h-stat"><b id="m">0 €</b><small id="mps" style="display:block;font-size:.6rem;color:var(--green-soft);opacity:.85;line-height:1;"></small></div>
     </div>
@@ -598,14 +591,14 @@
 
   <main>
     <!-- Harvest -->
-    <section class="view view-harvest active" id="v-harvest">
+    <section class="view view-harvest active" id="v-harvest" role="tabpanel" aria-label="Récolte">
       <div class="stats-bar">
-        <div class="stat-pill"><div class="label">Clic</div><div class="val" id="cl">1g</div></div>
+        <div class="stat-pill"><div class="label">Clic</div><div class="val" id="cl" aria-live="off">1g</div></div>
         <div class="stat-pill"><div class="label">Sec</div><div class="val" id="sec">0g</div></div>
         <div class="stat-pill"><div class="label">Stock Weed</div><div class="val" id="stw">0g dispo</div></div>
       </div>
 
-      <div class="bud-container" id="bc" title="Clique !">
+      <div class="bud-container" id="bc" title="Clique !" role="button" tabindex="0" aria-label="Récolter le bud (Espace)">
         <div id="bs"></div>
         <div class="combo-wrap" id="combo-wrap" hidden>
           <div class="combo-pill" id="combo-pill">⚡ Combo</div>
@@ -653,7 +646,10 @@
         <span id="upg-qty-info" style="margin-left:auto;font-size:.72rem;color:var(--muted);">Paliers ×2 tous les 40</span>
       </div>
 
-      <div id="chain-summary" style="display:none; background: linear-gradient(135deg, rgba(251,191,36,0.10), var(--panel2)); border: 1px solid rgba(251,191,36,0.25); border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; font-size: .78rem; color: var(--muted);"></div>
+      <div id="chain-summary" style="display:none; background: linear-gradient(135deg, rgba(251,191,36,0.10), var(--panel2)); border: 1px solid rgba(251,191,36,0.25); border-radius: 12px; padding: 10px 14px; margin-bottom: 10px; font-size: .78rem; color: var(--muted);">
+        <b>⚙️ <span id="cs-owned">0/0</span> chaînes</b> · Niv total <span id="cs-total">0</span><span id="cs-dist" style="display:none"></span> · <span id="cs-idle"></span>
+        <span id="cs-money" style="float:right;color:var(--gold);font-weight:800;">0 €</span>
+      </div>
 
       <div class="upgrades" id="ug"></div>
       <div class="upgrades" id="ug-chains" hidden></div>
@@ -724,13 +720,13 @@
     </section>
   </main>
 
-  <nav class="bottom-nav">
-    <button class="tab-btn active" data-tab="harvest"><span>🌿</span><span>Récolte</span></button>
-    <button class="tab-btn" data-tab="sell"><span>💰</span><span>Marché</span></button>
-    <button class="tab-btn" data-tab="upgrades"><span>🚀</span><span>Upgrades</span></button>
-    <button class="tab-btn" data-tab="strains"><span>🌱</span><span>Variétés</span></button>
-    <button class="tab-btn" data-tab="progress"><span>📈</span><span>Progression</span></button>
-    <button class="tab-btn" data-tab="contracts"><span>📜</span><span>Contrats</span></button>
+  <nav class="bottom-nav" role="tablist" aria-label="Navigation principale">
+    <button class="tab-btn active" role="tab" aria-selected="true" aria-label="Récolte" data-tab="harvest"><span aria-hidden="true">🌿</span><span>Récolte</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" aria-label="Marché" data-tab="sell"><span aria-hidden="true">💰</span><span>Marché</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" aria-label="Upgrades" data-tab="upgrades"><span aria-hidden="true">🚀</span><span>Upgrades</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" aria-label="Variétés" data-tab="strains"><span aria-hidden="true">🌱</span><span>Variétés</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" aria-label="Progression" data-tab="progress"><span aria-hidden="true">📈</span><span>Progression</span></button>
+    <button class="tab-btn" role="tab" aria-selected="false" aria-label="Contrats" data-tab="contracts"><span aria-hidden="true">📜</span><span>Contrats</span></button>
   </nav>
 </div>
 

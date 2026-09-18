@@ -108,7 +108,7 @@ All prices (weed included) oscillate between **-30% and +30%** of their base on 
 
 ## Market Products
 
-12 products in `PRODUCTS` (`js/game.js`). Crafting consumes weed from total stock; sale price = `price × strain.priceMult × pulse × spike`. €/g improves with tier, so crafting big beats selling raw — mais demande du weed et du niveau.
+14 products in `PRODUCTS` (`js/game.js`). Crafting consumes weed from total stock; sale price = `price × strain.priceMult × pulse × spike`. €/g improves with tier, so crafting big beats selling raw — mais demande du weed et du niveau.
 
 | Product | Weed | Base Price | €/g | Unlock |
 |---------|------|-----------|-----|--------|
@@ -124,6 +124,8 @@ All prices (weed included) oscillate between **-30% and +30%** of their base on 
 | 💠 THC Diamonds | 1200g | 26 000 € | 21.7 | 60 |
 | 🌙 Moonrock | 2500g | 55 000 € | 22 | 68 |
 | 🥤 Soda THC | 5000g | 115 000 € | 23 | 75 |
+| 🧪 Nectar Terpéné | 11 000g | 300 000 € | 27.3 | 82 |
+| 🥂 Caviar Rosin | 24 000g | 720 000 € | 30 | 88 |
 
 Market actions support quantity presets **x1 / x10 / x100 / MAX** (craft & sell) plus a global **💸 Tout vendre**.
 
@@ -165,6 +167,8 @@ L'effet par point est **data-driven** (`per`), boosté par le matériel (harvest
 | THC Diamonds | 10 400 000 € | 64 | ~156 000 €/s |
 | Moonrock | 22 000 000 € | 72 | ~330 000 €/s |
 | Soda THC | 46 000 000 € | 79 | ~690 000 €/s |
+| Nectar Terpéné | 176 000 000 € | 86 | ~2 640 000 €/s |
+| Caviar Rosin | 384 000 000 € | 92 | ~5 760 000 €/s |
 
 `autoTick()` (chaque seconde, après la production) :
 
@@ -173,7 +177,7 @@ L'effet par point est **data-driven** (`per`), boosté par le matériel (harvest
 
 État : `state.chainLvl[productId]` (niveaux), `state.auto.craft/sell` (flags legacy conservés). Migration auto : une vieille save avec chaîne possédée mais sans niveau → Niv 1. Distribution (`dist1/2/3`) ajoute un bonus global à toutes les chaînes (+3/+6/+10% chacune).
 
-Automation grants no XP (consistent with manual craft/sell). Owned flags live in `state.auto = { craft: {<productId>: true}, sell: {…} }` and are sanitized on load. Full chain example at endgame: Ouvrier+Dealer Live Rosin ≈ 8 500 €/s before strain multipliers.
+Automation grants no XP (consistent with manual craft/sell). Owned flags live in `state.auto = { craft: {<productId>: true}, sell: {…} }` and are sanitized on load. Full chain example at endgame: Ouvrier+Dealer Caviar Rosin ≈ 5,76 M€/s before strain multipliers.
 
 ## Contrats Exclusifs
 
@@ -209,12 +213,12 @@ Then open `http://localhost:8000`.
 ## Running the Tests
 
 ```bash
-npm test        # node --test — 131 tests (120 unit + 10 bud + playthrough) + e2e (skip sans navigateur)
+npm test        # node --test — 132 tests (120 unit + 10 bud + playthrough) + e2e (skip sans navigateur)
 ```
 
 - `test/game.test.js` — economy (costs, sell, craft, storage), strains + level gates, progression (curve, XP, milestones, productionMult, maîtrise), market products (catalog, qty craft/sell, pulse bounds & trends, `marketSamples`), price alerts (arm/fire/sanitize), clicks critiques (chance bornée, déterminisme, ×CRIT_MULT), **streak quotidien** (dayKey/rollStreak/idempotence, cap, sanitisation roundtrip, intégration productionMult), **stats de session** (newSession/sessionStats purs, peak sales, part idle, comptage clics/crits/combo, volatilité), **achievements** (catalogue exporté), **défis quotidiens** (pool 8 → tirage seedé 3/jour, compteurs dérivés sans stockage, gains ponctuels bornés, claim unique, roundtrip/sanitisation), automation (hires, level gate, autoTick ordering & isolation, save roundtrip), chain specialization (specs cost/buy/clamps), chain milestones, contracts (offer/complete/claim, rewards derived from `claimed`), edge cases & save corruption hardening
 - `test/playthrough.test.js` — simulated optimal player (see « Boucle de progression ») asserting the pacing curve (unchanged — streak et défis sont neutres : gains ponctuels hors sim, aucun multiplicateur)
-- `test/e2e.test.js` — drives the REAL game in headless chromium (23 scenarios: harvest click/space, tabs, market render & trends, sell, qty pills, craft+sell, upgrade buy, automation level lock, no-cap accumulation, save persistence, milestones stability, toast dedup, chain specs, idle stats, **sparkline + 🔔 alertes + maîtrise**, **crit 🧨 juice**, **session/streak/achievements UI**, **📅 défis du jour UI** (3 cartes stables, compteurs live, claim), hard reset). Skips gracefully if no browser; CI provides one.
+- `test/e2e.test.js` — drives the REAL game in headless chromium (24 scenarios: harvest click/space, tabs, market render & trends, sell, qty pills, craft+sell, upgrade buy, automation level lock, no-cap accumulation, save persistence, milestones stability, toast dedup, chain specs, idle stats, **sparkline + 🔔 alertes + maîtrise**, **crit 🧨 juice**, **session/streak/achievements UI**, **📅 défis du jour UI** (3 cartes stables, compteurs live, claim), **Progression full** (XP/jalons/streak/défis/session réagissent à un seed riche + réclamation d'un défi), hard reset). Skips gracefully if no browser; CI provides one.
 - `test/bud.test.js` — SVG validity, determinism, `url(#…)` regression, structural counts (72 calyxes, 116 bracts total via rows, fan leaves, sugar leaves)
 
 ## CI & Branch Policy

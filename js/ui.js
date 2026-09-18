@@ -38,6 +38,7 @@
     mc: document.getElementById('mc'),
     bs: document.getElementById('bs'),
     sb: document.getElementById('sb'),
+    soundBtn: document.getElementById('sound-btn'),
     headerLogo: document.getElementById('header-bud-logo'),
     ug: document.getElementById('ug'),
     sv: document.getElementById('sv'),
@@ -126,6 +127,56 @@
       toast('🔥 Streak jour ' + roll.count + ' — +' + Math.round((roll.mult - 1) * 100) + '% de production !', true);
     }
   }
+
+  // --- son (WebAudio, zéro fichier, désactivable) -----------------------------
+  /** AudioContext créé au premier geste (autoplay policy), ou null si inutilisable. */
+  let audioCtx = null;
+  let soundOn = true;
+  const SOUND_KEY = 'budClickerSound';
+
+  function soundEnabled() {
+    try { soundOn = localStorage.getItem(SOUND_KEY) !== 'off'; } catch (e) { /* private mode */ }
+    return soundOn;
+  }
+  function toggleSound() {
+    soundOn = !soundOn;
+    try { localStorage.setItem(SOUND_KEY, soundOn ? 'on' : 'off'); } catch (e) { /* private mode */ }
+    return soundOn;
+  }
+  /** Lazy AudioContext : la première interaction joueur débloque l'audio. */
+  function getCtx() {
+    if (!soundEnabled()) return null;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (audioCtx === null) {
+      if (typeof AC === 'undefined') return null;
+      try { audioCtx = new AC(); } catch (e) { return null; }
+    }
+    return audioCtx;
+  }
+  /** Bip synthétisé court (oscillateur) : `freq` Hz, gain décroissant, polyphonie limitée. */
+  function beep(freq, duration, type, gain) {
+    const ctx = getCtx();
+    if (!ctx) return;
+    try {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = type || 'sine';
+      osc.frequency.value = freq;
+      g.gain.setValueAtTime(gain || 0.08, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + (duration || 0.1));
+      osc.connect(g); g.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + (duration || 0.1));
+      osc.onended = () => { osc.disconnect(); g.disconnect(); };
+    } catch (e) { /* audio indisponible : silencieux */ }
+  }
+  /** Pop discret au clic (montée rapide), crit plus riche (deux notes). */
+  const sfx = {
+    click: () => beep(520, 0.05, 'triangle', 0.05),
+    crit: () => { beep(780, 0.09, 'square', 0.07); setTimeout(() => beep(1170, 0.12, 'square', 0.06), 60); },
+    buy: () => { beep(440, 0.08, 'triangle', 0.06); setTimeout(() => beep(660, 0.1, 'triangle', 0.06), 70); },
+    reward: () => { beep(523, 0.1, 'triangle', 0.07); setTimeout(() => beep(659, 0.1, 'triangle', 0.07), 90); setTimeout(() => beep(784, 0.16, 'triangle', 0.07), 180); }
+  };
 
   // --- rendering -------------------------------------------------------------
   function renderBud() {
@@ -700,6 +751,7 @@
           toast('📅 ' + def.name + ' : ' + bits.join(' · ') + ' !', true);
           spawnParticle('📅 ' + def.icon + ' ' + bits.join(' · ') + ' !', true);
           popNum(el.m);
+          sfx.reward();
         } else if (res.reason === 'already_claimed') {
           toast('Défi déjà réclamé');
         } else {
@@ -801,7 +853,20 @@
         const totalShare = Game.distShare ? Game.distShare(state) : 0;
         const idleEst = earn.total > 0 ? '+' + fmt(earn.total) + ' €/s idle' : '';
         el.chainSummary.style.display = 'block';
-        el.chainSummary.innerHTML = '<b>⚙️ ' + activeOwned + '/' + Game.AUTOMATION.length + ' chaînes</b> · Niv total ' + totalLvl + (totalShare ? ' · +' + Math.round(totalShare*100) + '% dist' : '') + (idleEst ? ' · ' + idleEst : '') + ' <span style="float:right;color:var(--gold);font-weight:800;">' + fmt(state.money) + ' €</span>';
+        // spans stables : textContent only, zéro innerHTML (structure built once)
+        const csOwned = document.getElementById('cs-owned');
+        const csTotal = document.getElementById('cs-total');
+        const csDist = document.getElementById('cs-dist');
+        const csIdle = document.getElementById('cs-idle');
+        const csMoney = document.getElementById('cs-money');
+        if (csOwned) csOwned.textContent = activeOwned + '/' + Game.AUTOMATION.length;
+        if (csTotal) csTotal.textContent = totalLvl;
+        if (csDist) {
+          if (totalShare > 0) { csDist.style.display = ''; csDist.textContent = ' · +' + Math.round(totalShare*100) + '% dist'; }
+          else csDist.style.display = 'none';
+        }
+        if (csIdle) csIdle.textContent = idleEst ? ' · ' + idleEst : '';
+        if (csMoney) csMoney.textContent = fmt(state.money) + ' €';
       } else {
         el.chainSummary.style.display = 'none';
       }
@@ -1055,6 +1120,7 @@
     const res = Game.clickBud(state);
     lastComboCount = res.combo.count;
     if (res.crit) {
+      sfx.crit();
       // 💥 Juice critique : shake plus fort que le squash, pluie d'étincelles
       // dorées + haptique — le moment rare (borné à 30 %) doit se SENTIR.
       if (el.bc.animate) {
@@ -1092,6 +1158,7 @@
         );
       }
       spawnParticle('+' + res.added + 'g' + (res.mult > 1 ? ' · ×' + res.mult.toFixed(1) : ''));
+      sfx.click();
     }
     popNum(el.stw);
     updateComboUI(true);
@@ -1159,6 +1226,7 @@
     if (res.ok) {
       toast(prod.icon + ' ' + res.amount + 'x ' + prod.name + ' fabriqué' + (res.amount > 1 ? 's' : '') + ' !');
       if (el.stw) popNum(el.stw);
+      sfx.buy();
       if (Game.checkDaily) dailyToast(Game.checkDaily(state));
     } else {
       toast('Pas assez de weed (' + (prod ? prod.cost + 'g' : '') + ' requis)');
@@ -1211,6 +1279,7 @@
       const label = res.count ? ' x' + res.count : '';
       toast(res.name + label + ' acheté !');
       popNum(el.m);
+      sfx.buy();
       const card = document.getElementById('ui-' + id);
       if (card) {
         card.classList.add('popping');
@@ -1245,6 +1314,7 @@
         ? res.name + ' embauchée ! 🛠️' + deltaLabel
         : res.name + ' → Niv ' + res.lvl + ' !' + deltaLabel);
       popNum(el.m);
+      sfx.buy();
       const card = document.getElementById('ui-' + id);
       if (card) {
         card.classList.add('popping');
@@ -1422,8 +1492,11 @@
     document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
     const target = document.getElementById('v-' + tab);
     if (target) target.classList.add('active');
-    document.querySelectorAll('.tab-btn').forEach((b) =>
-      b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelectorAll('.tab-btn').forEach((b) => {
+      const on = b.dataset.tab === tab;
+      b.classList.toggle('active', on);
+      b.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
     refreshStats(); // the newly visible view is stale by up to one tick
   }
 
@@ -1437,6 +1510,29 @@
     harvestTarget.addEventListener('click', (ev) => {
       if (Date.now() - lastPointerDown < 600) return; // déjà récolté au pointerdown
       onHarvest(ev);
+    });
+  }
+  // clavier : le bud est focusable (role=button) → Entrée/Espace récoltent
+  if (el.bc) {
+    el.bc.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter' || ev.key === ' ') {
+        ev.preventDefault();
+        onHarvest(ev);
+      }
+    });
+  }
+  if (el.soundBtn) {
+    const syncSoundBtn = () => {
+      const on = soundEnabled();
+      el.soundBtn.textContent = on ? '🔊' : '🔇';
+      el.soundBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    };
+    syncSoundBtn();
+    el.soundBtn.addEventListener('click', () => {
+      const on = toggleSound();
+      el.soundBtn.textContent = on ? '🔊' : '🔇';
+      el.soundBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      if (on) sfx.click();
     });
   }
   if (el.sellAll) el.sellAll.addEventListener('click', () => onSell('all'));

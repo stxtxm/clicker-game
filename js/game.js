@@ -10,25 +10,40 @@
  * `module.exports` in Node). The UI layer (`js/ui.js`) is the only part that
  * mutates state and talks to the DOM.
  *
- * State shape (see `defaultState`):
+ * State shape (see `defaultState`) — the single source of truth:
  *   state = {
- *     weed: number,                      // total harvested (grams)
+ *     weed: number,                      // total harvested (grams, lifetime)
  *     money:  number,                    // €
  *     strain: string,                    // equipped strain id
- *     stock:  {
- *       weed, hash, resin,               // totals (for display/cap)
- *       weedByStrain: { [id]: number },  // per-variety stock
- *       hashByStrain: { [id]: number },
- *       resinByStrain: { [id]: number },
- *       strains: string[]
+ *     stock: {
+ *       weed: number,                    // raw weed on hand
+ *       weedByStrain: { [id]: number },  // per-variety raw stock
+ *       [productId]: number,             // crafted units per product
+ *       [productId + 'ByStrain']: { [id]: number },
+ *       strains: string[]                // owned variety ids
  *     },
- *     prices: { weed },
- *     levels: { harvest, auto, expert, crew, turbo, mega, sbox, coldroom, clicker },
+ *     prices: { weed },                  // base €/g (pulse applied on sale)
+ *     levels: { harvest, auto, expert, thumb, crew, turbo, mega, mist,
+ *               trim, co2, uv, dist1, dist2, dist3, clicker, crit },
+ *     auto: { craft: {}, sell: {} },     // legacy hire flags (kept in sync)
+ *     chainLvl: { [productId]: number }, // chain levels (0 = not hired)
+ *     chainSpecs: { [productId]: { speed, yield, volume } },
+ *     chainStats: { [productId]: { crafted, sold, money } },
+ *     contracts: { completed, offered, claimed, chainMoneyEarned, chainGramsConverted },
  *     xp: number,                        // lifetime XP
  *     milestones: string[],
+ *     achievements: string[],
  *     totalEarned: number,
- *     totalClicks: number,               // clics cumulés (achievements)
- *     combo: { count, lastClickAt, maxCombo }  // combo clic (fenêtre 2s)
+ *     totalClicks: number,               // cumulative clicks (achievements/daily)
+ *     combo: { count, lastClickAt, maxCombo },      // 2s closed window
+ *     streak: { lastDay, count },                   // daily streak (YYYY-MM-DD)
+ *     daily: { day, base, done, claimed },          // daily challenges snapshot
+ *     mastery: { [strainId]: xp },
+ *     alerts: { [marketId]: target },                // armed price alerts
+ *     session: { startedAt, earned, idleEarned, clicks, crits, maxCombo,
+ *                peakSales, biggestSale },           // VOLATILE: never persisted
+ *     lastSeen: number,                              // offline earnings anchor
+ *     spikeUntil: number, spikeProduct: string|null, spikeNextAt: number
  *   }
  */
 (function (root, factory) {
@@ -902,10 +917,11 @@
       : branch === 'yield' ? '+' + pct + '% prix'
       : '+' + pct + '% max';
     const before = chainEarnRate(s).per[productId] || 0;
-    const next = JSON.parse(JSON.stringify(s)); // clone léger, achat simulé
-    next.chainSpecs = next.chainSpecs || defaultChainSpecs();
-    next.chainSpecs[productId] = next.chainSpecs[productId] || { speed: 0, yield: 0, volume: 0 };
-    next.chainSpecs[productId][branch] = cur + 1;
+    // shallow clone — chainEarnRate is pure and never mutates state, so shared
+    // references (levels, chainLvl, contracts…) are safe; only chainSpecs differ.
+    const specs = Object.assign({}, s.chainSpecs || defaultChainSpecs());
+    specs[productId] = Object.assign({ speed: 0, yield: 0, volume: 0 }, specs[productId], { [branch]: cur + 1 });
+    const next = Object.assign({}, s, { chainSpecs: specs });
     const after = chainEarnRate(next).per[productId] || 0;
     return { pctText, epsDelta: after - before, lvl: cur + 1, max: specDef.max };
   }
@@ -1636,6 +1652,7 @@
 
   /** Check and complete contracts. */
   function checkContracts(s, ctx) {
+    if (!s.contracts || typeof s.contracts !== 'object') s.contracts = defaultContracts();
     const completed = [];
     const level = levelFromXp(s.xp);
     for (const ct of CONTRACTS) {
@@ -1659,9 +1676,10 @@
     return completed;
   }
 
-  /** Claim a completed contract. Rewards are DERIVED from the claimed list
-   *  (getContractRewards) — nothing multiplicative is stored in the save. */
+/** Claim a completed contract. Rewards are DERIVED from the claimed list
+    *  (getContractRewards) — nothing multiplicative is stored in the save. */
   function claimContract(s, contractId) {
+    if (!s.contracts || typeof s.contracts !== 'object') s.contracts = defaultContracts();
     const ct = CONTRACTS.find((c) => c.id === contractId);
     if (!ct) return { ok: false, reason: 'unknown' };
     if (!s.contracts.completed.includes(contractId)) return { ok: false, reason: 'not_completed' };
