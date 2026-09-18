@@ -173,9 +173,9 @@ test('playthrough 2h: pacing targets + stats', () => {
   console.log('SIM2H ' + fmtStats(st));
   console.log('SIM2H end ' + JSON.stringify(st.end));
   // Pacing targets for an OPTIMAL player (real players are 2-4x slower).
-  // Refonte click-first : le combo + les upgrades de clic accélèrent le jeu
-  // actif par rapport à l'ancienne courbe idle — les fenêtres ci-dessous
-  // gravent la nouvelle courbe (optimal : lvl10 ~3 min, lvl20 ~9 min).
+  // Late-game rebalance : la courbe XP s'adoucit dès le niveau 40 (1.42 → 1.22)
+  // et le growth des upgrades passe à 1.22 après 50 achats — l'optimal atteint
+  // ~58 en 2h (avant : mur à 51, contenu 60-88 inatteignable). Early intact.
   assert.ok(st.firstUpgrade !== null && st.firstUpgrade <= 1, 'first upgrade within a minute');
   assert.ok(st.levels[10] >= 2 && st.levels[10] <= 10, 'level 10 around 3-4 min of optimal play');
   assert.ok(st.levels[20] >= 5 && st.levels[20] <= 30, 'level 20 a ~9-15 min milestone (plus de frein stock)');
@@ -183,7 +183,7 @@ test('playthrough 2h: pacing targets + stats', () => {
   assert.ok(st.firstChain >= 1 && st.firstChain <= 10, 'first chain is an early mid-game goal');
   assert.ok(st.earned[1000000] >= 2 && st.earned[1000000] <= 10, '1M lifetime around 3 min of optimal play');
   assert.ok(st.earned[10000000] >= 3, '10M not before ~3 min even when perfect');
-  assert.ok(st.end.level >= 35, 'progression keeps flowing (no wall)');
+  assert.ok(st.end.level >= 45, 'late-game reachable: 2h optimales poussent bien au-dela du mur (avant: 51)');
   assert.ok(st.end.totalChainLvl > st.end.chains, 'chains get upgraded beyond hire (idle scaling works)');
   // Click-first: le joueur actif doit rester LE moteur de l'économie.
   // Les chaînes ne convertissent QUE le flux auto (CHAIN_FLOW_SHARE 8%, plafond
@@ -193,7 +193,8 @@ test('playthrough 2h: pacing targets + stats', () => {
     'active share ' + st.end.activeShare.toFixed(2) + ' — le clic doit dominer (click-first)');
   assert.ok(st.end.idleShare <= 0.45,
     'idle share ' + st.end.idleShare.toFixed(2) + ' — les chaînes restent annexes');
-  // Anti-explosion (bugs type NaN/négatif) : l'exponentielle saine du genre est
-  // assumée, on garde juste un ordre de grandeur max sur 2h optimales.
-  assert.ok(st.end.totalEarned < 5e15, 'no runaway explosion over a 2h optimal run');
+  // Anti-explosion (bugs type NaN/négatif) : la boucle upgrades→revenus saine
+  // du genre est assumée (growth soft la rend plus vive), on garde un ordre de
+  // grandeur max sur 2h optimales — 4x la valeur observée (8.9e15).
+  assert.ok(st.end.totalEarned < 4e16, 'no runaway explosion over a 2h optimal run');
 });
