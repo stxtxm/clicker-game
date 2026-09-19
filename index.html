@@ -54,7 +54,7 @@
       overflow: hidden;
       background: var(--bg);
       position: relative;
-      box-shadow: 0 0 50px rgba(0,0,0,0.8);
+      box-shadow: 0 0 30px rgba(0,0,0,0.6);
     }
     header {
       display: flex;
@@ -161,9 +161,9 @@
       pointer-events: none;
     }
     .bud-container:active { filter: none; }
-    #bs { display: block; width: 100%; height: 100%; transform-origin: 50% 88%; animation: budSway 5.5s ease-in-out infinite; }
-    @keyframes budSway { 0%, 100% { transform: rotate(-1.4deg); } 50% { transform: rotate(1.4deg); } }
-    @media (prefers-reduced-motion: reduce) { #bs { animation: none; } }
+    /* budSway supprimé : l'eye-candy continu (@keyframes 8s) force le compositage GPU
+       même quand l'app est en arrière-plan sur mobile — inutile pour le cœur du jeu.
+       Le feedback tactile passe uniquement par .bud-container:active ci-dessus. */
 
     /* maîtrise de la variété équipée (vue Récolte) */
     .mastery {
@@ -180,23 +180,12 @@
     .mastery-fill { height: 100%; width: 0%; background: var(--green); border-radius: 999px; }
     .mastery-next { font-size: .62rem; color: var(--muted); margin-top: 3px; }
 
-    .upgrade.tier-ready { border-color: var(--gold) !important; box-shadow: 0 0 12px rgba(251,191,36,0.25); }
+    .upgrade.tier-ready { border-color: var(--gold) !important; }
     .upgrade.popping { animation: upgradePop .35s cubic-bezier(.34,1.56,.64,1); }
     @keyframes upgradePop { 0% { transform: scale(1); } 30% { transform: scale(1.03); } 100% { transform: scale(1); } }
     .chain-bar { height: 6px; background: #0a0e0a; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; margin-top: 6px; }
     .chain-fill { height: 100%; background: var(--gold); border-radius: 999px; }
-    /* juice chaînes : halo doré après achat, flash de la barre de flux */
-    .upgrade.chain-juiced { animation: chainJuice .6s ease-out; }
-    @keyframes chainJuice {
-      0% { box-shadow: 0 0 0 rgba(251,191,36,0); border-color: var(--border2); }
-      35% { box-shadow: 0 0 20px rgba(251,191,36,.55), 0 0 40px rgba(251,191,36,.18); border-color: var(--gold); }
-      100% { box-shadow: 0 0 0 rgba(251,191,36,0); border-color: var(--border2); }
-    }
-    .chain-fill.flash, .spec-fill.spec-flash { animation: fillFlash .5s ease-out; }
-    @keyframes fillFlash {
-      0%, 100% { filter: brightness(1); }
-      40% { filter: brightness(1.9) saturate(1.4); }
-    }
+    /* animations de flash supprimées (fillFlash/chain-juice) — inutiles avec les compteurs textuels */
     .chain-specs .bb {
       min-height: 26px;
       padding: 2px 8px;
@@ -259,33 +248,7 @@
       transform-origin: left;
       will-change: transform;
     }
-    .click-fx {
-      position: fixed;
-      font-size: clamp(1rem, 4.2vw, 1.35rem);
-      font-weight: 900;
-      letter-spacing: .3px;
-      color: #fff;
-      background: var(--gold);
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
-      text-shadow: 0 2px 8px rgba(0,0,0,.8);
-    }
-    .click-fx.warn { background: #f87171; -webkit-background-clip: text; background-clip: text; }
-    .click-fx.crit { background: #fbbf24; -webkit-background-clip: text; background-clip: text; font-size: clamp(1.2rem, 5.5vw, 1.8rem); }
-    #fx { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 60; }
-    .click-fx {
-      position: absolute;
-      will-change: transform, opacity;
-      z-index: 50;
-      white-space: nowrap;
-      animation: floatUp .7s cubic-bezier(.2,.7,.3,1) forwards;
-    }
-    @keyframes floatUp {
-      0%   { opacity: 0; transform: translate(-50%, 8px) scale(.7); }
-      12%  { opacity: 1; transform: translate(-50%, 0) scale(1.08); }
-      100% { opacity: 0; transform: translate(-50%, -52px) scale(1); }
-    }
+    /* particules supprimées (mobile-first) : feedback = toasts + popNum, zéro couche fixed */
     /* ===== Market view ===== */
     .panel-head { margin-bottom: 14px; }
     .panel-head h2 { font-size: 1.25rem; font-weight: 800; letter-spacing: -0.3px; margin-bottom: 2px; }
@@ -300,9 +263,8 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
-      transition: border-color .2s, box-shadow .2s;
     }
-    .market-card.spike { border-color: rgba(251,191,36,0.65); background: linear-gradient(135deg, rgba(251,191,36,0.16), var(--panel2)); box-shadow: 0 0 16px rgba(251,191,36,0.28); }
+    .market-card.spike { border-color: var(--gold); }
     .mc-top { display: flex; justify-content: space-between; align-items: center; }
     .mc-title { font-weight: 800; font-size: .95rem; display: flex; align-items: center; gap: 8px; }
     .mc-price { font-size: .8rem; font-weight: 700; color: var(--gold); background: rgba(251,191,36,0.1); padding: 3px 8px; border-radius: 999px; }
@@ -327,11 +289,9 @@
     .mc-btn:active:not(:disabled) { transform: scale(.96); filter: brightness(1.12); }
     .mc-btn.sell { background: var(--green); color: #070a07; border: none; font-weight: 800; }
     .mc-btn:disabled { opacity: .4; cursor: not-allowed; }
-    /* sparkline du marché : la position dans le cycle pulse, déterministe */
-    .mc-spark { height: 26px; margin: 6px 0 4px; }
-    .mc-spark svg { width: 100%; height: 100%; display: block; }
-    .mc-btn.bell { flex: 0 0 auto; padding: 10px 10px; font-size: .8rem; color: var(--muted); background: var(--panel2); border: 1px solid var(--border2); }
-    .mc-btn.bell.armed { color: var(--gold); border-color: var(--gold); background: rgba(251,191,36,0.14); }
+    /* sparkline du marché : supprimé (info redondante avec flèche trend) */
+    .mc-btn.sell { background: var(--green); color: #070a07; border: none; font-weight: 800; }
+    .mc-btn:disabled { opacity: .4; cursor: not-allowed; }
     .qty-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
     .qty-pill {
       background: var(--panel2);
@@ -450,8 +410,9 @@
     .danger-card { background: linear-gradient(135deg, rgba(255,71,87,.06), var(--panel2)); border: 1px solid rgba(255,71,87,.3); border-radius: 14px; padding: 14px; margin-top: 16px; }
     .dc-title { font-weight: 800; color: #ff8a95; }
     .danger-btn { background: #2c1215; color: #ff6b7a; border: 1px solid rgba(255,71,87,.45); border-radius: 12px; padding: 12px; font-size: .9rem; font-weight: 800; cursor: pointer; width: 100%; margin-top: 10px; }
-    .danger-btn.armed { background: linear-gradient(135deg,#c22736,#ff4757); color:#fff; border-color:#ff4757; animation:armPulse .5s ease-in-out infinite alternate; }
-    @keyframes armPulse { from { opacity: .82; } to { opacity: 1; } }
+    .danger-btn.armed { background: linear-gradient(135deg,#c22736,#ff4757); color:#fff; border-color:#ff4757; }
+    
+    .danger-btn.armed:active { transform: scale(0.98); }
 
     .panel-head.sub { margin-top: 16px; margin-bottom: 10px; }
     .milestones { display: flex; flex-direction: column; gap: 8px; }
@@ -499,10 +460,10 @@
 
     /* ===== Contracts view ===== */
     .contracts { display: flex; flex-direction: column; gap: 10px; }
-    .ct-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; transition: border-color .3s, box-shadow .3s; }
+    .ct-card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 14px; }
     .ct-card.locked { opacity: .55; border-color: #444; }
-    .ct-card.offered { border-color: var(--gold); box-shadow: 0 0 12px rgba(255,196,0,.15); }
-    .ct-card.completed { border-color: var(--green); box-shadow: 0 0 12px rgba(46,204,113,.2); }
+    .ct-card.offered { border-color: var(--gold); }
+    .ct-card.completed { border-color: var(--green); }
     .ct-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
     .ct-icon { font-size: 1.5rem; flex-shrink: 0; }
     .ct-info { flex: 1; min-width: 0; }
@@ -511,23 +472,33 @@
     .ct-target { font-size: .7rem; color: var(--gold); background: rgba(255,196,0,.1); padding: 2px 8px; border-radius: 999px; font-weight: 700; white-space: nowrap; }
     .ct-progress { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
     .ct-bar { flex: 1; height: 8px; background: #0a0e0a; border-radius: 999px; overflow: hidden; min-width: 0; }
-    .ct-fill { height: 100%; background: linear-gradient(90deg, #a16207, var(--gold)); border-radius: 999px; transition: width .3s; }
+    .ct-fill { height: 100%; background: var(--gold); border-radius: 999px; }
     .ct-pct { font-size: .7rem; font-weight: 800; color: var(--gold); min-width: 45px; text-align: right; }
     .ct-reward { font-size: .72rem; color: var(--green-soft); margin-top: 8px; padding: 8px; background: rgba(46,204,113,.1); border-radius: 8px; border-left: 3px solid var(--green); }
-    .ct-btn { width: 100%; margin-top: 10px; padding: 12px; font-size: .85rem; font-weight: 800; border-radius: 12px; cursor: pointer; transition: background .15s, box-shadow .15s; }
+    .ct-btn { width: 100%; margin-top: 10px; padding: 12px; font-size: .85rem; font-weight: 800; border-radius: 12px; cursor: pointer; }
     .ct-btn:disabled { opacity: .5; cursor: not-allowed; }
-    .ct-btn.claim { background: linear-gradient(135deg, var(--green-dim), var(--green)); color: #0a0e0a; border: 1px solid var(--green); animation: ctPulse 1.6s ease-in-out infinite; }
-    .ct-btn.claim:hover:not(:disabled) { box-shadow: 0 0 16px rgba(46,204,113,.4); }
-    @keyframes ctPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.045); } }
-    @media (prefers-reduced-motion: reduce) { .ct-btn.claim { animation: none; } }
+    .ct-btn.claim { background: var(--green); color: #0a0e0a; border: 1px solid var(--green); }
+    
+    .ct-btn.claim:active:not(:disabled) { transform: scale(0.98); }
     .ct-btn.locked { background: #1a1a1a; color: var(--muted); border: 1px solid #333; }
 
-    /* ===== Toasts ===== */
-    .mc { position: fixed; top: calc(8px + var(--sat)); left: 0; right: 0; pointer-events: none; z-index: 1000; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 0 20px; }
-    .ms { background: rgba(0,0,0,.92); color: var(--green-soft); padding: 11px 20px; border-radius: 12px; font-size: .9rem; font-weight: 800; border: 1px solid var(--border); box-shadow: var(--sh); animation: mi .28s cubic-bezier(.34,1.56,.64,1),mo .25s cubic-bezier(.4,0,.2,1) 1.8s forwards; text-align: center; }
-    .ms.big { color: var(--gold); border-color: var(--gold); background: linear-gradient(180deg, rgba(251,191,36,.18), rgba(0,0,0,.94)); font-size: 1rem; text-shadow: 0 0 14px rgba(251,191,36,.35); }
-    @keyframes mi { from { opacity: 0; transform: translateY(-10px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
-    @keyframes mo { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-10px); } }
+    /* ===== Toasts (mobile-first : en haut, compact, discret) ===== */
+    .mc { position: fixed; top: calc(6px + var(--sat)); left: 0; right: 0; pointer-events: none; z-index: 1000; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 0 12px; }
+    .ms { background: rgba(7,10,7,.92); color: var(--green-soft); padding: 7px 14px; border-radius: 8px; font-size: .78rem; font-weight: 700; border: 1px solid var(--border); text-align: center; max-width: calc(100% - 24px); }
+    .ms.big { color: var(--gold); border-color: var(--gold); background: var(--panel2); }
+
+    /* ===== Coach marks (tutoriel premier-run) =====
+      Texte discret en bas du conteneur, pas d'overlay, pas d'animation pulse.
+    */
+    .coach { display: block; padding: 6px 12px; cursor: pointer; }
+    .coach[hidden] { display: none; }
+    .coach-card { display: flex; align-items: center; gap: 8px; justify-content: center; }
+    .coach-head b { font-size: .72rem; font-weight: 800; color: var(--gold-soft); white-space: nowrap; }
+    .coach-step { font-size: .62rem; font-weight: 800; color: var(--gold); }
+    .coach-text { font-size: .68rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .coach-skip { display: none; }
+    .coach-target.tab-btn { position: relative; }
+    .coach-target.tab-btn::after { display: none; }
 
     /* ===== Bottom Nav ===== */
     .bottom-nav {
@@ -700,10 +671,11 @@
       <div class="ach-count" id="ach-count"></div>
       <div class="ach-grid" id="ach"></div>
 
-      <div class="danger-card" id="pwa-card" style="margin-top:16px; display:none;">
-        <div class="dc-title">📱 Application PWA</div>
-        <div class="pc-desc" style="font-size:.78rem;color:var(--muted);line-height:1.45;margin-top:4px;margin-bottom:10px;">Installe Bud Clicker sur ton appareil pour y jouer en plein écran, hors-ligne et profiter d'un accès instantané.</div>
-        <button class="mc-btn" id="pwa-install-btn" style="background:var(--green-dim);border-color:var(--green);color:var(--text);font-weight:700;width:100%;padding:12px;">📲 Installer l'application</button>
+
+      <div class="danger-card" style="border-color:var(--border2);background:var(--panel);">
+        <div class="dc-title" style="color:var(--green-soft)">🎓 Tutoriel</div>
+        <div class="pc-desc" style="font-size:.78rem;color:var(--muted);line-height:1.45;margin-top:4px;margin-bottom:10px;">Rejoue les 3 étapes de départ : récolter le bud, vendre au Marché, acheter un premier upgrade.</div>
+        <button class="mc-btn" id="coach-replay" style="background:var(--panel2);border-color:var(--border2);color:var(--text);font-weight:700;width:100%;padding:12px;">Revoir le tutoriel</button>
       </div>
 
       <div class="danger-card">
@@ -719,6 +691,14 @@
       <div class="contracts" id="cv"></div>
     </section>
   </main>
+
+  <div class="coach" id="coach" hidden>
+    <div class="coach-card">
+      <div class="coach-head"><b id="coach-title">Tutoriel</b><span class="coach-step" id="coach-step"></span></div>
+      <div class="coach-text" id="coach-text" role="status" aria-live="polite"></div>
+      <button class="coach-skip" id="coach-skip" type="button">Passer le tuto</button>
+    </div>
+  </div>
 
   <nav class="bottom-nav" role="tablist" aria-label="Navigation principale">
     <button class="tab-btn active" role="tab" aria-selected="true" aria-label="Récolte" data-tab="harvest"><span aria-hidden="true">🌿</span><span>Récolte</span></button>
@@ -767,36 +747,7 @@
     });
   }
 
-  let deferredPrompt;
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredPrompt = e;
-    const pwaCard = document.getElementById('pwa-card');
-    if (pwaCard) pwaCard.style.display = 'block';
-  });
-
-  const pwaBtn = document.getElementById('pwa-install-btn');
-  if (pwaBtn) {
-    pwaBtn.addEventListener('click', async () => {
-      if (deferredPrompt) {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-          const pwaCard = document.getElementById('pwa-card');
-          if (pwaCard) pwaCard.style.display = 'none';
-        }
-        deferredPrompt = null;
-      } else {
-        alert("Pour installer l'application :\n- Sur iOS (Safari) : Appuie sur le bouton Partager (icône de partage en bas) puis 'Sur l'écran d'accueil'.\n- Sur Android (Chrome) : Ouvre le menu ⋮ et choisis 'Installer l'application' ou 'Ajouter à l'écran d'accueil'.");
-      }
-    });
-  }
-
-  window.addEventListener('appinstalled', () => {
-    const pwaCard = document.getElementById('pwa-card');
-    if (pwaCard) pwaCard.style.display = 'none';
-    deferredPrompt = null;
-  });
+  window.addEventListener('beforeinstallprompt', (e) => e.preventDefault());
 </script>
 </body>
 </html>
