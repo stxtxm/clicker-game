@@ -55,12 +55,8 @@
     achCount: document.getElementById('ach-count'),
     sesEarned: document.getElementById('ses-earned'),
     sesPerMin: document.getElementById('ses-permin'),
-    sesIdle: document.getElementById('ses-idle'),
     sesClicks: document.getElementById('ses-clicks'),
-    sesCrits: document.getElementById('ses-crits'),
     sesCombo: document.getElementById('ses-combo'),
-    sesPeaks: document.getElementById('ses-peaks'),
-    sesBig: document.getElementById('ses-big'),
     daily: document.getElementById('daily'),
     streakLvl: document.getElementById('streak-lvl'),
     streakMult: document.getElementById('streak-mult'),
@@ -86,11 +82,6 @@
   /** Dernier achievement notifié côté autoTick (anti-spam : 1 seul toast). */
   let lastAutoAchId = null;
 
-  // --- juice : paliers de gains totaux (💰) -----------------------------------
-  /** Exposant du palier de 10 atteint par les gains totaux (0 sous 1 M€). */
-  function earnStep(te) { return te >= 1e6 ? Math.floor(Math.log10(te)) : 0; }
-  /** Label compact pour le juice : 1 M€, 250 M€, 3 Md€… */
-  let lastEarnStep = 0;
   /** Dernier toast d'erreur (funds/level/locked) : throttle global anti-spam. */
   let lastErrToast = 0;
   /** Dernier popNum par nœud : throttle 150 ms (spam-clic mobile). */
@@ -661,18 +652,14 @@
     }
   }
 
-  /** Stats de session (€/min, part idle, crits, ventes au pic) — pure lecture. */
+  /** Stats de session (gains, rythme, clics, combo max) — pure lecture. */
   function updateSessionCard() {
     if (!el.sesEarned || !Game.sessionStats) return;
     const st = Game.sessionStats(state);
     el.sesEarned.textContent = '+' + fmt(st.earned) + ' €';
     el.sesPerMin.textContent = fmt(st.perMin) + ' €/min';
-    el.sesIdle.textContent = Math.round(st.idleShare * 100) + '%';
     el.sesClicks.textContent = fmt(st.clicks);
-    el.sesCrits.textContent = st.clicks > 0 ? st.crits + ' (' + st.critRate.toFixed(1) + '%)' : '0';
     el.sesCombo.textContent = '×' + Game.comboMultiplier(st.maxCombo).toFixed(1) + ' (' + st.maxCombo + ' clics)';
-    el.sesPeaks.textContent = String(st.peakSales);
-    el.sesBig.textContent = fmt(st.biggestSale) + ' €';
   }
 
   /** Carte streak : jour courant + bonus actif + progression vers le cap. */
@@ -801,13 +788,13 @@
     // PAS de cap : le stock est libre, on affiche juste le total
     if (el.stw) el.stw.textContent = fmt(state.stock.weed) + 'g dispo';
 
-    updateMastery();
+    if (active('harvest')) updateMastery();
     if (active('strains')) updateStrainMastery();
 
     if (active('sell')) renderMarket();
     if (active('contracts')) updateContracts();
-    if (active('progress') || active('harvest')) renderProgress();
     if (active('progress')) {
+      renderProgress();
       updateSessionCard();
       updateStreakCard();
       updateDaily();
@@ -1273,9 +1260,7 @@
     /* défis du jour : photo silencieuse (le déclenchement du défi proprement dit
        reste une action joueur dans onClaimDaily, donc aucun toast auto) */
     if (Game.rollDaily) Game.rollDaily(state, now);
-    /* spike : feedback maintenu car c'est un événement fort (15s, visible) */
-    const spiked = Game.maybeTriggerSpike && Game.maybeTriggerSpike(state, now);
-    if (spiked) { /* silencieux : la carte affiche déjà la ruée en place */ }
+    if (Game.maybeTriggerSpike) Game.maybeTriggerSpike(state, now);
     // alertes de prix : check silencieux (retire les alertes armées de l'état)
     if (Game.checkPriceAlerts) Game.checkPriceAlerts(state, now);
     const ar = Game.perSecond(state);
@@ -1291,12 +1276,6 @@
       if (lastAutoAchId !== a.id) { lastAutoAchId = a.id; toast('🏅 ' + a.name + ' (+' + a.bonus + '%) !', true); }
     }
     if (Game.checkContracts) Game.checkContracts(state);
-    /* gains totaux : popNum uniquement, le chiffre dans le header parle tout seul */
-    const earnSt = earnStep(state.totalEarned || 0);
-    if (earnSt > lastEarnStep) {
-      lastEarnStep = earnSt;
-      popNum(el.m);
-    }
     // spoilage doux (remplace le cap)
     const spoiled = Game.applySpoil ? Game.applySpoil(state) : 0;
     if (!document.hidden) refreshStats();
@@ -1319,7 +1298,6 @@
   function load() {
     try {
       state = Game.deserialize(localStorage.getItem(SAVE_KEY));
-      lastEarnStep = earnStep(state.totalEarned || 0); // pas de toast au boot
       // session de jeu : volatiles (compteurs de la save jamais repris)
       if (Game.newSession) Game.newSession(state);
       // streak quotidien : marque le jour (toast si le streak progresse)
@@ -1501,7 +1479,6 @@
     disarmReset();
     try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
     state = Game.defaultState();
-    lastEarnStep = 0;
     coachStepShown = -1;
     if (Game.newSession) Game.newSession(state);
     renderBud();
