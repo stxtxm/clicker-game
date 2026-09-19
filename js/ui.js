@@ -25,7 +25,6 @@
     stw: document.getElementById('stw'),
     comboWrap: document.getElementById('combo-wrap'),
     comboPill: document.getElementById('combo-pill'),
-    comboBar: document.getElementById('combo-bar'),
     marketGrid: document.getElementById('market-grid'),
     sellAll: document.getElementById('sell-all'),
     qtyRow: document.getElementById('qty-row'),
@@ -552,10 +551,6 @@
           btn.className = 'ct-btn claim';
           btn.onclick = () => {
             const res = Game.claimContract(state, ct.id);
-            if (res.ok) {
-              toast(res.contract.icon + ' Contrat accompli : ' + res.contract.reward.desc);
-              popNum(el.m);
-            }
             refreshStats();
             saveSoon(1000);
           };
@@ -710,16 +705,7 @@
       card.querySelector('.daily-btn').addEventListener('click', () => {
         const res = Game.claimDaily(state, def.id);
         if (res.ok) {
-          const bits = [];
-          if (res.gained.weed) bits.push('+' + fmt(res.gained.weed) + 'g');
-          if (res.gained.money) bits.push('+' + fmt(res.gained.money) + ' €');
-          toast('📅 ' + def.name + ' : ' + bits.join(' · ') + ' !', true);
-          popNum(el.m);
           sfx.reward();
-        } else if (res.reason === 'already_claimed') {
-          errToast('Défi déjà réclamé');
-        } else {
-          errToast('Défi pas encore terminé');
         }
         refreshStats();
         saveSoon(1000);
@@ -992,18 +978,6 @@
           const impactText = impact && impact.pctText ? impact.pctText : '';
           const epsTxt = impact && impact.epsDelta > 0 ? ' (+' + fmt(impact.epsDelta) + ' €/s)' : '';
           toast('💎 ' + def.name + ' → ' + res.lvl + '/' + def.max + ' — ' + impactText + epsTxt);
-          popNum(btn);
-          // juice : la branche flash en doré, le compteur pop, la carte vibre,
-          // une particule part exactement du bouton qui vient de payer
-          const countEl = document.getElementById('cs-' + pid + '-' + branch + '-count');
-          if (countEl) popNum(countEl);
-          const card = document.getElementById('ui-' + 'auto-' + pid);
-          if (card) {
-            card.classList.add('popping');
-            card.animate && card.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.02)' }, { transform: 'scale(1)' }], { duration: 180, easing: 'ease-out' });
-            setTimeout(() => card.classList.remove('popping'), 400);
-          }
-          if (el.mps) popNum(el.mps);
 
         } else if (res.reason === 'funds') {
           errToast('Pas assez d\'argent');
@@ -1061,8 +1035,9 @@
   /** Dernier compte de combo affiché (détecte l'expiration pour cacher l'UI). */
   let lastComboCount = 0;
 
-  /** Combo UI : pill dorée + barre de temps (scaleX compositor, WAAPI). */
-  function updateComboUI(reanimateBar) {
+  /** Combo UI : pill dorée statique (la barre temporelle est supprimée —
+      zoom textuel du multiplicateur suffit, 1 textContent par clic). */
+  function updateComboUI() {
     if (!el.comboWrap || !el.comboPill) return;
     const c = state.combo || { count: 0 };
     const count = c.count || 0;
@@ -1073,12 +1048,6 @@
       el.comboPill.textContent = count >= Game.COMBO_CAP
         ? '⚡ Combo MAX — clic ×' + mult.toFixed(1)
         : '⚡ Combo ×' + count + ' — clic ×' + mult.toFixed(1);
-      if (reanimateBar && el.comboBar && el.comboBar.animate) {
-        el.comboBar.animate(
-          [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }],
-          { duration: Game.COMBO_WINDOW_MS, easing: 'linear' }
-        );
-      }
     }
   }
 
@@ -1088,20 +1057,17 @@
     lastComboCount = res.combo.count;
     if (res.crit) {
       sfx.crit();
-      // 💥 Juice critique : feedback haptique + animation courte.
-      // le moment rare (borné à 30 %) doit se SENTIR. Animation simplifiée.
+      // 1 seul bounce (crit ≈ normal) — le texte suffit, pas de rotation coûteuse
       if (el.bc.animate) {
         el.bc.animate(
           [
-            { transform: 'scale(1) rotate(0deg)' },
-            { transform: 'scale(1.08, 0.92) rotate(-1.6deg)', offset: 0.2 },
-            { transform: 'scale(0.92, 1.08) rotate(1.6deg)', offset: 0.45 },
-            { transform: 'scale(1) rotate(0deg)' }
+            { transform: 'scale(1)' },
+            { transform: 'scale(0.96, 1.04)', offset: 0.3 },
+            { transform: 'scale(1)' }
           ],
-          { duration: 180, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+          { duration: 160, easing: 'ease-out' }
         );
       }
-      // 1 étincelle au lieu de 2 — moins de spam visuel sur mobile
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         try { navigator.vibrate(20); } catch (e) { /* unsupported */ }
       }
@@ -1121,18 +1087,13 @@
       sfx.click();
     }
     popNum(el.stw);
-    updateComboUI(true);
+    updateComboUI();
     refreshHarvestLite();
     saveSoon();
     if (res.xp.leveledUp) {
       const st = Game.STRAINS.find((x2) => x2.unlock === res.xp.level && !state.stock.strains.includes(x2.id));
       toast(st ? 'Niveau ' + res.xp.level + ' — ' + st.name + ' débloquée ! 🎉' : 'Niveau ' + res.xp.level + ' !');
       popNum(el.lv);
-    }
-    const ms = res.xp.milestones;
-    if (ms.length > 0) {
-      const label = ms.map((m) => m.icon + ' ' + m.name).join(' · ');
-      toast('🏁 Jalons : ' + label);
     }
   }
 
@@ -1170,12 +1131,6 @@
       toast(res.name + label + ' acheté !');
       popNum(el.m);
       sfx.buy();
-      const card = document.getElementById('ui-' + id);
-      if (card) {
-        card.classList.add('popping');
-        card.animate && card.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.03)' }, { transform: 'scale(1)' }], { duration: 300, easing: 'cubic-bezier(.34,1.56,.64,1)' });
-        setTimeout(() => card.classList.remove('popping'), 380);
-      }
     } else {
       if (res.cost) errToast('Manque ' + fmt(res.cost - state.money) + ' €');
       else errToast("Pas assez d'argent");
@@ -1202,16 +1157,6 @@
       if (firstHire) toast(res.name + ' embauchée ! 🛠️' + deltaLabel);
       popNum(el.m);
       sfx.buy();
-      const card = document.getElementById('ui-' + id);
-      if (card) {
-        const lvlSpan = document.getElementById('ul-' + a.id);
-        if (lvlSpan) popNum(lvlSpan);
-        // 1 feedback au lieu de 3 — moins de spam sur mobile
-        if (card.animate) {
-          card.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.02)' }, { transform: 'scale(1)' }], { duration: 150, easing: 'ease-out' });
-        }
-      }
-      // paliers de chaîne : feedback maintenu (événement fort — AdCap milestones)
       if (a && Game.chainMilestoneMult) {
         const multAfter = Game.chainMilestoneMult(state, a.productId);
         if (multAfter > multBefore) {
@@ -1242,10 +1187,6 @@
       }
       return;
     }
-    if (res.justUnlocked) {
-      toast(res.name + ' débloquée !');
-      popNum(el.m);
-    }
     renderBud();
     renderStrains();
     refreshStats();
@@ -1273,7 +1214,7 @@
     const awarded = Game.checkAchievements ? Game.checkAchievements(state, spikeActive ? { spikeSale: true } : undefined) : [];
     if (awarded.length > 0) {
       const a = awarded[awarded.length - 1];
-      if (lastAutoAchId !== a.id) { lastAutoAchId = a.id; toast('🏅 ' + a.name + ' (+' + a.bonus + '%) !', true); }
+      if (lastAutoAchId !== a.id) { lastAutoAchId = a.id; toast('🏅 ' + a.name + ' !', true); }
     }
     if (Game.checkContracts) Game.checkContracts(state);
     // spoilage doux (remplace le cap)
@@ -1486,7 +1427,7 @@
     renderStrains();
     switchTab('harvest');
     refreshStats();
-    updateComboUI(false);
+    updateComboUI();
     save();
     toast('Nouvelle partie, bon courage 🌱');
   });
@@ -1504,14 +1445,14 @@
   Game.checkAchievements ? Game.checkAchievements(state) : null;
   renderStrains();
   renderBud();
-  updateComboUI(false);
+  updateComboUI();
   lastComboCount = (state.combo && state.combo.count) || 0;
   // expiration du combo : reset silencieux côté game, l'UI suit le delta
   setInterval(() => {
     const count = Game.comboNow(state).count;
     if (count !== lastComboCount) {
       lastComboCount = count;
-      updateComboUI(false);
+      updateComboUI();
       if (count === 0) saveSoon(2000);
     }
   }, 250);

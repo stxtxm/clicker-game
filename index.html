@@ -181,8 +181,6 @@
     .mastery-next { font-size: .62rem; color: var(--muted); margin-top: 3px; }
 
     .upgrade.tier-ready { border-color: var(--gold) !important; }
-    .upgrade.popping { animation: upgradePop .35s cubic-bezier(.34,1.56,.64,1); }
-    @keyframes upgradePop { 0% { transform: scale(1); } 30% { transform: scale(1.03); } 100% { transform: scale(1); } }
     .chain-bar { height: 6px; background: #0a0e0a; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; margin-top: 6px; }
     .chain-fill { height: 100%; background: var(--gold); border-radius: 999px; }
     /* animations de flash supprimées (fillFlash/chain-juice) — inutiles avec les compteurs textuels */
@@ -231,22 +229,6 @@
       border-radius: 999px;
       padding: 4px 12px;
       white-space: nowrap;
-      box-shadow: 0 4px 14px rgba(0,0,0,.45);
-    }
-    .combo-bar {
-      width: min(34vw, 120px);
-      height: 4px;
-      background: rgba(7, 10, 7, .75);
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      overflow: hidden;
-    }
-    .combo-bar-fill {
-      height: 100%;
-      width: 100%;
-      background: var(--gold);
-      transform-origin: left;
-      will-change: transform;
     }
     /* particules supprimées (mobile-first) : feedback = toasts + popNum, zéro couche fixed */
     /* ===== Market view ===== */
@@ -287,9 +269,6 @@
     }
     .mc-btn:hover { background: rgba(74,222,128,0.1); }
     .mc-btn:active:not(:disabled) { transform: scale(.96); filter: brightness(1.12); }
-    .mc-btn.sell { background: var(--green); color: #070a07; border: none; font-weight: 800; }
-    .mc-btn:disabled { opacity: .4; cursor: not-allowed; }
-    /* sparkline du marché : supprimé (info redondante avec flèche trend) */
     .mc-btn.sell { background: var(--green); color: #070a07; border: none; font-weight: 800; }
     .mc-btn:disabled { opacity: .4; cursor: not-allowed; }
     .qty-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
@@ -452,11 +431,9 @@
     .daily-desc { font-size: .7rem; color: var(--muted); }
     .daily-bar { height: 6px; background: #0a0e0a; border-radius: 999px; margin-top: 5px; overflow: hidden; }
     .daily-fill { height: 100%; background: var(--green); border-radius: 999px; }
-    .daily-card.done .daily-fill { background: linear-gradient(90deg, #a16207, var(--gold)); }
     .daily-count { font-size: .72rem; font-weight: 800; color: var(--gold-soft); white-space: nowrap; }
-    .daily-btn { flex-shrink: 0; background: linear-gradient(135deg, var(--green-dim), var(--green)); color: #0a0e0a; border: 1px solid var(--green); border-radius: 10px; padding: 8px 12px; font-size: .75rem; font-weight: 800; cursor: pointer; }
+    .daily-btn { flex-shrink: 0; background: var(--green); color: #0a0e0a; border: 1px solid var(--green); border-radius: 10px; padding: 8px 12px; font-size: .75rem; font-weight: 800; cursor: pointer; }
     .daily-btn:disabled { background: #1a1a1a; color: var(--muted); border-color: #333; cursor: not-allowed; }
-    @media (prefers-reduced-motion: reduce) { .daily-btn { transition: none; } }
 
     /* ===== Contracts view ===== */
     .contracts { display: flex; flex-direction: column; gap: 10px; }
@@ -573,7 +550,6 @@
         <div id="bs"></div>
         <div class="combo-wrap" id="combo-wrap" hidden>
           <div class="combo-pill" id="combo-pill">⚡ Combo</div>
-          <div class="combo-bar"><div class="combo-bar-fill" id="combo-bar"></div></div>
         </div>
       </div>
 
