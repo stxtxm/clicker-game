@@ -88,10 +88,22 @@ Vérifications avant tout commit : `npm test` passe **et** `node --check` sur ch
   (reflow forcé). Propriétés animées : transform/opacity uniquement
   (compositor). `prefers-reduced-motion` respecté pour les animations
   décoratives continues.
-- **Toasts** : max 2 simultanés, dédoublonnés (le même message relance le
-  timer au lieu de réempiler) — voir `toast()` dans `js/ui.js`.
+- **Toasts** : 1 seul à la fois, dédoublonné (le même message relance le
+  timer au lieu de réempiler), 900 ms — voir `toast()` dans `js/ui.js`.
+  Règle mobile-first : un toast UNIQUEMENT pour ce que l'écran ne montre pas
+  déjà (niveau, palier de chaîne, défi réclamé, streak 6+, achievement auto).
+  Jamais de toast pour : vente (popNum € suffit), craft (stock visible),
+  spike (carte 🔥 en place), contrat auto-détecté (carte Contrat),
+  amélioration de chaîne (niveau sur la carte), reset armé (bouton explicite).
+  Les erreurs d'achat passent par `errToast()` (throttle global 1,5 s).
+- **Coach (tuto)** : 1 ligne discrète sous le header, silencieuse, dismiss
+  en 1 tap n'importe où dessus (bouton « Passer » invisible mais présent
+  pour l'e2e). Aucun son, aucun toast de fin.
+- **Particules** : supprimées (zéro couche `#fx`, zéro CSS `.click-fx`) —
+  le feedback passe par toasts + `popNum` (WAAPI, throttled 150 ms).
 - **Feedback d'achat** : tout achat passe par le retour de la fonction Game
-  (`res.ok / res.reason`), toast + `popNum` + `refreshStats` + `save`.
+  (`res.ok / res.reason`), toast (1er achat seulement pour les chaînes) +
+  `popNum` + `refreshStats` + `save`.
 - **Latence de jeu** : la récolte écoute `pointerdown` (réponse instantanée au
   touch), avec garde anti double-fire sur `click` (e2e/souris). Les particules
   vivent dans un pool réutilisé sur une couche `#fx` séparée — jamais dans la

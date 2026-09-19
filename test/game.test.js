@@ -1716,6 +1716,91 @@ test('claimDaily: gain unique, erreurs couvertes', () => {
   assert.ok(s.daily.claimed.includes(target.id));
 });
 
+// ---- onboarding (coach marks premier run : dérivés de l'état, jamais timés) --
+test('ONBOARDING_STEPS: 3 étapes ordonnées (clic → vente → upgrade)', () => {
+  assert.strictEqual(Game.ONBOARDING_STEPS.length, 3);
+  assert.deepStrictEqual(Game.ONBOARDING_STEPS.map((s) => s.id), ['click', 'sell', 'upgrade']);
+  for (const st of Game.ONBOARDING_STEPS) {
+    assert.ok(st.title && st.text && st.goal >= 1, 'étape ' + st.id + ' complète');
+  }
+});
+
+test('checkOnboarding: avance cran par cran, se termine une seule fois', () => {
+  const s = Game.defaultState();
+  assert.strictEqual(Game.checkOnboarding(s).done, false);
+  assert.strictEqual(s.onboarding.step, 0);
+  // aucun objectif rempli → aucune avance (idempotent, pas de timer)
+  assert.strictEqual(Game.checkOnboarding(s).advanced, false);
+
+  s.totalClicks = Game.ONBOARDING_STEPS[0].goal;
+  const afterClick = Game.checkOnboarding(s);
+  assert.strictEqual(afterClick.step, 1);
+  assert.strictEqual(afterClick.done, false);
+  assert.strictEqual(afterClick.advanced, true);
+
+  s.totalEarned = 12;
+  const afterSell = Game.checkOnboarding(s);
+  assert.strictEqual(afterSell.step, 2);
+  assert.strictEqual(afterSell.done, false);
+
+  // un niveau d'upgrade au-dessus du défaut = premier achat du joueur
+  s.levels.harvest = Game.DEFAULT_LEVELS.harvest + 1;
+  const end = Game.checkOnboarding(s);
+  assert.strictEqual(end.done, true);
+  assert.strictEqual(end.advanced, true);
+  assert.strictEqual(s.onboarding.done, true);
+  // terminé : plus jamais d'avance signalée (donc plus de toast côté UI)
+  const again = Game.checkOnboarding(s);
+  assert.strictEqual(again.done, true);
+  assert.strictEqual(again.advanced, false);
+});
+
+test('checkOnboarding: les niveaux par défaut ne valident PAS l\'étape achat', () => {
+  const s = Game.defaultState();
+  s.totalClicks = 10;
+  s.totalEarned = 50;
+  assert.strictEqual(Game.checkOnboarding(s).step, 2);
+  assert.strictEqual(Game.checkOnboarding(s).done, false);
+  // un upgrade non lié au clic compte aussi (le joueur a bien acheté quelque chose)
+  s.levels.auto = Game.DEFAULT_LEVELS.auto + 1;
+  assert.strictEqual(Game.checkOnboarding(s).done, true);
+});
+
+test('skip/restartOnboarding: passer est définitif, relancer repart à l\'étape 1', () => {
+  const s = Game.defaultState();
+  assert.strictEqual(Game.skipOnboarding(s), true);
+  assert.strictEqual(s.onboarding.done, true);
+  assert.strictEqual(Game.checkOnboarding(s).done, true);
+  assert.strictEqual(Game.skipOnboarding(s), false); // déjà passé : no-op
+  Game.restartOnboarding(s);
+  assert.deepStrictEqual(s.onboarding, { done: false, step: 0 });
+  // les progrès déjà acquis revalident les étapes franchies d'un coup
+  s.totalClicks = 10;
+  s.totalEarned = 10;
+  assert.strictEqual(Game.checkOnboarding(s).step, 2);
+});
+
+test('roundtrip onboarding: persiste, corrompu borné, save vétéran auto-terminée', () => {
+  const s = Game.defaultState();
+  s.totalClicks = 6;
+  Game.checkOnboarding(s);
+  const d = Game.deserialize(Game.serialize(s));
+  assert.deepStrictEqual(d.onboarding, { done: false, step: 1 });
+  // corrompu : curseur borné au nombre d'étapes, done seulement si === true
+  const bad = Game.deserialize(JSON.stringify({ onboarding: { step: 99, done: 'yes' } }));
+  assert.deepStrictEqual(bad.onboarding, { done: false, step: Game.ONBOARDING_STEPS.length });
+  assert.strictEqual(Game.deserialize(JSON.stringify({ onboarding: { step: -4 } })).onboarding.step, 0);
+  assert.strictEqual(Game.deserialize(JSON.stringify({ onboarding: 'nope' })).onboarding.step, 0);
+  // vieille save qui a déjà vécu : aucun tuto imposé à un joueur en cours
+  assert.strictEqual(Game.deserialize(JSON.stringify({ money: 10 })).onboarding.done, true);
+  assert.strictEqual(Game.deserialize(JSON.stringify({ totalEarned: 5 })).onboarding.done, true);
+  assert.strictEqual(Game.deserialize(JSON.stringify({ totalClicks: 20 })).onboarding.done, true);
+  // partie neuve (save absente ou vide) : tuto actif
+  assert.strictEqual(Game.deserialize(null).onboarding.done, false);
+  assert.strictEqual(Game.deserialize('{').onboarding.done, false);
+  assert.strictEqual(Game.defaultState().onboarding.done, false);
+});
+
 test('roundtrip daily: persiste, corrompu regenere, vieux migre', () => {
   const s = Game.defaultState();
   const T0 = new Date(2026, 8, 17, 12, 0, 0).getTime();

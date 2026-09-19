@@ -283,43 +283,29 @@ async function scenario() {
       toastDiamond && specCnt.indexOf('1/') === 0,
       'mps ' + mpsBefore + '->' + mpsAfter + ' 💎=' + toastDiamond + ' count=' + specCnt);
 
-    // 14d. alertes prix (cloche) + sparkline + maîtrise de variété
+    // 14d. marché simplifié : flèches de tendance ±30 % (↗↘→), plus de sparkline
+    // ni cloche alerte (supprimées pour les perfs mobile) — la maîtrise de
+    // variété progresse avec le flux auto, comme le surplus
     q('.tab-btn[data-tab="sell"]').click();
     await sleep(120);
-    const bellWeed = await waitFor('#bell-weed');
-    const spark = q('#sl-weed');
-    const ptsNow = spark ? (spark.getAttribute('points') || '').split(' ').filter(Boolean).length : 0;
-    bellWeed.click();
-    await sleep(60);
-    const bellArmed = q('#bell-weed').classList.contains('armed');
-    const armedLabel = q('#bell-weed').textContent;
-    q('#bell-weed').click();
-    await sleep(60);
-    const bellCleared = !q('#bell-weed').classList.contains('armed');
+    const trendWeed = q('#mp-weed');
+    const hasTrend = !!trendWeed && /[↗↘→]/.test(trendWeed.textContent);
+    const noBell = !q('#bell-weed');
+    const noSpark = !q('#sl-weed');
     q('.tab-btn[data-tab="harvest"]').click();
     await sleep(1300); // > 1 tick autoProduce : la maîtrise engrange le flux auto
     const mtyFill = q('#mty-fill');
     const mtyPct = mtyFill ? parseFloat(mtyFill.style.width) : 0;
-    report('market-spark-alert-mastery', ptsNow >= 20 && bellArmed && bellCleared &&
-      /🔔/.test(armedLabel) && !!mtyFill && mtyPct > 0,
-      'pts=' + ptsNow + ' armed=' + bellArmed + ' cleared=' + bellCleared +
-      ' mtyPct=' + mtyPct + ' label=' + armedLabel.replace(/[^\d%🔔]/g, ''));
+    report('market-simplified-mastery', !!mtyFill && mtyPct > 0 && hasTrend && noBell && noSpark,
+      'trend=' + hasTrend + ' noBell=' + noBell + ' noSpark=' + noSpark +
+      ' mtyPct=' + mtyPct);
 
-    // 14e. crit juice : burst doré (.click-fx.crit) + shake sous clicks à 30% —
-    // le crit est rare mais visible (borné à 30 % de chance par clic)
-    w.localStorage.setItem('budClicker', JSON.stringify({
-      weed: 0, money: 0, strain: 'green',
-      stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 },
-      levels: { harvest: 1, auto: 0, crit: 20 }, xp: 0, totalEarned: 1000
-    }));
+    // 14e. crit juice : aucun nœud #fx (particules supprimées mobile-first) —
+    // le feedback passe par le shake WAAPI du bud + le combo (toasts/popNum).
+    // Le crit reste borné à 30 % par clic côté game (test unitaire).
     await reloadGame();
-    let critSeen = false;
-    for (let i = 0; i < 25 && !critSeen; i++) {
-      q('#bs').click();
-      await sleep(90);
-      critSeen = !!gameDoc().querySelector('#fx .click-fx.crit');
-    }
-    report('crit-ui', critSeen, 'burst doré observé sur ≤25 clics (30%/clic)');
+    const noFxLayer = !gameDoc().querySelector('#fx') && !gameDoc().querySelector('.click-fx');
+    report('crit-ui', noFxLayer, 'pas de couche particules');
 
         // 14f. session + streak + achievements (vue Progression) — grille construite
     // une fois et mise à jour in place ; la session est volatile (non persistée)
@@ -425,6 +411,36 @@ async function scenario() {
     await sleep(150);
     report('reset-dialog', armed && money() === 0 && q('#sb').textContent.includes('Green Dream'),
       'armed=' + armed + ' money=' + money());
+
+    // 16. onboarding : partie vierge → coach étape 1 sur le bud, avance aux clics
+    // réels (étape 2 → onglet Marché), « Passer » définitif après reload (save)
+    const coach = q('#coach');
+    const coachOnBud = !!coach && !coach.hidden &&
+      (q('#coach-step').textContent || '').includes('1/3') &&
+      q('#bc').classList.contains('coach-target') &&
+      (q('#coach-title').textContent || '').length > 3;
+    for (let i = 0; i < 5; i++) q('#bs').click();
+    await sleep(200);
+    const coachAfterClicks = (q('#coach-step').textContent || '') + '|' + (q('#coach-title').textContent || '');
+    const targetMoved = q('.tab-btn[data-tab="sell"]').classList.contains('coach-target') &&
+      !q('#bc').classList.contains('coach-target');
+    q('#coach-skip').click();
+    await sleep(150);
+    const skipped = q('#coach').hidden && !q('.tab-btn[data-tab="sell"]').classList.contains('coach-target');
+    await reloadGame();
+    const stillSkipped = q('#coach').hidden && !q('#bc').classList.contains('coach-target');
+    report('onboarding-coach',
+      coachOnBud && /2\/3/.test(coachAfterClicks) && targetMoved && skipped && stillSkipped,
+      'bud=' + coachOnBud + ' after="' + coachAfterClicks + '" moved=' + targetMoved +
+      ' skip=' + skipped + ' persist=' + stillSkipped);
+
+    // 16b. save vétéran (déjà des gains) : aucun coach imposé au boot
+    w.localStorage.setItem('budClicker', JSON.stringify({ weed: 0, money: 500, strain: 'green',
+      stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 },
+      levels: { harvest: 1 }, xp: 0, totalEarned: 500 }));
+    await reloadGame();
+    const veteranHidden = q('#coach').hidden && !q('#bc').classList.contains('coach-target');
+    report('onboarding-veteran', veteranHidden, 'hidden=' + q('#coach').hidden);
   } catch (e) {
     report('scenario-crash', false, String((e && e.stack) || e));
   }
