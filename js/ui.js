@@ -25,7 +25,6 @@
     stw: document.getElementById('stw'),
     comboWrap: document.getElementById('combo-wrap'),
     comboPill: document.getElementById('combo-pill'),
-    comboBar: document.getElementById('combo-bar'),
     marketGrid: document.getElementById('market-grid'),
     sellAll: document.getElementById('sell-all'),
     qtyRow: document.getElementById('qty-row'),
@@ -55,17 +54,19 @@
     achCount: document.getElementById('ach-count'),
     sesEarned: document.getElementById('ses-earned'),
     sesPerMin: document.getElementById('ses-permin'),
-    sesIdle: document.getElementById('ses-idle'),
     sesClicks: document.getElementById('ses-clicks'),
-    sesCrits: document.getElementById('ses-crits'),
     sesCombo: document.getElementById('ses-combo'),
-    sesPeaks: document.getElementById('ses-peaks'),
-    sesBig: document.getElementById('ses-big'),
     daily: document.getElementById('daily'),
     streakLvl: document.getElementById('streak-lvl'),
     streakMult: document.getElementById('streak-mult'),
     streakFill: document.getElementById('streak-fill'),
-    streakNext: document.getElementById('streak-next')
+    streakNext: document.getElementById('streak-next'),
+    coach: document.getElementById('coach'),
+    coachTitle: document.getElementById('coach-title'),
+    coachText: document.getElementById('coach-text'),
+    coachStep: document.getElementById('coach-step'),
+    coachSkip: document.getElementById('coach-skip'),
+    coachReplay: document.getElementById('coach-replay')
   };
 
   let state = Game.defaultState();
@@ -75,13 +76,19 @@
   let upgradeQtyMode = 1;
   /** Active sub-tab in the Upgrades view: 'hw' (matériel) | 'chains'. */
   let upgTab = 'hw';
+  /** Onglet visible (cache) : évite getElementById('v-…') à chaque refresh. */
+  let activeTab = 'harvest';
+  /** Dernier achievement notifié côté autoTick (anti-spam : 1 seul toast). */
+  let lastAutoAchId = null;
 
-  // --- juice : paliers de gains totaux (💰) -----------------------------------
-  /** Exposant du palier de 10 atteint par les gains totaux (0 sous 1 M€). */
-  function earnStep(te) { return te >= 1e6 ? Math.floor(Math.log10(te)) : 0; }
-  /** Label compact pour le juice : 1 M€, 250 M€, 3 Md€… */
-  function moneyWord(n) { return n >= 1e9 ? Math.round(n / 1e9) + ' Md€' : Math.round(n / 1e6) + ' M€'; }
-  let lastEarnStep = 0;
+  /** Dernier toast d'erreur (funds/level/locked) : throttle global anti-spam. */
+  let lastErrToast = 0;
+  /** Dernier popNum par nœud : throttle 150 ms (spam-clic mobile). */
+  let lastPopAt = 0;
+  /** Dernier bip clic : throttle 60 ms. */
+  let lastClickSfx = 0;
+  /** Save debounce : pas d'écriture localStorage à chaque clic. */
+  let saveTimer = 0;
 
   // --- helpers ---------------------------------------------------------------
   /** Format a number for display: 1.2K / 3.45M / floor below 1000. */
@@ -98,34 +105,40 @@
    * `big` = variante dorée pour les moments jouissifs (paliers de chaîne, max…).
    */
   function toast(text, big) {
-    const last = el.mc.lastElementChild;
+    const mc = el.mc;
+    if (!mc) return;
+    const last = mc.lastElementChild;
     if (last && last.textContent === text) {
       clearTimeout(last._timer);
-      last._timer = setTimeout(() => { if (last.parentNode) last.remove(); }, 2200);
+      last._timer = setTimeout(() => { if (last.parentNode) last.remove(); }, 1200);
       return;
     }
+    /* max 1 toast à la fois — plus discret, moins de spam */
+    if (mc.firstElementChild) mc.firstElementChild.remove();
     const m = document.createElement('div');
     m.className = 'ms' + (big ? ' big' : '');
     m.textContent = text;
-    while (el.mc.children.length >= 2) el.mc.firstElementChild.remove();
-    el.mc.appendChild(m);
-    m._timer = setTimeout(() => { if (m.parentNode) m.remove(); }, 2200);
+    mc.appendChild(m);
+    m._timer = setTimeout(() => { if (m.parentNode) m.remove(); }, 900);
   }
 
-  /** Re-trigger the "pop" animation on a stat element (WAAPI: no forced reflow). */
+  /** Toast erreur throttled : 1,5 s min entre deux (anti-spam mobile). */
+  function errToast(text) {
+    const now = Date.now();
+    if (now - lastErrToast < 1500) return;
+    lastErrToast = now;
+    toast(text);
+  }
+  /** Re-trigger the "pop" animation (WAAPI, throttled 150 ms). */
   function popNum(node) {
     if (!node || !node.animate) return;
+    const now = Date.now();
+    if (now - lastPopAt < 150) return;
+    lastPopAt = now;
     node.animate(
-      [{ transform: 'scale(1)' }, { transform: 'scale(1.16)' }, { transform: 'scale(1)' }],
-      { duration: 180, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+      [{ transform: 'scale(1)' }, { transform: 'scale(1.1)' }, { transform: 'scale(1)' }],
+      { duration: 80, easing: 'ease-out' }
     );
-  }
-
-  /** Toast de streak (jour 2+ seulement — le jour 1 ne fait pas de tapage). */
-  function streakToast(roll) {
-    if (roll && roll.rolled && roll.count > 1) {
-      toast('🔥 Streak jour ' + roll.count + ' — +' + Math.round((roll.mult - 1) * 100) + '% de production !', true);
-    }
   }
 
   // --- son (WebAudio, zéro fichier, désactivable) -----------------------------
@@ -172,7 +185,12 @@
   }
   /** Pop discret au clic (montée rapide), crit plus riche (deux notes). */
   const sfx = {
-    click: () => beep(520, 0.05, 'triangle', 0.05),
+    click: () => {
+      const now = Date.now();
+      if (now - lastClickSfx < 60) return;
+      lastClickSfx = now;
+      beep(520, 0.05, 'triangle', 0.05);
+    },
     crit: () => { beep(780, 0.09, 'square', 0.07); setTimeout(() => beep(1170, 0.12, 'square', 0.06), 60); },
     buy: () => { beep(440, 0.08, 'triangle', 0.06); setTimeout(() => beep(660, 0.1, 'triangle', 0.06), 70); },
     reward: () => { beep(523, 0.1, 'triangle', 0.07); setTimeout(() => beep(659, 0.1, 'triangle', 0.07), 90); setTimeout(() => beep(784, 0.16, 'triangle', 0.07), 180); }
@@ -187,12 +205,7 @@
       el.headerLogo.innerHTML = '<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">' + svg + '</svg>';
     }
     if (!el.bs) return;
-    // bs may be <svg> (old) or <div> (new) — handle both
-    if (el.bs.tagName.toLowerCase() === 'svg') {
-      el.bs.innerHTML = svg;
-    } else {
-      el.bs.innerHTML = '<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">' + svg + '</svg>';
-    }
+    el.bs.innerHTML = '<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">' + svg + '</svg>';
   }
 
   function renderUpgrades() {
@@ -211,7 +224,7 @@
           '<div class="up-desc">' + u.desc + tierInfo + '</div></div>' +
         '<div class="up-buy"><span class="up-cost" id="uc-' + u.id + '">0 €</span>' +
           '<button class="bb" id="ub-' + u.id + '">Acheter</button></div>';
-      card.querySelector('.bb').addEventListener('click', () => buyUpgrade(u.id));
+      card.querySelector('.bb').addEventListener('click', function () { buyUpgrade(u.id); });
       el.ug.appendChild(card);
     }
     // Chaînes — onglet dédié, multi-niveaux (embauche puis améliorations)
@@ -232,7 +245,7 @@
           '<div class="chain-specs" id="chain-specs-' + a.id + '" style="display:none;margin-top:6px;"></div></div>' +
         '<div class="up-buy"><span class="up-cost" id="uc-' + a.id + '">' + fmt(a.cost) + ' €</span>' +
           '<button class="bb" id="ub-' + a.id + '">Acheter</button></div>';
-      card.querySelector('.bb').addEventListener('click', () => buyAuto(a.id));
+      card.querySelector('.bb').addEventListener('click', function () { buyAuto(a.id); });
       el.chainUg.appendChild(card);
     }
   }
@@ -281,43 +294,6 @@
     return '<span class="trend">→</span>';
   }
 
-  /** Sparkline SVG statique par carte marché — seule la polyline bouge. */
-  function sparklineHtml(marketId) {
-    return '<div class="mc-spark"><svg viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">' +
-      '<polyline id="sl-' + marketId + '" fill="none" stroke="var(--green)" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></polyline>' +
-      '</svg></div>';
-  }
-
-  /** Polyline d'un marché : position dans le cycle pulse (déterministe). */
-  function updateSparkline(marketId) {
-    const poly = document.getElementById('sl-' + marketId);
-    if (!poly) return;
-    const samples = Game.marketSamples(marketId, Date.now(), 36);
-    const min = Math.min.apply(null, samples);
-    const max = Math.max.apply(null, samples);
-    const span = Math.max(0.02, max - min);
-    const pts = [];
-    for (let i = 0; i < samples.length; i++) {
-      const x = (i * 100 / (samples.length - 1)).toFixed(1);
-      const y = (25 - ((samples[i] - min) / span) * 23).toFixed(1);
-      pts.push(x + ',' + y);
-    }
-    poly.setAttribute('points', pts.join(' '));
-    poly.setAttribute('stroke', Game.isSpikeActive(state, marketId) ? 'var(--gold)' : 'var(--green)');
-  }
-
-  /** État de la cloche d'alerte d'un marché (armée → cible affichée). */
-  function updateBell(marketId) {
-    const bell = document.getElementById('bell-' + marketId);
-    if (!bell) return;
-    const target = state.alerts && state.alerts[marketId];
-    bell.textContent = target ? '🔔 ' + Math.round(target * 100) + '%' : '🔔';
-    bell.classList.toggle('armed', !!target);
-    bell.title = target
-      ? 'Alerte armée à ' + Math.round(target * 100) + '% — reclique pour annuler'
-      : 'Me prévenir quand le prix monte encore';
-  }
-
   /* Market rendering — structure built ONCE (stable tap targets), values
      updated in place every tick. Rebuilding innerHTML every second thrashed
      layout on mobile and recreated buttons under the player's finger. */
@@ -330,33 +306,27 @@
     const weed = document.createElement('div');
     weed.className = 'market-card';
     weed.innerHTML =
-      '<div class="mc-top"><div class="mc-title">🌿 Weed Brute</div><div class="mc-price" id="mp-weed"></div></div>' +
-      sparklineHtml('weed') +
+            '<div class="mc-top"><div class="mc-title">🌿 Weed Brute</div><div class="mc-price" id="mp-weed"></div></div>' +
       '<div class="mc-stock" id="ms-weed"></div>' +
       '<div class="mc-actions">' +
-        '<button class="mc-btn bell" id="bell-weed" title="Alerte prix"></button>' +
         '<button class="mc-btn sell" data-p="weed" id="mb-weed"></button>' +
       '</div>';
     el.marketGrid.appendChild(weed);
     document.getElementById('mb-weed').addEventListener('click', () => onSell('weed'));
-    document.getElementById('bell-weed').addEventListener('click', () => onAlert('weed'));
     // Product cards
     for (const p of Game.PRODUCTS) {
       const card = document.createElement('div');
       card.className = 'market-card';
       card.id = 'mk-' + p.id;
       card.innerHTML =
-        '<div class="mc-top"><div class="mc-title">' + p.icon + ' ' + p.name + '<span class="mc-qty" id="mq-' + p.id + '"></span></div><div class="mc-price" id="mp-' + p.id + '"></div></div>' +
-        sparklineHtml(p.id) +
+                '<div class="mc-top"><div class="mc-title">' + p.icon + ' ' + p.name + '<span class="mc-qty" id="mq-' + p.id + '"></span></div><div class="mc-price" id="mp-' + p.id + '"></div></div>' +
         '<div class="mc-stock" id="ms-' + p.id + '"></div>' +
         '<div class="mc-actions">' +
-          '<button class="mc-btn bell" id="bell-' + p.id + '" title="Alerte prix"></button>' +
           '<button class="mc-btn craft" data-p="' + p.id + '" id="mbc-' + p.id + '"></button>' +
           '<button class="mc-btn sell" data-p="' + p.id + '" id="mbs-' + p.id + '"></button>' +
         '</div>';
       card.querySelector('.craft').addEventListener('click', () => onCraft(p.id));
       card.querySelector('.sell').addEventListener('click', () => onSell(p.id));
-      card.querySelector('.bell').addEventListener('click', () => onAlert(p.id));
       el.marketGrid.appendChild(card);
     }
   }
@@ -386,17 +356,13 @@
       document.getElementById('ms-weed').textContent = fmt(have) + 'g disponibles' + (spike ? ' — 🔥 Ruée ×1.6 !' : '');
       const btn = document.getElementById('mb-weed');
       btn.textContent = 'Vendre ' + (qtyMode === 'max' ? 'tout (' + fmt(have) + 'g)' : 'x' + n + ' (' + fmt(n) + 'g)');
-      btn.disabled = n <= 0;
-      updateSparkline('weed');
-      updateBell('weed');
+            btn.disabled = n <= 0;
     }
 
     // Product values
     for (const p of Game.PRODUCTS) {
       const locked = level < p.unlock;
-      const card = document.getElementById('mk-' + p.id);
-      updateSparkline(p.id);
-      updateBell(p.id);
+            const card = document.getElementById('mk-' + p.id);
       card.classList.toggle('locked', locked);
       const priceEl = document.getElementById('mp-' + p.id);
       const stockEl = document.getElementById('ms-' + p.id);
@@ -575,20 +541,8 @@
           btn.className = 'ct-btn claim';
           btn.onclick = () => {
             const res = Game.claimContract(state, ct.id);
-            if (res.ok) {
-              toast(res.contract.icon + ' Contrat accompli : ' + res.contract.reward.desc);
-              // célébration : pop élastique de la carte + burst de particules
-              if (card.animate) {
-                card.animate(
-                  [{ transform: 'scale(1)' }, { transform: 'scale(1.06)', offset: 0.35 }, { transform: 'scale(0.98)', offset: 0.7 }, { transform: 'scale(1)' }],
-                  { duration: 420, easing: 'cubic-bezier(.34,1.56,.64,1)' }
-                );
-              }
-              for (let i = 0; i < 3; i++) setTimeout(() => spawnParticle('🎁 ' + ct.icon + ' ' + ct.name + ' !'), i * 120);
-              popNum(el.m);
-            }
             refreshStats();
-            save();
+            saveSoon(1000);
           };
         } else if (!canUnlock) {
           btn.textContent = '🔒 Niveau ' + ct.unlockLevel + ' requis';
@@ -683,18 +637,14 @@
     }
   }
 
-  /** Stats de session (€/min, part idle, crits, ventes au pic) — pure lecture. */
+  /** Stats de session (gains, rythme, clics, combo max) — pure lecture. */
   function updateSessionCard() {
     if (!el.sesEarned || !Game.sessionStats) return;
     const st = Game.sessionStats(state);
     el.sesEarned.textContent = '+' + fmt(st.earned) + ' €';
     el.sesPerMin.textContent = fmt(st.perMin) + ' €/min';
-    el.sesIdle.textContent = Math.round(st.idleShare * 100) + '%';
     el.sesClicks.textContent = fmt(st.clicks);
-    el.sesCrits.textContent = st.clicks > 0 ? st.crits + ' (' + st.critRate.toFixed(1) + '%)' : '0';
     el.sesCombo.textContent = '×' + Game.comboMultiplier(st.maxCombo).toFixed(1) + ' (' + st.maxCombo + ' clics)';
-    el.sesPeaks.textContent = String(st.peakSales);
-    el.sesBig.textContent = fmt(st.biggestSale) + ' €';
   }
 
   /** Carte streak : jour courant + bonus actif + progression vers le cap. */
@@ -745,20 +695,10 @@
       card.querySelector('.daily-btn').addEventListener('click', () => {
         const res = Game.claimDaily(state, def.id);
         if (res.ok) {
-          const bits = [];
-          if (res.gained.weed) bits.push('+' + fmt(res.gained.weed) + 'g');
-          if (res.gained.money) bits.push('+' + fmt(res.gained.money) + ' €');
-          toast('📅 ' + def.name + ' : ' + bits.join(' · ') + ' !', true);
-          spawnParticle('📅 ' + def.icon + ' ' + bits.join(' · ') + ' !', true);
-          popNum(el.m);
           sfx.reward();
-        } else if (res.reason === 'already_claimed') {
-          toast('Défi déjà réclamé');
-        } else {
-          toast('Défi pas encore terminé');
         }
         refreshStats();
-        save();
+        saveSoon(1000);
       });
     }
     dailyBuiltDay = state.daily.day;
@@ -794,13 +734,21 @@
   /** Sync every dynamic text / disabled state with `state`.
    *  Hidden views are skipped: the per-second tick only writes to the DOM the
    *  player is actually looking at (less style/layout work, smoother on mobile). */
+  /** Refresh leger du clic : header + stock + mastery + coach uniquement.
+   *  Evite le tick complet (market/upgrades/progress) a chaque tap mobile. */
+  function refreshHarvestLite() {
+    if (el.m) el.m.textContent = fmt(state.money) + " €";
+    if (el.ar) el.ar.textContent = "+" + Game.perSecond(state);
+    if (el.hl) el.hl.textContent = Game.perClick(state);
+    if (el.lv) el.lv.textContent = Game.levelFromXp(state.xp);
+    if (el.stw) el.stw.textContent = fmt(state.stock.weed) + "g dispo";
+    updateMastery();
+    updateCoach();
+  }
   function refreshStats() {
     const pc = Game.perClick(state);
     const ar = Game.perSecond(state);
-    const active = (name) => {
-      const v = document.getElementById('v-' + name);
-      return !v || v.classList.contains('active');
-    };
+    const active = (name) => name === activeTab;
 
     if (el.m) el.m.textContent = fmt(state.money) + ' €';
     if (el.ar) el.ar.textContent = '+' + ar;
@@ -816,18 +764,19 @@
     // PAS de cap : le stock est libre, on affiche juste le total
     if (el.stw) el.stw.textContent = fmt(state.stock.weed) + 'g dispo';
 
-    updateMastery();
+    if (active('harvest')) updateMastery();
     if (active('strains')) updateStrainMastery();
 
     if (active('sell')) renderMarket();
     if (active('contracts')) updateContracts();
-    if (active('progress') || active('harvest')) renderProgress();
     if (active('progress')) {
+      renderProgress();
       updateSessionCard();
       updateStreakCard();
       updateDaily();
       updateAchievements();
     }
+    updateCoach();
     if (!active('upgrades')) return;
 
     // sub-tab Matériel / Chaînes : on ne met à jour que la liste visible
@@ -1019,34 +968,16 @@
           const impactText = impact && impact.pctText ? impact.pctText : '';
           const epsTxt = impact && impact.epsDelta > 0 ? ' (+' + fmt(impact.epsDelta) + ' €/s)' : '';
           toast('💎 ' + def.name + ' → ' + res.lvl + '/' + def.max + ' — ' + impactText + epsTxt);
-          popNum(btn);
-          // juice : la branche flash en doré, le compteur pop, la carte vibre,
-          // une particule part exactement du bouton qui vient de payer
-          const countEl = document.getElementById('cs-' + pid + '-' + branch + '-count');
-          if (countEl) popNum(countEl);
-          const fillEl = document.getElementById('cs-' + pid + '-' + branch + '-fill');
-          if (fillEl) {
-            fillEl.classList.add('spec-flash');
-            setTimeout(() => fillEl.classList.remove('spec-flash'), 550);
-          }
-          const card = document.getElementById('ui-' + 'auto-' + pid);
-          if (card) {
-            card.classList.add('popping');
-            card.animate && card.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.03)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(.34,1.56,.64,1)' });
-            setTimeout(() => card.classList.remove('popping'), 400);
-          }
-          spawnParticle('💎 +' + res.bought + ' ' + branch, false, card || btn);
-          if (el.mps) popNum(el.mps);
-          if (res.lvl >= def.max) toast('💎 ' + def.name + ' maxée !', true);
+
         } else if (res.reason === 'funds') {
-          toast('Pas assez d\'argent');
+          errToast('Pas assez d\'argent');
         } else if (res.reason === 'maxed') {
-          toast('Branche maxée');
+          errToast('Branche maxée');
         } else if (res.reason === 'locked') {
-          toast(res.message);
+          errToast(res.message);
         }
         refreshStats();
-        save();
+        saveSoon(1000);
       });
     });
   }
@@ -1094,8 +1025,9 @@
   /** Dernier compte de combo affiché (détecte l'expiration pour cacher l'UI). */
   let lastComboCount = 0;
 
-  /** Combo UI : pill dorée + barre de temps (scaleX compositor, WAAPI). */
-  function updateComboUI(reanimateBar) {
+  /** Combo UI : pill dorée statique (la barre temporelle est supprimée —
+      zoom textuel du multiplicateur suffit, 1 textContent par clic). */
+  function updateComboUI() {
     if (!el.comboWrap || !el.comboPill) return;
     const c = state.combo || { count: 0 };
     const count = c.count || 0;
@@ -1106,12 +1038,6 @@
       el.comboPill.textContent = count >= Game.COMBO_CAP
         ? '⚡ Combo MAX — clic ×' + mult.toFixed(1)
         : '⚡ Combo ×' + count + ' — clic ×' + mult.toFixed(1);
-      if (reanimateBar && el.comboBar && el.comboBar.animate) {
-        el.comboBar.animate(
-          [{ transform: 'scaleX(1)' }, { transform: 'scaleX(0)' }],
-          { duration: Game.COMBO_WINDOW_MS, easing: 'linear' }
-        );
-      }
     }
   }
 
@@ -1121,102 +1047,43 @@
     lastComboCount = res.combo.count;
     if (res.crit) {
       sfx.crit();
-      // 💥 Juice critique : shake plus fort que le squash, pluie d'étincelles
-      // dorées + haptique — le moment rare (borné à 30 %) doit se SENTIR.
+      // 1 seul bounce (crit ≈ normal) — le texte suffit, pas de rotation coûteuse
       if (el.bc.animate) {
         el.bc.animate(
           [
-            { transform: 'scale(1) rotate(0deg)' },
-            { transform: 'scale(1.12, 0.88) rotate(-1.6deg)', offset: 0.2 },
-            { transform: 'scale(0.9, 1.12) rotate(1.6deg)', offset: 0.45 },
-            { transform: 'scale(1.07, 0.96)', offset: 0.7 },
-            { transform: 'scale(1) rotate(0deg)' }
+            { transform: 'scale(1)' },
+            { transform: 'scale(0.96, 1.04)', offset: 0.3 },
+            { transform: 'scale(1)' }
           ],
-          { duration: 420, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+          { duration: 160, easing: 'ease-out' }
         );
       }
-      spawnParticle('💥 +' + res.added + 'g CRITIQUE !', false, undefined, 'crit');
-      for (let i = 0; i < 4; i++) {
-        setTimeout(() => spawnParticle('✦', false, undefined, 'crit'), 70 + i * 80);
-      }
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        try { navigator.vibrate(30); } catch (e) { /* unsupported */ }
+        try { navigator.vibrate(20); } catch (e) { /* unsupported */ }
       }
     } else {
-      // squash & stretch juice — WAAPI: compositor-driven, restarts cleanly on
-      // rapid taps (each new animation replaces the previous, no forced reflow)
+      // squash & stretch simplifié : 1 bounce au lieu de 5 keyframes
       if (el.bc.animate) {
         el.bc.animate(
           [
             { transform: 'scale(1, 1)' },
-            { transform: 'scale(0.955, 1.045)', offset: 0.22 },
-            { transform: 'scale(1.055, 0.955)', offset: 0.42 },
-            { transform: 'scale(0.99, 1.015)', offset: 0.68 },
+            { transform: 'scale(0.96, 1.04)', offset: 0.3 },
             { transform: 'scale(1, 1)' }
           ],
-          { duration: 320, easing: 'cubic-bezier(.34,1.56,.64,1)' }
+          { duration: 160, easing: 'ease-out' }
         );
       }
-      spawnParticle('+' + res.added + 'g' + (res.mult > 1 ? ' · ×' + res.mult.toFixed(1) : ''));
+      // feedback visuel uniquement si combo actif (mult > 1) — clics simples sont silencieux
       sfx.click();
     }
     popNum(el.stw);
-    updateComboUI(true);
-    if (Game.checkDaily) dailyToast(Game.checkDaily(state));
-    refreshStats();
-    save();
+    updateComboUI();
+    refreshHarvestLite();
+    saveSoon();
     if (res.xp.leveledUp) {
-      toast('Niveau ' + res.xp.level + ' !');
-      spawnParticle('⬆️ Niveau ' + res.xp.level + ' !');
-      popNum(el.lv);
       const st = Game.STRAINS.find((x2) => x2.unlock === res.xp.level && !state.stock.strains.includes(x2.id));
-      if (st) setTimeout(() => toast(st.name + ' débloquée ! 🎉'), 600);
-    }
-    for (const mi of res.xp.milestones) {
-      toast(mi.icon + ' Jalon : ' + mi.name + ' (+' + mi.bonus + '%)');
-    }
-  }
-
-  /* Particle pool — reused nodes in a dedicated overlay ABOVE the bud, so a
-     click never dirties the bud's compositor layer (re-raster of the filtered
-     SVG was the main per-tap jank). */
-  const FX_POOL = [];
-  let fxFloor = 0;
-  function fxLayer() {
-    if (el.fx) return el.fx;
-    el.fx = document.createElement('div');
-    el.fx.id = 'fx';
-    (el.bc ? el.bc.parentElement : document.body).appendChild(el.fx);
-    return el.fx;
-  }
-  function spawnParticle(text, warn, anchor, cls) {
-    const layer = fxLayer();
-    let p = FX_POOL.find((n) => !n._busy);
-    if (!p) {
-      if (FX_POOL.length >= 8) p = FX_POOL[fxFloor++ % 8];
-      else { p = document.createElement('div'); FX_POOL.push(p); layer.appendChild(p); }
-    }
-    p._busy = true;
-    p.className = 'click-fx' + (cls ? ' ' + cls : warn ? ' warn' : '');
-    p.textContent = text;
-    // anchor to the target's current rect (bud by default) — fixed particles
-    // get their own compositor layers, the viewed node's layer is untouched
-    const node = anchor && anchor.getBoundingClientRect ? anchor : el.bc;
-    const r = node.getBoundingClientRect();
-    p.style.left = Math.round(r.left + r.width * (0.5 + (Math.random() - 0.5) * 0.16)) + 'px';
-    p.style.top = Math.round(r.top + r.height * 0.22) + 'px';
-    if (p.animate) {
-      const a = p.animate(
-        [
-          { opacity: 0, transform: 'translateY(8px) scale(.7)' },
-          { opacity: 1, transform: 'translateY(-6px) scale(1)', offset: 0.25 },
-          { opacity: 0, transform: 'translateY(-58px) scale(1.05)' }
-        ],
-        { duration: 700, easing: 'cubic-bezier(.2,.7,.3,1)' }
-      );
-      a.onfinish = () => { p._busy = false; p.style.opacity = 0; };
-    } else {
-      setTimeout(() => { p._busy = false; }, 700);
+      toast(st ? 'Niveau ' + res.xp.level + ' — ' + st.name + ' débloquée ! 🎉' : 'Niveau ' + res.xp.level + ' !');
+      popNum(el.lv);
     }
   }
 
@@ -1224,50 +1091,24 @@
     const res = Game.craftProduct(state, productId, qtyMode === 'max' ? Infinity : qtyMode);
     const prod = Game.getProduct(productId);
     if (res.ok) {
-      toast(prod.icon + ' ' + res.amount + 'x ' + prod.name + ' fabriqué' + (res.amount > 1 ? 's' : '') + ' !');
       if (el.stw) popNum(el.stw);
       sfx.buy();
-      if (Game.checkDaily) dailyToast(Game.checkDaily(state));
     } else {
-      toast('Pas assez de weed (' + (prod ? prod.cost + 'g' : '') + ' requis)');
+      errToast('Pas assez de weed (' + (prod ? prod.cost + 'g' : '') + ' requis)');
     }
     refreshStats();
-    save();
+    saveSoon(1000);
   }
 
   function onSell(type) {
     const amount = type === 'weed' && qtyMode !== 'max' ? Math.min(qtyMode, state.stock.weed || 0) : undefined;
     const gain = Game.sellStock(state, type, amount);
     if (gain > 0) {
-      toast('+' + fmt(gain) + ' €');
       popNum(el.m);
     }
-    // achievements: context dépendant (vente pendant une ruée)
-    const now = Date.now();
-    const checkTypes = type === 'all'
-      ? ['weed'].concat(Game.PRODUCTS ? Game.PRODUCTS.map((p) => p.id) : [])
-      : [type];
-    if (Game.isSpikeActive && checkTypes.some((t) => Game.isSpikeActive(state, t, now))) {
-      const awarded = Game.checkAchievements ? Game.checkAchievements(state, { spikeSale: true }) : [];
-      for (const a of awarded) {
-        toast('🏅 ' + a.name + ' (+' + a.bonus + '%) !');
-        spawnParticle(a.icon + ' ' + a.name + ' !', true);
-      }
-    }
-    if (Game.checkDaily) dailyToast(Game.checkDaily(state, now));
+    // achievements : comptabilisés dans autoProduce (tick/sec)
     refreshStats();
-    save();
-  }
-
-  /** Arme/désarme l'alerte de prix d'un marché (feedback via le retour Game). */
-  function onAlert(marketId) {
-    const res = Game.setPriceAlert(state, marketId);
-    if (res.ok) {
-      if (res.cleared) toast('🔕 Alerte annulée');
-      else toast('🔔 Alerte à ' + Math.round(res.target * 100) + '% du prix de base');
-    }
-    refreshStats();
-    save();
+    saveSoon(1000);
   }
 
   function buyUpgrade(id) {
@@ -1280,19 +1121,12 @@
       toast(res.name + label + ' acheté !');
       popNum(el.m);
       sfx.buy();
-      const card = document.getElementById('ui-' + id);
-      if (card) {
-        card.classList.add('popping');
-        card.animate && card.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.03)' }, { transform: 'scale(1)' }], { duration: 300, easing: 'cubic-bezier(.34,1.56,.64,1)' });
-        setTimeout(() => card.classList.remove('popping'), 380);
-        for (let i = 0; i < Math.min(3, res.count || 1); i++) setTimeout(() => spawnParticle('✨ Niv +' + (res.count || 1) + ' !'), i * 90);
-      }
     } else {
-      if (res.cost) toast('Manque ' + fmt(res.cost - state.money) + ' €');
-      else toast("Pas assez d'argent");
+      if (res.cost) errToast('Manque ' + fmt(res.cost - state.money) + ' €');
+      else errToast("Pas assez d'argent");
     }
     refreshStats();
-    save();
+    saveSoon(1000);
   }
 
   /** Embauche ou améliore une chaîne (niveau +1, ou bulk/MAX) — juice inclus. */
@@ -1310,141 +1144,73 @@
       const delta = eps1 - eps0;
       const deltaLabel = delta > 0 ? ' (+' + fmt(delta) + ' €/s)' : '';
       const firstHire = res.lvl <= res.bought;
-      toast(firstHire
-        ? res.name + ' embauchée ! 🛠️' + deltaLabel
-        : res.name + ' → Niv ' + res.lvl + ' !' + deltaLabel);
+      if (firstHire) toast(res.name + ' embauchée ! 🛠️' + deltaLabel);
       popNum(el.m);
       sfx.buy();
-      const card = document.getElementById('ui-' + id);
-      if (card) {
-        card.classList.add('popping');
-        card.animate && card.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.04)' }, { transform: 'scale(1)' }], { duration: 350, easing: 'cubic-bezier(.34,1.56,.64,1)' });
-        setTimeout(() => card.classList.remove('popping'), 420);
-        // halo doré court — le joueur voit QUE sa chaîne vient de vibrer
-        card.classList.add('chain-juiced');
-        setTimeout(() => card.classList.remove('chain-juiced'), 650);
-        const lvlSpan = document.getElementById('ul-' + a.id);
-        if (lvlSpan) popNum(lvlSpan);
-        const bar = document.getElementById('chain-bar-' + a.id);
-        if (bar) {
-          bar.classList.add('flash');
-          setTimeout(() => bar.classList.remove('flash'), 550);
-        }
-        for (let i = 0; i < Math.min(3, res.bought || 1); i++) {
-          setTimeout(() => spawnParticle('⚙️ +' + (res.bought || 1) + ' Niv !', false, card), i * 90);
-        }
-      }
-      // juice palier de chaîne (AdCap) : le rendement vient de sauter — toast
-      // doré big + pluie de ✦, le head-up date la stat en parallèle
       if (a && Game.chainMilestoneMult) {
         const multAfter = Game.chainMilestoneMult(state, a.productId);
         if (multAfter > multBefore) {
           setTimeout(() => {
             toast('🏁 Palier ×' + multAfter + ' — ' + a.name + ' !', true);
-            spawnParticle('🏁 ×' + multAfter + ' !', false, card);
             if (el.m) popNum(el.m);
             if (el.mps) popNum(el.mps);
-            for (let i = 0; i < 4; i++) setTimeout(() => spawnParticle('✦', false, card), i * 120);
-          }, 250);
+          }, 200);
         }
       }
     } else if (res.reason === 'funds') {
-      toast('Manque ' + fmt((res.cost || 0) - state.money) + ' €');
+      errToast('Manque ' + fmt((res.cost || 0) - state.money) + ' €');
     } else if (res.reason === 'level') {
       const lvlGate = a ? a.unlock : '?';
-      toast('Niveau ' + lvlGate + ' requis');
+      errToast('Niveau ' + lvlGate + ' requis');
     }
     refreshStats();
-    save();
+    saveSoon(1000);
   }
 
   function equipStrain(id) {
     const res = Game.equipStrain(state, id);
     if (!res.ok) {
-      if (res.reason === 'funds') toast("Pas assez d'argent");
+      if (res.reason === 'funds') errToast("Pas assez d'argent");
       else if (res.reason === 'level') {
         const st = Game.getStrain(id);
-        toast('Niveau ' + (st ? st.unlock : '?') + ' requis');
+        errToast('Niveau ' + (st ? st.unlock : '?') + ' requis');
       }
       return;
-    }
-    if (res.justUnlocked) {
-      toast(res.name + ' débloquée !');
-      popNum(el.m);
     }
     renderBud();
     renderStrains();
     refreshStats();
-    save();
+    saveSoon(1000);
   }
 
-  /** Toast + particule pour chaque défi du jour qui vient de se terminer. */
-  function dailyToast(awarded) {
-    for (const def of awarded) {
-      toast('📅 Défi terminé : ' + def.name + ' — réclame ta récompense !', true);
-      spawnParticle('📅 ' + def.icon + ' ' + def.name + ' !', true);
-    }
-  }
-
-  /** One auto-production tick (every second): weed growth, then automation. */
+  /** One second tick: grow, automate, then notify only once per tick. */
   function autoProduce() {
     const now = Date.now();
-    // streak quotidien : idempotent — un jour nouveau démarre le bonus
-    if (Game.rollStreak) streakToast(Game.rollStreak(state, now));
-    // défis du jour : nouveau jour → photo des compteurs (silencieux)
+    /* streak : roulé chaque seconde, silencieux (l'état est dans la vue Progression) */
+    if (Game.rollStreak) Game.rollStreak(state, now);
+    /* défis du jour : photo silencieuse (le déclenchement du défi proprement dit
+       reste une action joueur dans onClaimDaily, donc aucun toast auto) */
     if (Game.rollDaily) Game.rollDaily(state, now);
-    const spiked = Game.maybeTriggerSpike && Game.maybeTriggerSpike(state, now);
-    if (spiked) {
-      const prod = Game.getProduct(spiked);
-      const name = prod ? prod.name : spiked === 'weed' ? 'Weed Brute' : spiked;
-      toast('🔥 Ruée sur ' + name + ' ×1.6 (15s) !');
-      spawnParticle('🔥 ' + name + ' ×1.6 !');
-    }
-    // alertes de prix : prévient dès qu'un marché armé atteint sa cible
-    const firedAlerts = Game.checkPriceAlerts ? Game.checkPriceAlerts(state, now) : [];
-    for (const aid of firedAlerts) {
-      const ap = Game.getProduct(aid);
-      const aname = ap ? ap.name : aid === 'weed' ? 'Weed Brute' : aid;
-      toast('🔔 ' + aname + ' a atteint ton prix cible !');
-    }
+    if (Game.maybeTriggerSpike) Game.maybeTriggerSpike(state, now);
+    // alertes de prix : check silencieux (retire les alertes armées de l'état)
+    if (Game.checkPriceAlerts) Game.checkPriceAlerts(state, now);
     const ar = Game.perSecond(state);
     let addedAuto = 0;
     if (ar > 0) addedAuto = Game.harvestXp(state, ar);
-    const awarded = Game.checkAchievements ? Game.checkAchievements(state) : [];
-    for (const a of awarded) {
-      toast('🏅 ' + a.name + ' (+' + a.bonus + '%) !');
-      spawnParticle(a.icon + ' ' + a.name + ' !', true);
-    }
-    // automation hires (Ouvriers/Dealers) craft & sell their chain's output,
-    // proportionally to the AUTO flow produced this tick ONLY — the player's
-    // clicked weed stays 100% theirs (click-first: jamais aspirée par les chaînes)
+    // autoTick
     const tick = Game.autoTick(state, now, addedAuto);
-    // achievements: vente pendant une ruée (auto)
-    if (Game.isSpikeActive && Object.keys(tick.soldMoney || {}).some((pid) => Game.isSpikeActive(state, pid, now))) {
-      const awarded = Game.checkAchievements ? Game.checkAchievements(state, { spikeSale: true }) : [];
-      for (const a of awarded) {
-        toast('🏅 ' + a.name + ' (+' + a.bonus + '%) !');
-        spawnParticle(a.icon + ' ' + a.name + ' !', true);
-      }
+    // achievements + contrats : 2 toasts max par tick, jamais doublons
+    const spikeActive = Game.isSpikeActive && Object.keys(tick.soldMoney || {}).some((pid) => Game.isSpikeActive(state, pid, now));
+    const awarded = Game.checkAchievements ? Game.checkAchievements(state, spikeActive ? { spikeSale: true } : undefined) : [];
+    if (awarded.length > 0) {
+      const a = awarded[awarded.length - 1];
+      if (lastAutoAchId !== a.id) { lastAutoAchId = a.id; toast('🏅 ' + a.name + ' !', true); }
     }
-    // contrats : offre / complétion selon la progression des chaînes
-    const doneContracts = Game.checkContracts ? Game.checkContracts(state) : [];
-    for (const ct of doneContracts) {
-      toast('📋 ' + ct.name + ' accompli — récupère ta récompense !');
-    }
-    // défis du jour : constat silencieux chaque seconde (toast si nouveau)
-    if (Game.checkDaily) dailyToast(Game.checkDaily(state, now));
-    // spoilage doux (remplace le cap) : le surplus au-dessus du plancher se dégrade
+    if (Game.checkContracts) Game.checkContracts(state);
+    // spoilage doux (remplace le cap)
     const spoiled = Game.applySpoil ? Game.applySpoil(state) : 0;
-    // juice paliers de gains totaux : chaque puissance de 10 franchie célèbre
-    const earnSt = earnStep(state.totalEarned || 0);
-    if (earnSt > lastEarnStep) {
-      lastEarnStep = earnSt;
-      toast('💰 ' + moneyWord(Math.pow(10, earnSt)) + ' de gains totaux !');
-      popNum(el.m);
-    }
-    refreshStats();
-    save();
+    if (!document.hidden) refreshStats();
+    saveSoon(5000);
   }
 
   // --- persistence -----------------------------------------------------------
@@ -1455,14 +1221,18 @@
     } catch (e) { /* quota / private mode: ignore */ }
   }
 
+  /** Save debounce : regroupe les ecritures localStorage (clic = pas d I/O). */
+  function saveSoon(delay) {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, delay === undefined ? 2000 : delay);
+  }
   function load() {
     try {
       state = Game.deserialize(localStorage.getItem(SAVE_KEY));
-      lastEarnStep = earnStep(state.totalEarned || 0); // pas de toast au boot
       // session de jeu : volatiles (compteurs de la save jamais repris)
       if (Game.newSession) Game.newSession(state);
-      // streak quotidien : marque le jour (toast si le streak progresse)
-      if (Game.rollStreak) streakToast(Game.rollStreak(state));
+      // streak quotidien : marque le jour (silencieux, visible en Progression)
+      if (Game.rollStreak) Game.rollStreak(state);
       // défis du jour : photo des compteurs au boot (silencieux)
       if (Game.rollDaily) Game.rollDaily(state);
       // offline earnings (AdvCap 50%, 8h cap)
@@ -1471,13 +1241,7 @@
         if (secs > 30 && secs < 28800) {
           const off = Game.offlineTick ? Game.offlineTick(state, secs) : { weed: 0, money: 0 };
           if (off.weed > 0 || off.money > 0) {
-            // achievements: gains hors-ligne (ex: 10K € en idle)
-            if (Game.checkAchievements) {
-              const awarded = Game.checkAchievements(state, { offlineMoney: off.money });
-              for (const a of awarded) {
-                setTimeout(() => toast('🏅 ' + a.name + ' (+' + a.bonus + '%) !'), 1300);
-              }
-            }
+            if (Game.checkAchievements) Game.checkAchievements(state, { offlineMoney: off.money });
             setTimeout(() => toast('💤 Hors-ligne ' + Math.floor(secs/60) + 'min : +' + fmt(off.weed) + 'g +' + fmt(off.money) + '€'), 600);
           }
         }
@@ -1487,8 +1251,48 @@
     }
   }
 
+  // --- onboarding (coach marks) ------------------------------------------------
+  /** Cible mise en avant par étape : le bud, puis les onglets à visiter. */
+  const COACH_TARGETS = { click: '#bc', sell: '.tab-btn[data-tab="sell"]', upgrade: '.tab-btn[data-tab="upgrades"]' };
+  let coachTargetEl = null;
+  let coachStepShown = -1;
+
+  function clearCoachTarget() {
+    if (coachTargetEl) coachTargetEl.classList.remove('coach-target');
+    coachTargetEl = null;
+  }
+
+  /** Rend le coach depuis les progrès réels (appelé à chaque refreshStats). */
+  function updateCoach() {
+    if (!el.coach) return;
+    const res = Game.checkOnboarding(state);
+    if (res.done) {
+      if (!el.coach.hidden) {
+        el.coach.hidden = true;
+        clearCoachTarget();
+        coachStepShown = -1;
+      }
+      if (res.advanced) saveSoon(1000);
+      return;
+    }
+    const step = Game.ONBOARDING_STEPS[res.step];
+    if (el.coach.hidden) el.coach.hidden = false;
+    if (el.coachTitle.textContent !== step.title) el.coachTitle.textContent = step.title;
+    if (el.coachText.textContent !== step.text) el.coachText.textContent = step.text;
+    const label = (res.step + 1) + '/' + Game.ONBOARDING_STEPS.length;
+    if (el.coachStep.textContent !== label) el.coachStep.textContent = label;
+    if (coachStepShown !== res.step) {
+      coachStepShown = res.step;
+      clearCoachTarget();
+      const sel = COACH_TARGETS[step.id];
+      coachTargetEl = sel ? document.querySelector(sel) : null;
+      if (coachTargetEl) coachTargetEl.classList.add('coach-target');
+    }
+  }
+
   // --- navigation ------------------------------------------------------------
   function switchTab(tab) {
+    activeTab = tab;
     document.querySelectorAll('.view').forEach((v) => v.classList.remove('active'));
     const target = document.getElementById('v-' + tab);
     if (target) target.classList.add('active');
@@ -1564,7 +1368,25 @@
   }
 
   document.querySelectorAll('.tab-btn').forEach((b) =>
-    b.addEventListener('click', () => switchTab(b.dataset.tab)));
+    b.addEventListener('click', () => switchTab(b.dataset.tab))
+  );
+
+  function skipCoach() {
+    Game.skipOnboarding(state);
+    updateCoach();
+    saveSoon(1000);
+  }
+  if (el.coachSkip) el.coachSkip.addEventListener('click', skipCoach);
+  if (el.coach) el.coach.addEventListener('click', skipCoach);
+  if (el.coachReplay) {
+    el.coachReplay.addEventListener('click', () => {
+      Game.restartOnboarding(state);
+      coachStepShown = -1;
+      switchTab('harvest');
+      updateCoach();
+      saveSoon(1000);
+    });
+  }
 
   let rbTimer = null;
   function disarmReset() {
@@ -1577,29 +1399,21 @@
     if (!rbTimer) {
       el.rb.classList.add('armed');
       el.rb.textContent = '⚠ Confirmer la remise à zéro';
-      if (el.rb.animate) {
-        el.rb.animate(
-          [{ transform: 'scale(1)' }, { transform: 'scale(1.04)' }, { transform: 'scale(1)' }],
-          { duration: 220, easing: 'cubic-bezier(.34,1.56,.64,1)' }
-        );
-      }
-      toast('Reclique pour tout effacer !');
       rbTimer = setTimeout(disarmReset, 4000);
       return;
     }
     disarmReset();
     try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
     state = Game.defaultState();
-    lastEarnStep = 0;
+    coachStepShown = -1;
     if (Game.newSession) Game.newSession(state);
     renderBud();
     renderUpgrades();
     renderStrains();
     switchTab('harvest');
     refreshStats();
-    updateComboUI(false);
+    updateComboUI();
     save();
-    toast('Nouvelle partie, bon courage 🌱');
   });
 
   document.addEventListener('keydown', (ev) => {
@@ -1615,22 +1429,24 @@
   Game.checkAchievements ? Game.checkAchievements(state) : null;
   renderStrains();
   renderBud();
-  updateComboUI(false);
+  updateComboUI();
   lastComboCount = (state.combo && state.combo.count) || 0;
   // expiration du combo : reset silencieux côté game, l'UI suit le delta
   setInterval(() => {
     const count = Game.comboNow(state).count;
     if (count !== lastComboCount) {
       lastComboCount = count;
-      updateComboUI(false);
-      if (count === 0) save();
+      updateComboUI();
+      if (count === 0) saveSoon(2000);
     }
-  }, 250);
+  }, 500);
   setInterval(autoProduce, 1000);
-  setInterval(save, 10000);
+  setInterval(save, 30000);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+  window.addEventListener('pagehide', save);
   refreshStats();
   // deep link: manifest shortcuts & PWA open ?tab=sell|upgrades|strains…
   const wanted = new URLSearchParams(location.search).get('tab');
   if (wanted && document.getElementById('v-' + wanted)) switchTab(wanted);
-  setTimeout(() => toast('Clique sur le bud !'), 400);
+  // coach overlay : déjà affiché en premier plan au premier run, pas de toast doublon
 })();
