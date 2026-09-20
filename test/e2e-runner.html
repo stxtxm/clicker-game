@@ -47,15 +47,35 @@ async function waitFor(sel, ms = 3000) {
     charger (événement `load` de l'iframe) PUIS que ui.js ait booté — le
     `waitFor('#m')` seul ne suffit pas : l'élément statique existe déjà dans
     l'ANCIEN document pendant la transition, ce qui faisait cliquer trop tôt. */
-function reloadGame() {
+/** Navigue l'iframe et attend le `load` du nouveau document. */
+function navigate(src) {
   const game = document.getElementById('game');
   return new Promise((resolve) => {
-    game.addEventListener('load', () => {
-      // un micro-délai laisse ui.js finir de rendre les upgrade cards (boot)
-      setTimeout(async () => { await waitFor('#ul-auto-joint'); resolve(); }, 120);
-    }, { once: true });
-    game.src = '../index.html';
+    game.addEventListener('load', () => resolve(), { once: true });
+    game.src = src;
   });
+}
+
+/** Tue le document courant : son `pagehide` (save) tourne MAINTENANT. Un seed
+    écrit juste après ne peut donc plus être écrasé par l'état du jeu sortant. */
+function killGame() { return navigate('about:blank'); }
+
+/** Boot le jeu et attend que ui.js ait rendu les upgrade cards (boot fini). */
+async function bootGame() {
+  await navigate('../index.html');
+  await sleep(120);
+  await waitFor('#ul-auto-joint');
+}
+
+/** Recharge le jeu en conservant la save déjà dans le storage. */
+function reloadGame() { return killGame().then(bootGame); }
+
+/** Pattern « seed + reload » : installe une save PUIS boot le jeu dessus.
+    `localStorage` est partagé avec l'iframe (même origine que ce runner). */
+async function seedGame(save) {
+  await killGame();
+  localStorage.setItem('budClicker', JSON.stringify(save));
+  await bootGame();
 }
 
 async function scenario() {
@@ -168,9 +188,7 @@ async function scenario() {
 
     // 9. upgrade purchase via Upgrades tab (seed a rich save, reload iframe so
     // the game boots from it, then buy like a player)
-    w.localStorage.setItem('budClicker', JSON.stringify({ weed: 0, money: 100000, strain: 'green', stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 }));
-    document.getElementById('game').src = '../index.html';
-    await sleep(900);
+    await seedGame({ weed: 0, money: 100000, strain: 'green', stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 });
     q('.tab-btn[data-tab="upgrades"]').click();
     await sleep(120);
     const harvestBtn = q('#ub-harvest');
@@ -191,9 +209,7 @@ async function scenario() {
     await sleep(100);
 
     // 11. no storage cap: big stock accumulates freely, no banner, no pulse
-    w.localStorage.setItem('budClicker', JSON.stringify({ weed: 0, money: 5000, strain: 'green', stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 }));
-    document.getElementById('game').src = '../index.html';
-    await sleep(900);
+    await seedGame({ weed: 0, money: 5000, strain: 'green', stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 });
     for (let i = 0; i < 30; i++) q('#bs').click();
     await sleep(150);
     const stockBig = weedStock() >= 25;
@@ -216,8 +232,7 @@ async function scenario() {
       'count=' + msAfter.length + ' sameNode=' + (msAfter[0] === firstNode));
 
     // 14. toast dedup: spamming a broke buy shows ONE toast, not a stack
-    w.localStorage.setItem('budClicker', JSON.stringify({ weed: 0, money: 0, strain: 'green', stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 }));
-    await reloadGame();
+    await seedGame({ weed: 0, money: 0, strain: 'green', stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 }, levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0 });
     q('.tab-btn[data-tab="upgrades"]').click();
     await sleep(100);
     const brokeBtn = q('#ub-harvest');
@@ -233,13 +248,12 @@ async function scenario() {
     // 14b. chain spec tree: built ONCE, updated in place — node identity
     // survives ticks (regression: innerHTML rebuild per tick detached the
     // spec buttons mid-tap and killed bar transitions)
-    w.localStorage.setItem('budClicker', JSON.stringify({
+    await seedGame({
       weed: 0, money: 1000000000, strain: 'green',
       stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 },
       levels: { harvest: 1, auto: 0 }, xp: 2300000000, totalEarned: 0,
       chainLvl: { joint: 5 }, chainSpecs: { joint: { speed: 0, yield: 0, volume: 0 } }
-    }));
-    await reloadGame();
+    });
     q('.tab-btn[data-tab="upgrades"]').click();
     await sleep(100);
     q('[data-utab="chains"]').click();
@@ -258,14 +272,13 @@ async function scenario() {
     // (chainEarnRate) — un achat de spé (plus de flux transformé) doit le faire
     // croître immédiatement, pas après 10s d'historique. (une chaîne active :
     // flux auto + craft/sell dispos)
-    w.localStorage.setItem('budClicker', JSON.stringify({
+    await seedGame({
       weed: 0, money: 1000000000, strain: 'green',
       stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 },
       levels: { harvest: 1, auto: 200 }, xp: 2300000000, totalEarned: 0,
       chainLvl: { joint: 1 }, chainSpecs: { joint: { speed: 0, yield: 0, volume: 0 } },
       auto: { craft: { joint: true }, sell: { joint: true } }
-    }));
-    await reloadGame();
+    });
     q('.tab-btn[data-tab="upgrades"]').click();
     await sleep(200);
     q('[data-utab="chains"]').click();
@@ -360,17 +373,20 @@ async function scenario() {
     // (date locale, même convention que Game.dayKey)
     const today = (() => { const d = new Date(); return d.getFullYear() + '-' +
       ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); })();
-    w.localStorage.setItem('budClicker', JSON.stringify({
+    // Le tirage du jour change chaque date : on marque « done » les 3 défis
+    // réellement tirés aujourd'hui, sinon l'assertion « au moins 1 réclamable »
+    // dépendrait du jour où tourne la CI.
+    const todayIds = gameWin().BudGame.dailyForDay(today).map((d) => d.id);
+    await seedGame({
       weed: 0, money: 5000, strain: 'green',
       stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 },
       levels: { harvest: 1, auto: 0 }, xp: 6000, totalEarned: 60000, totalClicks: 200,
       streak: { lastDay: today, count: 3 },
       daily: { day: today,
         base: { clicks: 0, crits: 0, crafted: 0, earned: 0, peaks: 0, xp: 0 },
-        done: [], claimed: [] },
+        done: todayIds, claimed: [] },
       milestones: ['m1', 'm2'], achievements: ['ach_first_sell']
-    }));
-    await reloadGame();
+    });
     q('.tab-btn[data-tab="progress"]').click();
     await sleep(120);
     const xpLevel = (q('#xplv').textContent || '');
@@ -419,6 +435,10 @@ async function scenario() {
       (q('#coach-step').textContent || '').includes('1/3') &&
       q('#bc').classList.contains('coach-target') &&
       (q('#coach-title').textContent || '').length > 3;
+    // le titre/step du coach portent leurs classes de style (régression : markup
+    // réécrit sans classe = titre plus doré, étape plus stylée)
+    const coachStyled = q('#coach-title').classList.contains('coach-title') &&
+      q('#coach-step').classList.contains('coach-step');
     for (let i = 0; i < 5; i++) q('#bs').click();
     await sleep(200);
     const coachAfterClicks = (q('#coach-step').textContent || '') + '|' + (q('#coach-title').textContent || '');
@@ -430,15 +450,28 @@ async function scenario() {
     await reloadGame();
     const stillSkipped = q('#coach').hidden && !q('#bc').classList.contains('coach-target');
     report('onboarding-coach',
-      coachOnBud && /2\/3/.test(coachAfterClicks) && targetMoved && skipped && stillSkipped,
-      'bud=' + coachOnBud + ' after="' + coachAfterClicks + '" moved=' + targetMoved +
+      coachOnBud && coachStyled && /2\/3/.test(coachAfterClicks) && targetMoved && skipped && stillSkipped,
+      'bud=' + coachOnBud + ' styled=' + coachStyled + ' after="' + coachAfterClicks + '" moved=' + targetMoved +
       ' skip=' + skipped + ' persist=' + stillSkipped);
 
+    // 16a. « Revoir le tutoriel » (vue Progression) relance le coach : les étapes
+    // déjà acquises (5 clics) sont revalidées d'un coup → curseur à l'étape 2/3
+    q('.tab-btn[data-tab="progress"]').click();
+    await sleep(80);
+    q('#coach-replay').click();
+    await sleep(150);
+    const replayShown = !q('#coach').hidden && /2\/3/.test(q('#coach-step').textContent || '');
+    const replayTarget = q('.tab-btn[data-tab="sell"]').classList.contains('coach-target');
+    q('#coach-skip').click();
+    await sleep(120);
+    report('onboarding-replay', replayShown && replayTarget && q('#coach').hidden,
+      'shown=' + replayShown + ' target=' + replayTarget +
+      ' step="' + (q('#coach-step').textContent || '') + '"');
+
     // 16b. save vétéran (déjà des gains) : aucun coach imposé au boot
-    w.localStorage.setItem('budClicker', JSON.stringify({ weed: 0, money: 500, strain: 'green',
+    await seedGame({ weed: 0, money: 500, strain: 'green',
       stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 },
-      levels: { harvest: 1 }, xp: 0, totalEarned: 500 }));
-    await reloadGame();
+      levels: { harvest: 1 }, xp: 0, totalEarned: 500 });
     const veteranHidden = q('#coach').hidden && !q('#bc').classList.contains('coach-target');
     report('onboarding-veteran', veteranHidden, 'hidden=' + q('#coach').hidden);
   } catch (e) {

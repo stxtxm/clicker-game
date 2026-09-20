@@ -141,16 +141,6 @@
     );
   }
 
-  /**
-   * Toast de streak (jour 4+ seulement — les jours 2-3, c'est trop de notifications).
-   * Sur mobile, on limite encore plus : jour 6+ seulement pour éviter le spam.
-   */
-  function streakToast(roll) {
-    if (roll && roll.rolled && roll.count >= 6) {
-      toast('🔥 Streak jour ' + roll.count + ' — +' + Math.round((roll.mult - 1) * 100) + '% de production !', true);
-    }
-  }
-
   // --- son (WebAudio, zéro fichier, désactivable) -----------------------------
   /** AudioContext créé au premier geste (autoplay policy), ou null si inutilisable. */
   let audioCtx = null;
@@ -1196,8 +1186,8 @@
   /** One second tick: grow, automate, then notify only once per tick. */
   function autoProduce() {
     const now = Date.now();
-    /* streak : un seul toast à la progression réelle (jour 4+ seulement) */
-    if (Game.rollStreak) streakToast(Game.rollStreak(state, now));
+    /* streak : roulé chaque seconde, silencieux (l'état est dans la vue Progression) */
+    if (Game.rollStreak) Game.rollStreak(state, now);
     /* défis du jour : photo silencieuse (le déclenchement du défi proprement dit
        reste une action joueur dans onClaimDaily, donc aucun toast auto) */
     if (Game.rollDaily) Game.rollDaily(state, now);
@@ -1241,8 +1231,8 @@
       state = Game.deserialize(localStorage.getItem(SAVE_KEY));
       // session de jeu : volatiles (compteurs de la save jamais repris)
       if (Game.newSession) Game.newSession(state);
-      // streak quotidien : marque le jour (toast si le streak progresse)
-      if (Game.rollStreak) streakToast(Game.rollStreak(state));
+      // streak quotidien : marque le jour (silencieux, visible en Progression)
+      if (Game.rollStreak) Game.rollStreak(state);
       // défis du jour : photo des compteurs au boot (silencieux)
       if (Game.rollDaily) Game.rollDaily(state);
       // offline earnings (AdvCap 50%, 8h cap)
@@ -1378,7 +1368,8 @@
   }
 
   document.querySelectorAll('.tab-btn').forEach((b) =>
-    b.addEventListener('click', () => switchTab(b.dataset.tab)));
+    b.addEventListener('click', () => switchTab(b.dataset.tab))
+  );
 
   function skipCoach() {
     Game.skipOnboarding(state);
@@ -1408,12 +1399,6 @@
     if (!rbTimer) {
       el.rb.classList.add('armed');
       el.rb.textContent = '⚠ Confirmer la remise à zéro';
-      if (el.rb.animate) {
-        el.rb.animate(
-          [{ transform: 'scale(1)' }, { transform: 'scale(1.04)' }, { transform: 'scale(1)' }],
-          { duration: 220, easing: 'cubic-bezier(.34,1.56,.64,1)' }
-        );
-      }
       rbTimer = setTimeout(disarmReset, 4000);
       return;
     }
@@ -1429,7 +1414,6 @@
     refreshStats();
     updateComboUI();
     save();
-    toast('Nouvelle partie, bon courage 🌱');
   });
 
   document.addEventListener('keydown', (ev) => {
@@ -1455,7 +1439,7 @@
       updateComboUI();
       if (count === 0) saveSoon(2000);
     }
-  }, 250);
+  }, 500);
   setInterval(autoProduce, 1000);
   setInterval(save, 30000);
   document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });

@@ -54,15 +54,13 @@
       overflow: hidden;
       background: var(--bg);
       position: relative;
-      box-shadow: 0 0 30px rgba(0,0,0,0.6);
     }
     header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: calc(12px + var(--sat)) 16px 12px;
+      padding: calc(10px + var(--sat)) 16px 8px;
       background: var(--bg);
-      border-bottom: 1px solid var(--border);
       position: sticky;
       top: 0;
       z-index: 100;
@@ -157,7 +155,7 @@
       position: absolute;
       inset: -12%;
       border-radius: 50%;
-      background: radial-gradient(circle, rgba(74,222,128,0.18) 0%, rgba(74,222,128,0.05) 55%, transparent 70%);
+      background: radial-gradient(circle, rgba(74,222,128,0.12) 0%, rgba(74,222,128,0.03) 55%, transparent 70%);
       pointer-events: none;
     }
     .bud-container:active { filter: none; }
@@ -210,24 +208,24 @@
     .combo-wrap {
       position: absolute;
       left: 50%;
-      bottom: calc(100% + 10px);
+      bottom: calc(100% + 8px);
       transform: translateX(-50%);
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 5px;
+      gap: 3px;
       pointer-events: none;
       z-index: 5;
     }
     .combo-wrap[hidden] { display: none; }
     .combo-pill {
-      font-size: .8rem;
+      font-size: .75rem;
       font-weight: 900;
       color: var(--gold-soft);
-      background: rgba(251,191,36,0.15);
-      border: 1px solid rgba(251,191,36,.4);
+      background: rgba(251,191,36,0.12);
+      border: 1px solid rgba(251,191,36,.3);
       border-radius: 999px;
-      padding: 4px 12px;
+      padding: 3px 10px;
       white-space: nowrap;
     }
     /* particules supprimées (mobile-first) : feedback = toasts + popNum, zéro couche fixed */
@@ -466,16 +464,15 @@
 
     /* ===== Coach marks (tutoriel premier-run) =====
       Texte discret en bas du conteneur, pas d'overlay, pas d'animation pulse.
+      Layout : title · step / total · texte instructions
     */
-    .coach { display: block; padding: 6px 12px; cursor: pointer; }
+    .coach { display: block; cursor: pointer; font-size: .72rem; color: var(--muted); padding: 4px 12px; }
     .coach[hidden] { display: none; }
-    .coach-card { display: flex; align-items: center; gap: 8px; justify-content: center; }
-    .coach-head b { font-size: .72rem; font-weight: 800; color: var(--gold-soft); white-space: nowrap; }
-    .coach-step { font-size: .62rem; font-weight: 800; color: var(--gold); }
+    .coach-title { font-size: .72rem; font-weight: 800; color: var(--gold-soft); }
+    .coach-step { font-size: .62rem; font-weight: 800; color: var(--gold); margin: 0 4px; }
     .coach-text { font-size: .68rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .coach-skip { display: none; }
+    .coach-skip { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .coach-target.tab-btn { position: relative; }
-    .coach-target.tab-btn::after { display: none; }
 
     /* ===== Bottom Nav ===== */
     .bottom-nav {
@@ -665,11 +662,9 @@
   </main>
 
   <div class="coach" id="coach" hidden>
-    <div class="coach-card">
-      <div class="coach-head"><b id="coach-title">Tutoriel</b><span class="coach-step" id="coach-step"></span></div>
-      <div class="coach-text" id="coach-text" role="status" aria-live="polite"></div>
-      <button class="coach-skip" id="coach-skip" type="button">Passer le tuto</button>
-    </div>
+    <b id="coach-title" class="coach-title">Tutoriel</b><span class="coach-step" id="coach-step"></span>
+    <span class="coach-text" id="coach-text" role="status" aria-live="polite"></span>
+    <button class="coach-skip" id="coach-skip" type="button" tabindex="-1" aria-hidden="true">Passer</button>
   </div>
 
   <nav class="bottom-nav" role="tablist" aria-label="Navigation principale">
