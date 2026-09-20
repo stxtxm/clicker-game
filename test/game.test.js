@@ -1649,6 +1649,25 @@ test('ach_chain_50 / ach_mastery_20: conditions de contenu (phase A suite)', () 
   assert.strictEqual(Game.checkAchievements(s2).length, 0);
 });
 
+test('ach_click_50k / ach_level_88: conditions de contenu (phase A ter)', () => {
+  const s = Game.defaultState();
+  assert.ok(!Game.checkAchievements(s).some((a) => a.id === 'ach_click_50k'));
+  assert.ok(!Game.checkAchievements(s).some((a) => a.id === 'ach_level_88'));
+  s.totalClicks = 49999;
+  s.xp = Game.xpForLevel(87); // juste sous le niveau 88
+  assert.ok(!Game.checkAchievements(s).some((a) => a.id === 'ach_click_50k'));
+  assert.ok(!Game.checkAchievements(s).some((a) => a.id === 'ach_level_88'));
+  const s2 = Game.defaultState();
+  s2.totalClicks = 50000;
+  s2.xp = Game.xpForLevel(88); // niveau 88 exact
+  const got = Game.checkAchievements(s2);
+  assert.ok(got.some((a) => a.id === 'ach_click_50k'));
+  assert.ok(got.some((a) => a.id === 'ach_level_88'));
+  assert.strictEqual(Game.ACHIEVEMENTS.find((a) => a.id === 'ach_click_50k').bonus, 15);
+  assert.strictEqual(Game.ACHIEVEMENTS.find((a) => a.id === 'ach_level_88').bonus, 25);
+  assert.strictEqual(Game.checkAchievements(s2).length, 0);
+});
+
 test('DAILY catalogue: 3/jour, gains bornes sans multiplicateur', () => {
   assert.ok(Array.isArray(Game.DAILY_CHALLENGES) && Game.DAILY_CHALLENGES.length >= 6);
   assert.strictEqual(Game.DAILY_COUNT, 3);
