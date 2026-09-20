@@ -377,10 +377,10 @@ test('deserialize: sanitizes unknown strain and bad shapes', () => {
 
 test('data catalog is coherent', () => {
   assert.strictEqual(Game.UPGRADES.length, 16);
-  assert.strictEqual(Game.STRAINS.length, 12);
+  assert.strictEqual(Game.STRAINS.length, 13);
   assert.strictEqual(Game.PRODUCTS.length, 14);
   assert.strictEqual(Game.MILESTONES.length, 13);
-  assert.strictEqual(Game.CONTRACTS.length, 16);
+  assert.strictEqual(Game.CONTRACTS.length, 18);
   for (const u of Game.UPGRADES) {
     assert.ok(u.id && u.name && u.desc && u.cost > 0);
     assert.strictEqual(Game.BASE_COST[u.id], u.cost);
@@ -394,6 +394,9 @@ test('data catalog is coherent', () => {
       assert.ok(Array.isArray(st[key]) && st[key].length === 2);
     }
   }
+  assert.ok(Game.getStrain('chemdawg'), 'chemdawg doit exister');
+  assert.strictEqual(Game.getStrain('chemdawg').unlock, 85);
+  assert.ok(Game.CHAIN_SPECS.caviar && Game.CHAIN_SPECS.caviar.yield.per >= 0.20);
 });
 
 test('level curve: hybrid quadratic-exponential XP thresholds', () => {
@@ -1213,7 +1216,7 @@ test('courbe XP hybride: early inchangé, late-game aplati après le niveau XP_L
   assert.ok(late < old / 10, 'le niveau 75 doit couter au moins 10x moins cher qu avant');
 });
 
-test('contenu late-game: produits/variétés/chaînes dérivées cohérents', () => {
+test('contenu late-game: produits/variétés/chaînes/contrats dérivés cohérents', () => {
   for (const id of ['nectar', 'caviar']) {
     const p = Game.getProduct(id);
     assert.ok(p && p.unlock > 75 && p.price > 115000, id + ' existe et est late-game');
@@ -1223,6 +1226,16 @@ test('contenu late-game: produits/variétés/chaînes dérivées cohérents', ()
   }
   assert.ok(Game.getStrain('runtz') && Game.getStrain('godfather'));
   assert.ok(Game.getStrain('runtz').unlock === 70 && Game.getStrain('godfather').unlock === 78);
+  // nouveau strain late-game (level 85)
+  const chem = Game.getStrain('chemdawg');
+  assert.ok(chem, 'chemdawg existe');
+  assert.strictEqual(chem.unlock, 85);
+  assert.ok(chem.yieldMult > Game.getStrain('godfather').yieldMult, 'chemdawg > godfather');
+  // nouveaux contrats
+  const nk = Game.CONTRACTS.find((c) => c.id === 'c_nectar_king');
+  assert.ok(nk && nk.productId === 'nectar' && nk.type === 'crafted' && nk.target === 250, 'c_nectar_king cohérent');
+  const tf = Game.CONTRACTS.find((c) => c.id === 'c_titan_flux');
+  assert.ok(tf && tf.type === 'chain_grams' && tf.target === 2000000000 && tf.unlockLevel === 72, 'c_titan_flux cohérent');
 });
 
 test('buyChainSpec sur une chaîne late-game (nectar)', () => {
@@ -1671,6 +1684,8 @@ test('dailyProgress + checkDaily: delta journalier, combo record absolu', () => 
     else if (metric === 'crafted') s.stock.joint = v;
     else if (metric === 'crits' && s.session) s.session.crits = v;
     else if (metric === 'peaks' && s.session) s.session.peakSales = v;
+    else if (metric === 'chainUnits') s.chainStats = { joint: { crafted: v, sold: 0, money: 0 } };
+    else if (metric === 'mastery') s.mastery = { green: v * 500 };
   };
   const today = Game.dailyForDay(Game.dayKey(T0));
   const clicks = today[0];
@@ -1706,6 +1721,9 @@ test('claimDaily: gain unique, erreurs couvertes', () => {
   s.combo.maxCombo = 999;
   s.stock.joint = 999;
   if (s.session) { s.session.crits = 99; s.session.peakSales = 99; }
+  // compteurs pour métriques diverses (clicks, earned, xp, crafted, crits, peaks, chainUnits, mastery)
+  s.chainStats = { joint: { crafted: 300, sold: 0, money: 0 }, hash: { crafted: 50, sold: 0, money: 0 } };
+  s.mastery = { green: 50000 }; // niveau 10 maîtrise green
   assert.ok(Game.checkDaily(s, T0).some((d) => d.id === target.id));
   const weed0 = s.stock.weed;
   const money0 = s.money;

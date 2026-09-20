@@ -126,7 +126,10 @@
       vein: '#2a1040', stroke: '#1c0a2c', pistil: '#ffd700', pistil2: '#ffe873', frost: 3.8 },
     { id: 'godfather', name: 'Godfather OG', icon: '🕴️', cost: 80000000000, unlock: 78, yieldMult: 34.0, priceMult: 32.0, desc: 'La légende des légendes, puissance mythique',
       d: ['#3d3220', '#1c1508'], m: ['#6b5636', '#382b12'], l: ['#b08d4a', '#6b5226'], f: ['#e8c87f', '#a8823f'],
-      vein: '#241a08', stroke: '#181004', pistil: '#ffae00', pistil2: '#ffd24d', frost: 4.2 }
+      vein: '#241a08', stroke: '#181004', pistil: '#ffae00', pistil2: '#ffd24d', frost: 4.2 },
+    { id: 'chemdawg', name: 'Chemdawg 101', icon: '👃', cost: 320000000000, unlock: 85, yieldMult: 42.0, priceMult: 40.0, desc: 'Notes gazoïques et terpènes rares, le sommet du génie sélectif',
+      d: ['#3a3a1a', '#1c1c0a'], m: ['#5a5a2a', '#2e2e14'], l: ['#a0a050', '#6a6a30'], f: ['#e8e8a0', '#b8b860'],
+      vein: '#181808', stroke: '#101008', pistil: '#ffcc44', pistil2: '#ffe080', frost: 4.6 }
   ];
 
   /** Base cost of each upgrade, indexed by id. */
@@ -480,6 +483,30 @@
       unlockLevel: 65,
       exclusive: ['c_money_maker', 'c_volume_king']
     },
+    {
+      id: 'c_nectar_king',
+      name: 'Nectar Haute Couture',
+      desc: 'Produire 250 nectar terpéné via la chaîne',
+      icon: '🧪',
+      productId: 'nectar',
+      target: 250,
+      type: 'crafted',
+      reward: { yieldMult: 1.9, desc: '+90% prix nectar (permanent)' },
+      unlockLevel: 82,
+      exclusive: []
+    },
+    {
+      id: 'c_titan_flux',
+      name: 'Titan du Flux',
+      desc: 'Convertir 2 milliards de grammes via les chaînes',
+      icon: '🏋️',
+      productId: null,
+      target: 2000000000,
+      type: 'chain_grams',
+      reward: { flowBoost: 1.4, desc: '+40% flux converti TOUTES chaînes (permanent)' },
+      unlockLevel: 72,
+      exclusive: ['c_money_maker', 'c_volume_king', 'c_chain_billion', 'c_flow_legend']
+    },
   ];
 
   /** Default contracts state. */
@@ -574,7 +601,9 @@
     { id: 'ach_click_10k', name: 'Cliqueur Pro', desc: 'Cliquer 10 000 fois', icon: '👆', bonus: 10, condition: (s) => (s.totalClicks || 0) >= 10000 },
     { id: 'ach_level_75', name: 'Légende Urbaine', desc: 'Atteindre le niveau 75', icon: '⚜️', bonus: 12, condition: (s) => levelFromXp(s.xp) >= 75 },
     { id: 'ach_1b', name: "Milliard d'Or", desc: 'Gagner 1 milliard € au total', icon: '🏆', bonus: 20, condition: (s) => (s.totalEarned || 0) >= 1000000000 },
-    { id: 'ach_contracts_5', name: 'Contract Killer', desc: 'Réclamer 5 contrats', icon: '📜', bonus: 15, condition: (s) => (s.contracts && s.contracts.claimed || []).length >= 5 }
+    { id: 'ach_contracts_5', name: 'Contract Killer', desc: 'Réclamer 5 contrats', icon: '📜', bonus: 15, condition: (s) => (s.contracts && s.contracts.claimed || []).length >= 5 },
+    { id: 'ach_combo_30', name: 'Comborateur', desc: 'Atteindre un combo max de 30', icon: '🔥', bonus: 10, condition: (s) => (s.combo && s.combo.maxCombo || 0) >= 30 },
+    { id: 'ach_contracts_8', name: 'Contract Invaincu', desc: 'Réclamer 8 contrats', icon: '🏆', bonus: 20, condition: (s) => (s.contracts && s.contracts.claimed || []).length >= 8 }
   ];
 
   /** Tier bonus: tous les 40 niveaux → ×2 (espacé pour lisser le late-game). */
@@ -1236,7 +1265,10 @@
     { id: 'daily_craft_5',      name: 'Petites Mains',    desc: 'Fabriquer 5 produits',            icon: '🛠️', target: 5,       reward: { money: 15000 },            metric: 'crafted' },
     { id: 'daily_sell_50k',     name: 'Marchand',         desc: 'Gagner 50 000 € (ventes)',        icon: '💰', target: 50000,  reward: { money: 10000 },            metric: 'earned' },
     { id: 'daily_peak_1',       name: 'Timing Parfait',   desc: 'Vendre une fois au pic (≥115 %)', icon: '📈', target: 1,      reward: { money: 20000 },            metric: 'peaks' },
-    { id: 'daily_xp_5k',        name: 'En Herbe',         desc: 'Gagner 5 000 XP',                 icon: '🌱', target: 5000,   reward: { weed: 8000 },              metric: 'xp' }
+    { id: 'daily_xp_5k',        name: 'En Herbe',         desc: 'Gagner 5 000 XP',                 icon: '🌱', target: 5000,   reward: { weed: 8000 },              metric: 'xp' },
+    { id: 'daily_chain_25',     name: 'Chaînier',         desc: 'Fabriquer 25 unités via les chaînes', icon: '🔗', target: 25, reward: { money: 20000 },           metric: 'chainUnits' },
+    { id: 'daily_mastery_10',   name: 'Maître du Jour',   desc: ' Monter de 10 niveaux de maîtrise', icon: '🎓', target: 10, reward: { weed: 10000 },            metric: 'mastery' },
+    { id: 'daily_peak_5',       name: 'Griffeur',         desc: 'Vendre 5 fois au pic (≥115 %)',   icon: '📊', target: 5,   reward: { money: 20000 },           metric: 'peaks' }
   ];
 
   /** Nombre de défis proposés chaque jour. */
@@ -1291,7 +1323,9 @@
       crafted: _dailyCraftedTotal(s),
       earned: s.totalEarned || 0,
       peaks: (s.session && s.session.peakSales) || 0,
-      xp: s.xp || 0
+      xp: s.xp || 0,
+      chainUnits: _dailyCurrent(s, 'chainUnits'),
+      mastery: _dailyCurrent(s, 'mastery')
     };
     return { rolled: true, day: today };
   }
@@ -1319,6 +1353,17 @@
       case 'earned': return s.totalEarned || 0;
       case 'peaks': return (s.session && s.session.peakSales) || 0;
       case 'xp': return s.xp || 0;
+      case 'chainUnits': {
+        let total = 0;
+        if (s.chainStats && typeof s.chainStats === 'object') {
+          for (const p of PRODUCTS) {
+            const st = s.chainStats[p.id];
+            if (st && typeof st.crafted === 'number') total += st.crafted;
+          }
+        }
+        return total;
+      }
+      case 'mastery': return masteryLevel(s, s.strain);
       default: return 0;
     }
   }
