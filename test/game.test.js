@@ -1630,6 +1630,25 @@ test('ach_idle_1h: context-dependant (ctx.offlineMoney), seuil 10K', () => {
   assert.strictEqual(Game.ACHIEVEMENTS.find((a) => a.id === 'ach_idle_1h').bonus, 8);
 });
 
+test('ach_chain_50 / ach_mastery_20: conditions de contenu (phase A suite)', () => {
+  const s = Game.defaultState();
+  assert.ok(!Game.checkAchievements(s).some((a) => a.id === 'ach_chain_50'));
+  assert.ok(!Game.checkAchievements(s).some((a) => a.id === 'ach_mastery_20'));
+  s.chainLvl.joint = 49;
+  s.mastery = { green: 1660000 }; // juste sous le niveau 20
+  assert.ok(!Game.checkAchievements(s).some((a) => a.id === 'ach_chain_50'));
+  assert.ok(!Game.checkAchievements(s).some((a) => a.id === 'ach_mastery_20'));
+  const s2 = Game.defaultState();
+  s2.chainLvl.hash = 50;
+  s2.mastery = { purple: 2000000 }; // niveau 20 exact
+  const got = Game.checkAchievements(s2);
+  assert.ok(got.some((a) => a.id === 'ach_chain_50'));
+  assert.ok(got.some((a) => a.id === 'ach_mastery_20'));
+  assert.strictEqual(Game.ACHIEVEMENTS.find((a) => a.id === 'ach_chain_50').bonus, 15);
+  assert.strictEqual(Game.ACHIEVEMENTS.find((a) => a.id === 'ach_mastery_20').bonus, 12);
+  assert.strictEqual(Game.checkAchievements(s2).length, 0);
+});
+
 test('DAILY catalogue: 3/jour, gains bornes sans multiplicateur', () => {
   assert.ok(Array.isArray(Game.DAILY_CHALLENGES) && Game.DAILY_CHALLENGES.length >= 6);
   assert.strictEqual(Game.DAILY_COUNT, 3);

@@ -603,7 +603,9 @@
     { id: 'ach_1b', name: "Milliard d'Or", desc: 'Gagner 1 milliard € au total', icon: '🏆', bonus: 20, condition: (s) => (s.totalEarned || 0) >= 1000000000 },
     { id: 'ach_contracts_5', name: 'Contract Killer', desc: 'Réclamer 5 contrats', icon: '📜', bonus: 15, condition: (s) => (s.contracts && s.contracts.claimed || []).length >= 5 },
     { id: 'ach_combo_30', name: 'Comborateur', desc: 'Atteindre un combo max de 30', icon: '🔥', bonus: 10, condition: (s) => (s.combo && s.combo.maxCombo || 0) >= 30 },
-    { id: 'ach_contracts_8', name: 'Contract Invaincu', desc: 'Réclamer 8 contrats', icon: '🏆', bonus: 20, condition: (s) => (s.contracts && s.contracts.claimed || []).length >= 8 }
+    { id: 'ach_contracts_8', name: 'Contract Invaincu', desc: 'Réclamer 8 contrats', icon: '🏆', bonus: 20, condition: (s) => (s.contracts && s.contracts.claimed || []).length >= 8 },
+    { id: 'ach_chain_50', name: 'Usine à Fumée', desc: 'Atteindre le niveau 50 sur une chaîne', icon: '⛓️', bonus: 15, condition: (s) => Object.values(s.chainLvl || {}).some((l) => l >= 50) },
+    { id: 'ach_mastery_20', name: 'Main Verte', desc: 'Maîtrise de niveau 20 sur une variété', icon: '🌿', bonus: 12, condition: (s) => Object.keys(s.mastery || {}).some((id) => masteryLevel(s, id) >= 20) }
   ];
 
   /** Tier bonus: tous les 40 niveaux → ×2 (espacé pour lisser le late-game). */
@@ -1268,7 +1270,10 @@
     { id: 'daily_xp_5k',        name: 'En Herbe',         desc: 'Gagner 5 000 XP',                 icon: '🌱', target: 5000,   reward: { weed: 8000 },              metric: 'xp' },
     { id: 'daily_chain_25',     name: 'Chaînier',         desc: 'Fabriquer 25 unités via les chaînes', icon: '🔗', target: 25, reward: { money: 20000 },           metric: 'chainUnits' },
     { id: 'daily_mastery_10',   name: 'Maître du Jour',   desc: ' Monter de 10 niveaux de maîtrise', icon: '🎓', target: 10, reward: { weed: 10000 },            metric: 'mastery' },
-    { id: 'daily_peak_5',       name: 'Griffeur',         desc: 'Vendre 5 fois au pic (≥115 %)',   icon: '📊', target: 5,   reward: { money: 20000 },           metric: 'peaks' }
+    { id: 'daily_peak_5',       name: 'Griffeur',         desc: 'Vendre 5 fois au pic (≥115 %)',   icon: '📊', target: 5,   reward: { money: 20000 },           metric: 'peaks' },
+    { id: 'daily_craft_25',     name: 'Chaîne de Montage',desc: 'Fabriquer 25 produits',           icon: '🏗️', target: 25,  reward: { money: 25000 },           metric: 'crafted' },
+    { id: 'daily_sell_250k',    name: 'Grossiste',        desc: 'Gagner 250 000 € (ventes)',       icon: '🏪', target: 250000, reward: { weed: 12000 },         metric: 'earned' },
+    { id: 'daily_crit_10',      name: 'Poignet en Or',    desc: 'Réussir 10 clics critiques',      icon: '🎯', target: 10,  reward: { weed: 12000 },            metric: 'crits' }
   ];
 
   /** Nombre de défis proposés chaque jour. */
