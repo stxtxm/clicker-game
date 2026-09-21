@@ -61,6 +61,11 @@
     streakMult: document.getElementById('streak-mult'),
     streakFill: document.getElementById('streak-fill'),
     streakNext: document.getElementById('streak-next'),
+    presMult: document.getElementById('pres-mult'),
+    presCount: document.getElementById('pres-count'),
+    presFill: document.getElementById('pres-fill'),
+    presGain: document.getElementById('pres-gain'),
+    presBtn: document.getElementById('pres-btn'),
     coach: document.getElementById('coach'),
     coachTitle: document.getElementById('coach-title'),
     coachText: document.getElementById('coach-text'),
@@ -662,6 +667,29 @@
       count > 0 ? 'Reviens demain : +' + Math.round(Math.min(maxDays, count + 1) * per * 100) + '%' :
       'Joue aujourd\'hui pour démarrer';
   }
+  /** Carte prestige : graines gagnables, bonus actif, progression vers le cap.
+   *  Tout est dérivé de l'état (prestigeGain/prestigeMult purs) — rien de stocké. */
+  function updatePrestigeCard() {
+    if (!el.presGain) return;
+    const gain = Game.prestigeGain(state);
+    const pts = (state.prestige && state.prestige.points) || 0;
+    const count = (state.prestige && state.prestige.count) || 0;
+    const mult = Game.prestigeMult(state);
+    const maxed = pts >= (Game.PRESTIGE_MAX_POINTS || 100);
+    el.presMult.textContent = '+' + Math.round((mult - 1) * 100) + '% production';
+    el.presCount.textContent = count > 0 ? count + (count > 1 ? ' prestiges' : ' prestige') : 'Aucun prestige';
+    el.presFill.style.width = Math.min(100, (pts / (Game.PRESTIGE_MAX_POINTS || 100)) * 100) + '%';
+    const lvl = Game.levelFromXp(state.xp);
+    el.presGain.textContent = gain > 0 ? 'Prestiger maintenant : +' + gain + ' 🌱' :
+      'Niveau ' + Game.PRESTIGE_MIN_LEVEL + ' requis (tu es niveau ' + lvl + ')';
+    el.presBtn.disabled = gain <= 0 || maxed;
+    if (!presTimer) {
+      el.presBtn.textContent = maxed ? 'Cap de graines atteint' :
+        gain > 0 ? '🌱 Prestiger (+' + gain + ' graines)' : 'Prestige — niveau ' + Game.PRESTIGE_MIN_LEVEL + ' requis';
+    }
+  }
+
+
 
   /** Label compact d'une récompense de défi (+1.5Kg, +25K €). */
   function dailyRewardLabel(def) {
@@ -773,6 +801,7 @@
       renderProgress();
       updateSessionCard();
       updateStreakCard();
+      updatePrestigeCard();
       updateDaily();
       updateAchievements();
     }
@@ -1411,6 +1440,34 @@
     renderUpgrades();
     renderStrains();
     switchTab('harvest');
+    refreshStats();
+    updateComboUI();
+    save();
+  });
+
+  let presTimer = null;
+  function disarmPrestige() {
+    clearTimeout(presTimer);
+    presTimer = null;
+    el.presBtn.classList.remove('armed');
+    updatePrestigeCard();
+  }
+  el.presBtn.addEventListener('click', () => {
+    if (!presTimer) {
+      el.presBtn.classList.add('armed');
+      el.presBtn.textContent = '⚠ Confirmer : remise à zéro de la run';
+      presTimer = setTimeout(disarmPrestige, 4000);
+      return;
+    }
+    disarmPrestige();
+    const res = Game.doPrestige(state);
+    if (!res.ok) { updatePrestigeCard(); return; }
+    sfx.reward();
+    coachStepShown = -1;
+    renderBud();
+    renderUpgrades();
+    renderStrains();
+    switchTab('progress');
     refreshStats();
     updateComboUI();
     save();

@@ -388,8 +388,11 @@
     .dc-title { font-weight: 800; color: #ff8a95; }
     .danger-btn { background: #2c1215; color: #ff6b7a; border: 1px solid rgba(255,71,87,.45); border-radius: 12px; padding: 12px; font-size: .9rem; font-weight: 800; cursor: pointer; width: 100%; margin-top: 10px; }
     .danger-btn.armed { background: linear-gradient(135deg,#c22736,#ff4757); color:#fff; border-color:#ff4757; }
-    
     .danger-btn.armed:active { transform: scale(0.98); }
+    .pres-btn { background: #12271a; color: #6dff9f; border: 1px solid rgba(109,255,159,.45); border-radius: 12px; padding: 12px; font-size: .9rem; font-weight: 800; cursor: pointer; width: 100%; margin-top: 10px; }
+    .pres-btn:disabled { opacity: .45; cursor: default; }
+    .pres-btn.armed { background: linear-gradient(135deg,#0f7a3d,#2ecc71); color:#fff; border-color:#2ecc71; }
+    .pres-btn.armed:active { transform: scale(0.98); }
 
     .panel-head.sub { margin-top: 16px; margin-bottom: 10px; }
     .milestones { display: flex; flex-direction: column; gap: 8px; }
@@ -640,6 +643,13 @@
       <div class="ach-count" id="ach-count"></div>
       <div class="ach-grid" id="ach"></div>
 
+      <div class="panel-head sub"><h2>🌱 Prestige</h2><p>Repart de zéro et garde tes graines : +2 % de production chacune, pour toujours</p></div>
+      <div class="xp-card">
+        <div class="xp-top"><b id="pres-mult">+0% production</b><span id="pres-count">Aucun prestige</span></div>
+        <div class="xp-bar"><div class="xp-fill" id="pres-fill"></div></div>
+        <div class="xp-bottom"><span id="pres-gain">Niveau 50 requis</span><span>cap +200% · 100 graines</span></div>
+        <button class="pres-btn" id="pres-btn" disabled>Prestige — niveau 50 requis</button>
+      </div>
 
       <div class="danger-card" style="border-color:var(--border2);background:var(--panel);">
         <div class="dc-title" style="color:var(--green-soft)">🎓 Tutoriel</div>
