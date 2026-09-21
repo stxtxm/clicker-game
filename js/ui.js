@@ -1030,6 +1030,7 @@
         fillEl.style.background = maxed ? 'var(--gold)' : 'var(--accent)';
       }
       if (buyEl) {
+        buyEl.classList.toggle('max', maxed);
         if (maxed) {
           buyEl.textContent = 'MAX';
           buyEl.disabled = true;
