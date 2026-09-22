@@ -96,9 +96,6 @@ Vérifications avant tout commit : `npm test` passe **et** `node --check` sur ch
   spike (carte 🔥 en place), contrat auto-détecté (carte Contrat),
   amélioration de chaîne (niveau sur la carte), reset armé (bouton explicite).
   Les erreurs d'achat passent par `errToast()` (throttle global 1,5 s).
-- **Coach (tuto)** : 1 ligne discrète sous le header, silencieuse, dismiss
-  en 1 tap n'importe où dessus (bouton « Passer » invisible mais présent
-  pour l'e2e). Aucun son, aucun toast de fin.
 - **Particules** : supprimées (zéro couche `#fx`, zéro CSS `.click-fx`) —
   le feedback passe par toasts + `popNum` (WAAPI, throttled 150 ms).
 - **Feedback d'achat** : tout achat passe par le retour de la fonction Game

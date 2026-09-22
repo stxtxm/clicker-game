@@ -60,13 +60,7 @@
     streakLvl: document.getElementById('streak-lvl'),
     streakMult: document.getElementById('streak-mult'),
     streakFill: document.getElementById('streak-fill'),
-    streakNext: document.getElementById('streak-next'),
-    coach: document.getElementById('coach'),
-    coachTitle: document.getElementById('coach-title'),
-    coachText: document.getElementById('coach-text'),
-    coachStep: document.getElementById('coach-step'),
-    coachSkip: document.getElementById('coach-skip'),
-    coachReplay: document.getElementById('coach-replay')
+    streakNext: document.getElementById('streak-next')
   };
 
   let state = Game.defaultState();
@@ -733,7 +727,7 @@
   /** Sync every dynamic text / disabled state with `state`.
    *  Hidden views are skipped: the per-second tick only writes to the DOM the
    *  player is actually looking at (less style/layout work, smoother on mobile). */
-  /** Refresh leger du clic : header + stock + mastery + coach uniquement.
+  /** Refresh leger du clic : header + stock + mastery uniquement.
    *  Evite le tick complet (market/upgrades/progress) a chaque tap mobile. */
   function refreshHarvestLite() {
     if (el.m) el.m.textContent = fmt(state.money) + " €";
@@ -742,7 +736,6 @@
     if (el.lv) el.lv.textContent = Game.levelFromXp(state.xp);
     if (el.stw) el.stw.textContent = fmt(state.stock.weed) + "g dispo";
     updateMastery();
-    updateCoach();
   }
   function refreshStats() {
     const pc = Game.perClick(state);
@@ -775,7 +768,6 @@
       updateDaily();
       updateAchievements();
     }
-    updateCoach();
     if (!active('upgrades')) return;
 
     // sub-tab Matériel / Chaînes : on ne met à jour que la liste visible
@@ -1251,45 +1243,6 @@
     }
   }
 
-  // --- onboarding (coach marks) ------------------------------------------------
-  /** Cible mise en avant par étape : le bud, puis les onglets à visiter. */
-  const COACH_TARGETS = { click: '#bc', sell: '.tab-btn[data-tab="sell"]', upgrade: '.tab-btn[data-tab="upgrades"]' };
-  let coachTargetEl = null;
-  let coachStepShown = -1;
-
-  function clearCoachTarget() {
-    if (coachTargetEl) coachTargetEl.classList.remove('coach-target');
-    coachTargetEl = null;
-  }
-
-  /** Rend le coach depuis les progrès réels (appelé à chaque refreshStats). */
-  function updateCoach() {
-    if (!el.coach) return;
-    const res = Game.checkOnboarding(state);
-    if (res.done) {
-      if (!el.coach.hidden) {
-        el.coach.hidden = true;
-        clearCoachTarget();
-        coachStepShown = -1;
-      }
-      if (res.advanced) saveSoon(1000);
-      return;
-    }
-    const step = Game.ONBOARDING_STEPS[res.step];
-    if (el.coach.hidden) el.coach.hidden = false;
-    if (el.coachTitle.textContent !== step.title) el.coachTitle.textContent = step.title;
-    if (el.coachText.textContent !== step.text) el.coachText.textContent = step.text;
-    const label = (res.step + 1) + '/' + Game.ONBOARDING_STEPS.length;
-    if (el.coachStep.textContent !== label) el.coachStep.textContent = label;
-    if (coachStepShown !== res.step) {
-      coachStepShown = res.step;
-      clearCoachTarget();
-      const sel = COACH_TARGETS[step.id];
-      coachTargetEl = sel ? document.querySelector(sel) : null;
-      if (coachTargetEl) coachTargetEl.classList.add('coach-target');
-    }
-  }
-
   // --- navigation ------------------------------------------------------------
   function switchTab(tab) {
     activeTab = tab;
@@ -1371,23 +1324,6 @@
     b.addEventListener('click', () => switchTab(b.dataset.tab))
   );
 
-  function skipCoach() {
-    Game.skipOnboarding(state);
-    updateCoach();
-    saveSoon(1000);
-  }
-  if (el.coachSkip) el.coachSkip.addEventListener('click', skipCoach);
-  if (el.coach) el.coach.addEventListener('click', skipCoach);
-  if (el.coachReplay) {
-    el.coachReplay.addEventListener('click', () => {
-      Game.restartOnboarding(state);
-      coachStepShown = -1;
-      switchTab('harvest');
-      updateCoach();
-      saveSoon(1000);
-    });
-  }
-
   let rbTimer = null;
   function disarmReset() {
     clearTimeout(rbTimer);
@@ -1405,7 +1341,6 @@
     disarmReset();
     try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
     state = Game.defaultState();
-    coachStepShown = -1;
     if (Game.newSession) Game.newSession(state);
     renderBud();
     renderUpgrades();
@@ -1448,5 +1383,4 @@
   // deep link: manifest shortcuts & PWA open ?tab=sell|upgrades|strains…
   const wanted = new URLSearchParams(location.search).get('tab');
   if (wanted && document.getElementById('v-' + wanted)) switchTab(wanted);
-  // coach overlay : déjà affiché en premier plan au premier run, pas de toast doublon
 })();
