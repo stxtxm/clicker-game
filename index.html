@@ -473,18 +473,6 @@
     .ms { background: rgba(7,10,7,.92); color: var(--green-soft); padding: 7px 14px; border-radius: 8px; font-size: .78rem; font-weight: 700; border: 1px solid var(--border); text-align: center; max-width: calc(100% - 24px); }
     .ms.big { color: var(--gold); border-color: var(--gold); background: var(--panel2); }
 
-    /* ===== Coach marks (tutoriel premier-run) =====
-      Texte discret en bas du conteneur, pas d'overlay, pas d'animation pulse.
-      Layout : title · step / total · texte instructions
-    */
-    .coach { display: block; cursor: pointer; font-size: .72rem; color: var(--muted); padding: 4px 12px; }
-    .coach[hidden] { display: none; }
-    .coach-title { font-size: .72rem; font-weight: 800; color: var(--gold-soft); }
-    .coach-step { font-size: .62rem; font-weight: 800; color: var(--gold); margin: 0 4px; }
-    .coach-text { font-size: .68rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .coach-skip { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-    .coach-target.tab-btn { position: relative; }
-
     /* ===== Bottom Nav ===== */
     .bottom-nav {
       position: absolute;
@@ -651,12 +639,6 @@
       <div class="ach-count" id="ach-count"></div>
       <div class="ach-grid" id="ach"></div>
 
-      <div class="danger-card" style="border-color:var(--border2);background:var(--panel);">
-        <div class="dc-title" style="color:var(--green-soft)">🎓 Tutoriel</div>
-        <div class="pc-desc" style="font-size:.78rem;color:var(--muted);line-height:1.45;margin-top:4px;margin-bottom:10px;">Rejoue les 3 étapes de départ : récolter le bud, vendre au Marché, acheter un premier upgrade.</div>
-        <button class="mc-btn" id="coach-replay" style="background:var(--panel2);border-color:var(--border2);color:var(--text);font-weight:700;width:100%;padding:12px;">Revoir le tutoriel</button>
-      </div>
-
       <div class="danger-card">
         <div class="dc-title">⚠️ Zone de danger</div>
         <div class="pc-desc" style="font-size:.78rem;color:var(--muted);line-height:1.45;margin-top:4px;margin-bottom:10px;">Efface <b>toute</b> la progression : argent, stock, upgrades, variétés, niveau, XP et jalons. Action irréversible.</div>
@@ -670,12 +652,6 @@
       <div class="contracts" id="cv"></div>
     </section>
   </main>
-
-  <div class="coach" id="coach" hidden>
-    <b id="coach-title" class="coach-title">Tutoriel</b><span class="coach-step" id="coach-step"></span>
-    <span class="coach-text" id="coach-text" role="status" aria-live="polite"></span>
-    <button class="coach-skip" id="coach-skip" type="button" tabindex="-1" aria-hidden="true">Passer</button>
-  </div>
 
   <nav class="bottom-nav" role="tablist" aria-label="Navigation principale">
     <button class="tab-btn active" role="tab" aria-selected="true" aria-label="Récolte" data-tab="harvest"><span aria-hidden="true">🌿</span><span>Récolte</span></button>

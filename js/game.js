@@ -38,7 +38,6 @@
  *     combo: { count, lastClickAt, maxCombo },      // 2s closed window
  *     streak: { lastDay, count },                   // daily streak (YYYY-MM-DD)
  *     daily: { day, base, done, claimed },          // daily challenges snapshot
- *     onboarding: { done, step },                   // first-run coach cursor
  *     mastery: { [strainId]: xp },
  *     alerts: { [marketId]: target },                // armed price alerts
  *     session: { startedAt, earned, idleEarned, clicks, crits, maxCombo,
@@ -992,7 +991,6 @@
       combo: { count: 0, lastClickAt: 0, maxCombo: 0 },
       streak: { lastDay: null, count: 0 },
       daily: defaultDaily(),
-      onboarding: { done: false, step: 0 },
       mastery: {},
       alerts: {},
       session: { startedAt: 0, earned: 0, idleEarned: 0, clicks: 0, crits: 0, maxCombo: 0, peakSales: 0, biggestSale: 0 },
@@ -1481,76 +1479,6 @@
       peakSales: S.peakSales || 0,
       biggestSale: S.biggestSale || 0
     };
-  }
-
-  /* ---- onboarding (coach marks du premier run) ------------------------------- */
-  /**
-   * Trois étapes qui apprennent la boucle click-first : cliquer, vendre,
-   * améliorer. Chaque étape est validée par une action RÉELLE du joueur
-   * (compteurs de la save), jamais par un timer : un joueur qui part 10 min
-   * retrouve son tuto exactement où il l'a laissé. Les objectifs sont dérivés
-   * de champs déjà persistés (totalClicks, totalEarned, niveaux d'upgrade) —
-   * l'onboarding lui-même ne stocke qu'un curseur `{ done, step }`.
-   */
-  const ONBOARDING_STEPS = [
-    { id: 'click',   goal: 5, title: 'Récolte ton weed',    text: 'Tape sur le bud : chaque gramme cliqué t\'appartient à 100 %. Enchaîne les clics pour monter le combo (jusqu\'à ×3).' },
-    { id: 'sell',    goal: 1, title: 'Vends au Marché',     text: 'Onglet Marché : vends ta weed. Les prix fluctuent ±30 % — guette un pic (↗) pour encaisser plus.' },
-    { id: 'upgrade', goal: 1, title: 'Améliore ton matos',  text: 'Onglet Upgrades : achète ton premier outil. Le clic rapporte plus à chaque niveau — c\'est lui qui paie tout le reste.' }
-  ];
-
-  /** True quand l'objectif de l'étape `i` est rempli par l'état du joueur. */
-  function onboardingGoalMet(s, i) {
-    const step = ONBOARDING_STEPS[i];
-    if (!step) return true;
-    if (step.id === 'click') return (s.totalClicks || 0) >= step.goal;
-    if (step.id === 'sell') return (s.totalEarned || 0) > 0;
-    if (step.id === 'upgrade') {
-      for (const u of UPGRADES) {
-        if ((s.levels && s.levels[u.id] || 0) > (DEFAULT_LEVELS[u.id] || 0)) return true;
-      }
-      return false;
-    }
-    return true;
-  }
-
-  /** Index de la première étape non remplie, ou ONBOARDING_STEPS.length. */
-  function onboardingStep(s) {
-    for (let i = 0; i < ONBOARDING_STEPS.length; i++) {
-      if (!onboardingGoalMet(s, i)) return i;
-    }
-    return ONBOARDING_STEPS.length;
-  }
-
-  /**
-   * Fait avancer le curseur d'onboarding selon les progrès réels du joueur.
-   * Idempotent : sans nouvel objectif rempli, ne change rien (`advanced: false`).
-   * @returns {{done:boolean, step:number, advanced:boolean}}
-   */
-  function checkOnboarding(s) {
-    if (!s.onboarding || typeof s.onboarding !== 'object') s.onboarding = { done: false, step: 0 };
-    const ob = s.onboarding;
-    if (ob.done) return { done: true, step: ONBOARDING_STEPS.length, advanced: false };
-    let advanced = false;
-    while (ob.step < ONBOARDING_STEPS.length && onboardingGoalMet(s, ob.step)) {
-      ob.step += 1;
-      advanced = true;
-    }
-    const done = ob.step >= ONBOARDING_STEPS.length;
-    if (done) ob.done = true;
-    return { done, step: ob.step, advanced };
-  }
-
-  /** Passe le tuto définitivement (bouton « Passer ») — jamais rejoué au boot. */
-  function skipOnboarding(s) {
-    const was = !(s.onboarding && s.onboarding.done);
-    s.onboarding = { done: true, step: ONBOARDING_STEPS.length };
-    return was;
-  }
-
-  /** Relance le tuto à l'étape 1 (bouton « Revoir le tutoriel »). */
-  function restartOnboarding(s) {
-    s.onboarding = { done: false, step: 0 };
-    return s.onboarding;
   }
 
   /**
@@ -2094,13 +2022,9 @@
   function deserialize(raw) {
     const d = defaultState();
     if (!raw) return d;
-    // une save qui porte déjà le champ onboarding n'est jamais « migrée » :
-    // sa valeur est respectée telle quelle (roundtrip fidèle)
-    let hadOnboarding = false;
     try {
       const old = JSON.parse(raw);
       if (old && typeof old === 'object') {
-        hadOnboarding = !!(old.onboarding && typeof old.onboarding === 'object');
         Object.assign(d, old);
       }
     } catch {
@@ -2285,28 +2209,14 @@
         d.streak.lastDay = typeof d.streak.lastDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.streak.lastDay) ? d.streak.lastDay : null;
         d.streak.count = typeof d.streak.count === 'number' && d.streak.count > 0 ? Math.min(STREAK_MAX_DAYS, Math.floor(d.streak.count)) : 0;
       }
-      // onboarding : curseur borné ; une save qui a déjà vécu (clics, gains ou
-      // argent) est considérée tuto terminé — jamais de coach marks sur un
-      // joueur qui a déjà une partie en cours (migration douce des vieilles saves).
-      {
-        const has = hadOnboarding && d.onboarding && typeof d.onboarding === 'object';
-        const ob = has ? d.onboarding : {};
-        // champ présent = valeur de la save (roundtrip fidèle) ; champ absent
-        // (vieilles saves) = un joueur qui a déjà vécu n'a pas de tuto imposé.
-        const veteran = !has && ((d.totalClicks || 0) >= (ONBOARDING_STEPS[0].goal || 0) ||
-          (d.totalEarned || 0) > 0 || (Number(d.money) || 0) > 0);
-        d.onboarding = {
-          done: has ? ob.done === true : veteran,
-          step: Math.max(0, Math.min(ONBOARDING_STEPS.length, Math.floor(Number(ob.step) || 0)))
-        };
-      }
-      // drop removed fields (golden, prestige)
+      // drop removed fields (golden, prestige, onboarding)
       delete d.goldenUntil;
       delete d.goldenNextAt;
       delete d.prestige;
       delete d.prestigeLevel;
       delete d.prestigeBonus;
       delete d.lifetimeEarned;
+      delete d.onboarding;
       // session : volatiles — forme neuve à chaque chargement (l'UI ouvre la
       // sienne via newSession) ; les compteurs de la save ne sont JAMAIS repris
       d.session = { startedAt: 0, earned: 0, idleEarned: 0, clicks: 0, crits: 0, maxCombo: 0, peakSales: 0, biggestSale: 0 };
@@ -2371,12 +2281,6 @@
     dailyProgress,
     checkDaily,
     claimDaily,
-    ONBOARDING_STEPS,
-    onboardingGoalMet,
-    onboardingStep,
-    checkOnboarding,
-    skipOnboarding,
-    restartOnboarding,
     PEAK_SALE_MULT,
     newSession,
     sessionTrackSale,
