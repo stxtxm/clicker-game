@@ -524,9 +524,9 @@ test('deserialize: combo + totalClicks sont sanitizés et migrés', () => {
   assert.strictEqual(loaded.totalClicks, 12);
   assert.deepStrictEqual(loaded.combo, { count: 7, lastClickAt: 5, maxCombo: 99 });
   assert.strictEqual(loaded.sessionClicks, undefined);
-  assert.strictEqual(loaded.prestigeLevel, undefined); // forme legacy #24 purgée
+  assert.strictEqual(loaded.prestige, undefined);
+  assert.strictEqual(loaded.prestigeLevel, undefined); // formes legacy #24 purgées
   assert.strictEqual(loaded.prestigeBonus, undefined);
-  assert.deepStrictEqual(loaded.prestige, { count: 0, points: 0 }); // prestige numérique → forme neuve
   assert.strictEqual(loaded.levels.power, undefined);
   assert.strictEqual(loaded.levels.crit, 1); // crit est un upgrade légitime depuis cette version
   assert.strictEqual(loaded.levels.harvest, 3);
@@ -1878,104 +1878,3 @@ test('roundtrip daily: persiste, corrompu regenere, vieux migre', () => {
   assert.strictEqual(old.daily.day, null);
   assert.deepStrictEqual(old.daily.done, []);
 });
-
-// ---- prestige (phase B) ------------------------------------------------------
-
-test('prestigeGain/prestigeMult: gate 50, +1 graine/niveau, ×2%/graine cap 100', () => {
-  assert.strictEqual(Game.PRESTIGE_MIN_LEVEL, 50);
-  assert.strictEqual(Game.PRESTIGE_BONUS_PER, 0.02);
-  assert.strictEqual(Game.PRESTIGE_MAX_POINTS, 100);
-  const s = Game.defaultState();
-  assert.strictEqual(Game.prestigeGain(s), 0);
-  s.xp = Game.xpForLevel(49);
-  assert.strictEqual(Game.prestigeGain(s), 0);
-  s.xp = Game.xpForLevel(50) - 1;
-  assert.strictEqual(Game.prestigeGain(s), 0);
-  s.xp = Game.xpForLevel(50);
-  assert.strictEqual(Game.prestigeGain(s), 5);
-  s.xp = Game.xpForLevel(60);
-  assert.strictEqual(Game.prestigeGain(s), 15);
-  assert.strictEqual(Game.prestigeMult(s), 1);
-  s.prestige.points = 10;
-  assert.strictEqual(Game.prestigeMult(s), 1.2);
-  s.prestige.points = 500;
-  assert.strictEqual(Game.prestigeMult(s), 3); // cap 100 graines = +200 %
-  s.prestige.points = -5;
-  assert.strictEqual(Game.prestigeMult(s), 1);
-});
-
-test('productionMult intègre le multiplicateur de prestige', () => {
-  const s = Game.defaultState();
-  const base = Game.productionMult(s);
-  s.prestige = { count: 1, points: 50 };
-  const ratio = Game.productionMult(s) / base;
-  assert.ok(Math.abs(ratio - 2) < 1e-9, 'ratio ' + ratio); // +100 % (50 × 2 %)
-});
-
-test('doPrestige: refus sous le gate, garde à vie, reset de la run', () => {
-  const s = Game.defaultState();
-  assert.strictEqual(Game.doPrestige(s).reason, 'level');
-  s.xp = Game.xpForLevel(55); // gain 5 + 5 = 10
-  s.money = 999999;
-  s.stock.weed = 5000;
-  s.totalEarned = 123456;
-  s.chainLvl.joint = 30;
-  s.levels.harvest = 12;
-  s.milestones = ['m1', 'm5'];
-  s.achievements = ['ach_100k'];
-  s.mastery = { green: 500 };
-  s.totalClicks = 4321;
-  s.contracts.claimed = ['c_joint_king'];
-  s.onboarding = { done: true, step: 3 };
-  s.streak = { lastDay: '2026-09-20', count: 4 };
-  const res = Game.doPrestige(s);
-  assert.strictEqual(res.ok, true);
-  assert.strictEqual(res.gained, 10);
-  assert.deepStrictEqual(s.prestige, { count: 1, points: 10 });
-  assert.strictEqual(s.xp, 0);
-  assert.strictEqual(s.money, 0);
-  assert.strictEqual(s.stock.weed, 0);
-  assert.strictEqual(s.chainLvl.joint, 0);
-  assert.strictEqual(s.levels.harvest, 1);
-  assert.strictEqual(s.totalEarned, 0);
-  assert.deepStrictEqual(s.milestones, ['m1', 'm5']);
-  assert.deepStrictEqual(s.achievements, ['ach_100k']);
-  assert.deepStrictEqual(s.mastery, { green: 500 });
-  assert.strictEqual(s.totalClicks, 4321);
-  assert.deepStrictEqual(s.contracts.claimed, ['c_joint_king']);
-  assert.deepStrictEqual(s.onboarding, { done: true, step: 3 });
-  assert.deepStrictEqual(s.streak, { lastDay: '2026-09-20', count: 4 });
-  // après prestige : gain recomputé à 0 (niveau 1), bonus actif
-  assert.strictEqual(Game.prestigeGain(s), 0);
-  assert.strictEqual(Game.prestigeMult(s), 1.2);
-});
-
-test('doPrestige: gain borné à la place restante, refus maxed au cap', () => {
-  const s = Game.defaultState();
-  s.prestige = { count: 3, points: 98 };
-  s.xp = Game.xpForLevel(52); // gain 7 → borné à 2
-  const res = Game.doPrestige(s);
-  assert.strictEqual(res.ok, true);
-  assert.strictEqual(res.gained, 2);
-  assert.deepStrictEqual(s.prestige, { count: 4, points: 100 });
-  s.xp = Game.xpForLevel(70);
-  const r2 = Game.doPrestige(s);
-  assert.strictEqual(r2.ok, false);
-  assert.strictEqual(r2.reason, 'maxed');
-  assert.strictEqual(s.prestige.count, 4); // rien n'a bougé
-});
-
-test('roundtrip prestige: count/points préservés + sanitisation bornée', () => {
-  const s = Game.defaultState();
-  s.prestige = { count: 2, points: 44 };
-  const d = Game.deserialize(Game.serialize(s));
-  assert.deepStrictEqual(d.prestige, { count: 2, points: 44 });
-  assert.strictEqual(Game.prestigeMult(d), 1.88);
-  const bad = Game.deserialize(JSON.stringify({ prestige: { count: -1, points: 999 } }));
-  assert.deepStrictEqual(bad.prestige, { count: 0, points: 100 });
-  const junk = Game.deserialize(JSON.stringify({ prestige: 'nope' }));
-  assert.deepStrictEqual(junk.prestige, { count: 0, points: 0 });
-});
-
-
-

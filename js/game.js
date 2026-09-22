@@ -38,7 +38,6 @@
  *     combo: { count, lastClickAt, maxCombo },      // 2s closed window
  *     streak: { lastDay, count },                   // daily streak (YYYY-MM-DD)
  *     daily: { day, base, done, claimed },          // daily challenges snapshot
- *     prestige: { count, points },                  // prestige seeds (×2%/pt, cap 100)
  *     onboarding: { done, step },                   // first-run coach cursor
  *     mastery: { [strainId]: xp },
  *     alerts: { [marketId]: target },                // armed price alerts
@@ -714,7 +713,6 @@
     const achBonus = achievementBonus(s);
     m *= 1 + achBonus / 100;
     m *= streakMult(s, now);
-    m *= prestigeMult(s);
     return m;
   }
 
@@ -838,78 +836,6 @@
     s.streak.lastDay = today;
     s.streak.count = count;
     return { rolled: true, count, mult: streakMult(s, t) };
-  }
-
-  /* ---- prestige (repartir de zéro, plus fort) --------------------------------- */
-  /** Niveau requis pour prestige : le late-game est le rituel de fin de run. */
-  const PRESTIGE_MIN_LEVEL = 50;
-  /** Bonus de production permanent par graine de prestige (+2 %). */
-  const PRESTIGE_BONUS_PER = 0.02;
-  /** Cap de graines : le bonus plafonne à +200 %, comme tout multiplicateur. */
-  const PRESTIGE_MAX_POINTS = 100;
-
-  /**
-   * Grainées gagnées si on prestige maintenant : 5 de base + 1 par niveau
-   * au-delà du gate. Pur — aucun état muté, la carte UI le lit à chaque tick.
-   * @param {object} s state
-   * @returns {number} graines (0 sous le niveau requis)
-   */
-  function prestigeGain(s) {
-    const level = levelFromXp(s.xp);
-    if (level < PRESTIGE_MIN_LEVEL) return 0;
-    return 5 + (level - PRESTIGE_MIN_LEVEL);
-  }
-
-  /**
-   * Multiplicateur de production permanent des graines accumulées
-   * (clic ET idle — comme tout bonus de productionMult), capé.
-   */
-  function prestigeMult(s) {
-    const pts = s.prestige && s.prestige.points || 0;
-    return 1 + PRESTIGE_BONUS_PER * Math.min(PRESTIGE_MAX_POINTS, Math.max(0, pts));
-  }
-
-  /**
-   * Prestige : repart d'un état neuf en gardant ce qui est « à vie »
-   * (achievements, jalons, maîtrises, streak, clics totaux, contrats
-   * réclamés, tutoriel terminé) et convertit le niveau courant en graines.
-   * Le bonus sature au cap — prestige au-delà n'ajoute plus de graines
-   * ( raison 'maxed' ) tant que le compteur n'a pas de place.
-   * @param {object} s state (mutated in place — la référence UI reste valide)
-   * @returns {{ok:boolean, reason?:string, gained?:number, points?:number, count?:number}}
-   */
-  function doPrestige(s) {
-    const level = levelFromXp(s.xp);
-    if (level < PRESTIGE_MIN_LEVEL) return { ok: false, reason: 'level' };
-    s.prestige = s.prestige && typeof s.prestige === 'object' ? s.prestige : { count: 0, points: 0 };
-    const room = PRESTIGE_MAX_POINTS - Math.min(PRESTIGE_MAX_POINTS, s.prestige.points || 0);
-    if (room <= 0) return { ok: false, reason: 'maxed' };
-    const gained = Math.min(prestigeGain(s), room);
-    const prevCount = (s.prestige && s.prestige.count) || 0;
-    const prevPoints = Math.min(PRESTIGE_MAX_POINTS, (s.prestige && s.prestige.points) || 0);
-    const keep = {
-      achievements: s.achievements || [],
-      milestones: s.milestones || [],
-      mastery: s.mastery || {},
-      streak: s.streak || { lastDay: null, count: 0 },
-      totalClicks: s.totalClicks || 0,
-      contractsClaimed: (s.contracts && s.contracts.claimed) || [],
-      onboarding: s.onboarding || { done: false, step: 0 }
-    };
-    const fresh = defaultState();
-    Object.keys(s).forEach((k) => { delete s[k]; });
-    Object.assign(s, fresh, {
-      achievements: keep.achievements,
-      milestones: keep.milestones,
-      mastery: keep.mastery,
-      streak: keep.streak,
-      totalClicks: keep.totalClicks,
-      onboarding: keep.onboarding,
-      prestige: { count: prevCount + 1, points: Math.min(PRESTIGE_MAX_POINTS, prevPoints + gained) }
-    });
-    s.contracts = defaultContracts();
-    s.contracts.claimed = keep.contractsClaimed;
-    return { ok: true, gained, points: s.prestige.points, count: s.prestige.count };
   }
 
   /**
@@ -1069,7 +995,6 @@
       onboarding: { done: false, step: 0 },
       mastery: {},
       alerts: {},
-      prestige: { count: 0, points: 0 },
       session: { startedAt: 0, earned: 0, idleEarned: 0, clicks: 0, crits: 0, maxCombo: 0, peakSales: 0, biggestSale: 0 },
       lastSeen: 0,
       spikeUntil: 0,
@@ -2224,7 +2149,7 @@
       // `session` est purgée ci-dessus puis réinjectée NEUVE en fin de fonction :
       // données volatiles (stats de session), jamais restaurées
       delete d.sessionClicks; delete d.activeSessionBonuses;
-      delete d.prestigeLevel; delete d.prestigeBonus; delete d.totalEarnedLifetime;
+      delete d.prestige; delete d.prestigeLevel; delete d.prestigeBonus; delete d.totalEarnedLifetime;
       delete d.activePerformanceEvents; delete d.autoClickEnabled; delete d.autoClickLastTime;
       delete d.power; delete d.crit; delete d.chain; delete d.frenzy; delete d.session;
       if (d.levels) { delete d.levels.power; delete d.levels.chain; delete d.levels.frenzy; }
@@ -2360,12 +2285,6 @@
         d.streak.lastDay = typeof d.streak.lastDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.streak.lastDay) ? d.streak.lastDay : null;
         d.streak.count = typeof d.streak.count === 'number' && d.streak.count > 0 ? Math.min(STREAK_MAX_DAYS, Math.floor(d.streak.count)) : 0;
       }
-      // prestige : compteurs entiers bornés (count ≥ 0, points ∈ [0, MAX])
-      if (!d.prestige || typeof d.prestige !== 'object') d.prestige = { count: 0, points: 0 };
-      else {
-        d.prestige.count = typeof d.prestige.count === 'number' && d.prestige.count > 0 ? Math.floor(d.prestige.count) : 0;
-        d.prestige.points = typeof d.prestige.points === 'number' && d.prestige.points > 0 ? Math.min(PRESTIGE_MAX_POINTS, Math.floor(d.prestige.points)) : 0;
-      }
       // onboarding : curseur borné ; une save qui a déjà vécu (clics, gains ou
       // argent) est considérée tuto terminé — jamais de coach marks sur un
       // joueur qui a déjà une partie en cours (migration douce des vieilles saves).
@@ -2381,9 +2300,10 @@
           step: Math.max(0, Math.min(ONBOARDING_STEPS.length, Math.floor(Number(ob.step) || 0)))
         };
       }
-      // drop removed fields (golden — le prestige EST désormais un vrai système)
+      // drop removed fields (golden, prestige)
       delete d.goldenUntil;
       delete d.goldenNextAt;
+      delete d.prestige;
       delete d.prestigeLevel;
       delete d.prestigeBonus;
       delete d.lifetimeEarned;
@@ -2443,12 +2363,6 @@
     dayKey,
     streakMult,
     rollStreak,
-    PRESTIGE_MIN_LEVEL,
-    PRESTIGE_BONUS_PER,
-    PRESTIGE_MAX_POINTS,
-    prestigeGain,
-    prestigeMult,
-    doPrestige,
     DAILY_CHALLENGES,
     DAILY_COUNT,
     dailyForDay,

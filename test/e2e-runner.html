@@ -468,36 +468,7 @@ async function scenario() {
       'shown=' + replayShown + ' target=' + replayTarget +
       ' step="' + (q('#coach-step').textContent || '') + '"');
 
-    // 16b. prestige : bouton armé 2-temps, reset de la run, bonus actif après reload
-    // (xp littéral = seuil niveau 52 — le harnais ne charge pas js/game.js)
-    await seedGame({ weed: 0, money: 999999, strain: 'green',
-      stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 },
-      levels: { harvest: 5 }, xp: 4292630668052, totalEarned: 12345,
-      chainLvl: { joint: 12 }, prestige: { count: 0, points: 0 },
-      achievements: ['ach_100k'], onboarding: { done: true, step: 3 } });
-    q('.tab-btn[data-tab="progress"]').click();
-    await sleep(120);
-    const presBtn = q('#pres-btn');
-    const presGainTxt = (q('#pres-gain').textContent || '');
-    const presUnlocked = presBtn && !presBtn.disabled && presGainTxt.includes('+7');
-    presBtn.click(); // 1er appui : arme (aucune exécution)
-    await sleep(80);
-    const presArmed = presBtn.classList.contains('armed') && presBtn.textContent.includes('Confirmer');
-    presBtn.click(); // 2e appui : exécute le prestige
-    await sleep(250);
-    const resetDone = money() === 0 && (q('#sb').textContent || '').includes('Green Dream');
-    const presCount = (q('#pres-count').textContent || '').includes('1 prestige');
-    const presMultAfter = (q('#pres-mult').textContent || '').includes('+14%');
-    await reloadGame();
-    q('.tab-btn[data-tab="progress"]').click(); // la carte n'est peinte que dans sa vue active
-    await sleep(120);
-    const presPersist = (q('#pres-count').textContent || '').includes('1 prestige') &&
-      (q('#pres-mult').textContent || '').includes('+14%');
-    report('prestige-flow', presUnlocked && presArmed && resetDone && presCount && presMultAfter && presPersist,
-      'gain="' + presGainTxt + '" armed=' + presArmed + ' reset=' + resetDone +
-      ' count1=' + presCount + ' mult=' + presMultAfter + ' persist=' + presPersist);
-
-    // 16c. save vétéran (déjà des gains) : aucun coach imposé au boot
+    // 16b. save vétéran (déjà des gains) : aucun coach imposé au boot
     await seedGame({ weed: 0, money: 500, strain: 'green',
       stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 },
       levels: { harvest: 1 }, xp: 0, totalEarned: 500 });
