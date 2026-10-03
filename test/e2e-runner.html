@@ -148,10 +148,10 @@ async function scenario() {
     await sleep(100);
     report('tab-switch', q('#v-sell').classList.contains('active'), '');
 
-    // 5. market renders 15 cards (weed + 14 produits) with trend arrows + qty pills
+    // 5. market renders 16 cards (weed + 15 produits) with trend arrows + qty pills
     const cards = gameDoc().querySelectorAll('#market-grid .market-card').length;
     const trends = gameDoc().querySelectorAll('#market-grid .trend').length;
-    report('market-render', cards === 15 && trends >= 15, 'cards=' + cards + ' trends=' + trends);
+    report('market-render', cards === 16 && trends >= 16, 'cards=' + cards + ' trends=' + trends);
 
     // 6. sell weed raw -> money grows
     const moneyBefore = money();
@@ -382,6 +382,8 @@ async function scenario() {
       stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 },
       levels: { harvest: 1, auto: 0 }, xp: 6000, totalEarned: 60000, totalClicks: 200,
       streak: { lastDay: today, count: 3 },
+      salesLog: [{ id: 'joint', qty: 2, unit: 12, gain: 24, at: Date.now() - 120000, auto: true },
+                 { id: 'weed', qty: 12, unit: 6, gain: 72, at: Date.now() - 30000, auto: false }],
       daily: { day: today,
         base: { clicks: 0, crits: 0, crafted: 0, earned: 0, peaks: 0, xp: 0 },
         done: todayIds, claimed: [] },
@@ -416,6 +418,16 @@ async function scenario() {
       'daily=' + dailyCards2 + ' claimable=' + claimableBtns.length +
       ' claim ' + moneyBeforeClaim + '->' + moneyAfterClaim +
       ' sesClicks=' + sesClicks2 + ' sesEarned="' + sesEarned2 + '"');
+
+    // 14i. historique des ventes : seedé avec 2 ventes (manuelle + dealer),
+    // la vue Progression doit rendre les cartes + masquer l'état vide
+    const saleCards = gameDoc().querySelectorAll('#sales-log .sale-card').length;
+    const salesEmptyHidden = q('#sales-empty').hidden;
+    const firstSaleTxt = (q('#sales-log .sale-card .sale-name') || {}).textContent || '';
+    report('sales-log',
+      !q('#sales-log').hidden && saleCards === 2 && salesEmptyHidden &&
+      firstSaleTxt.includes('Weed'),
+      'cards=' + saleCards + ' emptyHidden=' + salesEmptyHidden + ' first="' + firstSaleTxt + '"');
 
     // 15. reset dialog: first click arms (animated state), second confirms
     q('.tab-btn[data-tab="progress"]').click();

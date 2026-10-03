@@ -128,7 +128,10 @@
       vein: '#241a08', stroke: '#181004', pistil: '#ffae00', pistil2: '#ffd24d', frost: 4.2 },
     { id: 'chemdawg', name: 'Chemdawg 101', icon: '👃', cost: 320000000000, unlock: 85, yieldMult: 42.0, priceMult: 40.0, desc: 'Notes gazoïques et terpènes rares, le sommet du génie sélectif',
       d: ['#3a3a1a', '#1c1c0a'], m: ['#5a5a2a', '#2e2e14'], l: ['#a0a050', '#6a6a30'], f: ['#e8e8a0', '#b8b860'],
-      vein: '#181808', stroke: '#101008', pistil: '#ffcc44', pistil2: '#ffe080', frost: 4.6 }
+      vein: '#181808', stroke: '#101008', pistil: '#ffcc44', pistil2: '#ffe080', frost: 4.6 },
+    { id: 'bruce', name: 'Bruce Banner', icon: '💪', cost: 1300000000000, unlock: 92, yieldMult: 52.0, priceMult: 50.0, desc: 'Puissance brute record du labo, le monstre vert',
+      d: ['#2f6d1f', '#14300c'], m: ['#4a8f2c', '#225015'], l: ['#8fd05f', '#4a8f2c'], f: ['#c8eea0', '#7fae48'],
+      vein: '#0f280a', stroke: '#0a1c06', pistil: '#ff5a1f', pistil2: '#ff8a3d', frost: 5.0 }
   ];
 
   /** Base cost of each upgrade, indexed by id. */
@@ -172,7 +175,8 @@
     { id: 'moonrock',icon: '🌙', name: 'Moonrock',           cost: 2500,price: 55000, unlock: 68, desc: 'Fleur trempée dans l\'huile et le kief' },
     { id: 'soda',    icon: '🥤', name: 'Soda THC',           cost: 5000,price: 115000,unlock: 75, desc: 'Boisson pétillante infusée' },
     { id: 'nectar',  icon: '🧪', name: 'Nectar Terpéné',     cost: 11000,price: 300000,unlock: 82, desc: 'Extraction à froid ultra-concentrée' },
-    { id: 'caviar',  icon: '🥂', name: 'Caviar Rosin',       cost: 24000,price: 720000,unlock: 88, desc: 'Rosin enrobé de kief, prestige absolu' }
+    { id: 'caviar',  icon: '🥂', name: 'Caviar Rosin',       cost: 24000,price: 720000,unlock: 88, desc: 'Rosin enrobé de kief, prestige absolu' },
+    { id: 'elixir',  icon: '🍾', name: 'Élixir Millésime',   cost: 48000,price: 1500000,unlock: 92, desc: 'Infusion millésimée vieillie en fût, grand cru du labo' }
   ];
 
   /**
@@ -276,6 +280,11 @@
       speed:  { name: 'Enrobage',      max: 10, per: 0.01,  desc: 'Flux converti +1%/pt',   baseCost: 20000000000, growth: 1.6 },
       yield:  { name: 'Prestige',      max: 10, per: 0.20,  desc: 'Prix de vente +20%/pt',  baseCost: 30000000000, growth: 1.65 },
       volume: { name: 'Boîtes',        max: 8,  per: 0.03,  desc: 'Max g/tick +3%/pt',      baseCost: 45000000000, growth: 1.7 },
+    },
+    elixir: {
+      speed:  { name: 'Vieillissement',max: 10, per: 0.01,  desc: 'Flux converti +1%/pt',   baseCost: 60000000000,  growth: 1.6 },
+      yield:  { name: 'Millésime',     max: 10, per: 0.20,  desc: 'Prix de vente +20%/pt',  baseCost: 90000000000,  growth: 1.65 },
+      volume: { name: 'Fûts',          max: 8,  per: 0.03,  desc: 'Max g/tick +3%/pt',      baseCost: 130000000000, growth: 1.7 },
     },
   };
 
@@ -505,6 +514,18 @@
       reward: { flowBoost: 1.4, desc: '+40% flux converti TOUTES chaînes (permanent)' },
       unlockLevel: 72,
       exclusive: ['c_money_maker', 'c_volume_king', 'c_chain_billion', 'c_flow_legend']
+    },
+    {
+      id: 'c_elixir_king',
+      name: 'Millésime Légendaire',
+      desc: 'Produire 25 élixirs millésime via la chaîne',
+      icon: '🍾',
+      productId: 'elixir',
+      target: 25,
+      type: 'crafted',
+      reward: { yieldMult: 3.0, desc: '+200% prix élixirs (permanent)' },
+      unlockLevel: 90,
+      exclusive: []
     },
   ];
 
@@ -993,6 +1014,7 @@
       daily: defaultDaily(),
       mastery: {},
       alerts: {},
+      salesLog: [],
       session: { startedAt: 0, earned: 0, idleEarned: 0, clicks: 0, crits: 0, maxCombo: 0, peakSales: 0, biggestSale: 0 },
       lastSeen: 0,
       spikeUntil: 0,
@@ -1458,6 +1480,36 @@
     }
   }
 
+  /** Bornage du journal des ventes (FIFO) — vu dans la vue Progression. */
+  const SALES_LOG_MAX = 40;
+
+  /**
+   * Journal des ventes : une entrée par vente (manuelle au Marché ou dealer
+   * de chaîne), FIFO borné à SALES_LOG_MAX. Persisté pour l'historique de la
+   * vue Progression — sanitizé dans `deserialize` (aucune entrée ne corrompt
+   * la save : marchés connus uniquement, champs entiers ≥ 0).
+   * @param {object} s state (mutated)
+   * @param {string} marketId 'weed' ou un id de PRODUCTS
+   * @param {number} qty unités vendues
+   * @param {number} unit prix unitaire courant (€)
+   * @param {number} gain cash gagné (€) — pas d'entrée si gain ≤ 0
+   * @param {number} [now] epoch ms (default Date.now())
+   * @param {boolean} [idle] true si vente de dealer (chaîne)
+   */
+  function recordSale(s, marketId, qty, unit, gain, now, idle) {
+    if (!(gain > 0)) return;
+    s.salesLog = s.salesLog || [];
+    s.salesLog.push({
+      id: marketId,
+      qty: Math.max(1, Math.floor(qty || 1)),
+      unit: Math.max(0, Math.round(unit || 0)),
+      gain: Math.max(0, Math.round(gain)),
+      at: now === undefined ? Date.now() : Math.max(0, Math.floor(now)),
+      auto: !!idle
+    });
+    if (s.salesLog.length > SALES_LOG_MAX) s.salesLog.splice(0, s.salesLog.length - SALES_LOG_MAX);
+  }
+
   /**
    * Vue pure des stats de session : €/min, part idle, taux de crit, combo max,
    * ventes au pic. Aucune mutation — l'UI n'affiche que ça.
@@ -1850,6 +1902,7 @@
       s.money += gain;
       s.totalEarned = (s.totalEarned || 0) + gain;
       sessionTrackSale(s, p.id, gain, now, true);
+      recordSale(s, p.id, made, unit, gain, now, true);
       res.soldMoney[p.id] = gain;
       chainMoneyThisTick += gain;
       chainGramsThisTick += made * prod.cost;
@@ -1932,11 +1985,15 @@
       return total;
     }
     let gain = 0;
+    let soldUnits = 0;
+    let soldUnit = 0;
     if (type === 'weed') {
       const unit = priceOf(s, 'weed', now);
       const toSell = amount === undefined ? (s.stock.weed || 0)
         : Math.min(s.stock.weed || 0, Math.max(0, Math.floor(amount)));
       gain = toSell * unit;
+      soldUnits = toSell;
+      soldUnit = unit;
       s.stock.weed = (s.stock.weed || 0) - toSell;
       drainByStrain(s, 'weedByStrain', toSell);
     } else {
@@ -1946,6 +2003,8 @@
         const have = s.stock[type] || 0;
         const toSell = amount === undefined ? have : Math.min(have, Math.max(0, Math.floor(amount)));
         gain = toSell * unit;
+        soldUnits = toSell;
+        soldUnit = unit;
         s.stock[type] = have - toSell;
         drainByStrain(s, type + 'ByStrain', toSell);
       }
@@ -1953,6 +2012,7 @@
     s.money += gain;
     s.totalEarned = (s.totalEarned || 0) + gain;
     sessionTrackSale(s, type, gain, now);
+    recordSale(s, type, soldUnits, soldUnit, gain, now);
     return gain;
   }
 
@@ -2184,6 +2244,23 @@
         }
         d.alerts = clean;
       }
+      // journal des ventes : marchés connus uniquement (weed ou produit),
+      // champs entiers ≥ 0, FIFO borné à SALES_LOG_MAX
+      if (!Array.isArray(d.salesLog)) d.salesLog = [];
+      else {
+        d.salesLog = d.salesLog
+          .filter((e) => e && typeof e === 'object' && typeof e.id === 'string' &&
+            (e.id === 'weed' || PRODUCTS.some((p) => p.id === e.id)))
+          .slice(-SALES_LOG_MAX)
+          .map((e) => ({
+            id: e.id,
+            qty: Math.max(1, Math.floor(Number(e.qty) || 1)),
+            unit: Math.max(0, Math.floor(Number(e.unit) || 0)),
+            gain: Math.max(0, Math.floor(Number(e.gain) || 0)),
+            at: Math.max(0, Math.floor(Number(e.at) || 0)),
+            auto: !!e.auto
+          }));
+      }
       // défis quotidiens : jour bien formé, base de compteurs saine, listes
       // filtrées aux ids du catalogue (jamais de multiplicateur stocké)
       if (!d.daily || typeof d.daily !== 'object') d.daily = defaultDaily();
@@ -2310,6 +2387,8 @@
     autoTick,
     craftProduct,
     sellStock,
+    recordSale,
+    SALES_LOG_MAX,
     equipStrain,
     serialize,
     deserialize,

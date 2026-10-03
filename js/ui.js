@@ -60,7 +60,9 @@
     streakLvl: document.getElementById('streak-lvl'),
     streakMult: document.getElementById('streak-mult'),
     streakFill: document.getElementById('streak-fill'),
-    streakNext: document.getElementById('streak-next')
+    streakNext: document.getElementById('streak-next'),
+    salesLog: document.getElementById('sales-log'),
+    salesEmpty: document.getElementById('sales-empty')
   };
 
   let state = Game.defaultState();
@@ -697,6 +699,91 @@
     dailyBuiltDay = state.daily.day;
   }
 
+  /** Historique des ventes : liste construite SEULEMENT quand l'ensemble
+      change (signature FIFO), sinon les heures relatives sont rafraîchies
+      in place — jamais d'innerHTML churn dans la boucle 1 s. */
+  let salesSig = '';
+  let saleTimeNodes = [];
+  function saleLabel(id) {
+    if (id === 'weed') return '🌿 Weed';
+    const p = Game.getProduct(id);
+    return p ? p.icon + ' ' + p.name : id;
+  }
+  function saleIcon(id) {
+    if (id === 'weed') return '🌿';
+    const p = Game.getProduct(id);
+    return p ? p.icon : '❓';
+  }
+  function saleAgo(at, now) {
+    const s = Math.max(0, Math.floor((now - at) / 1000));
+    if (s < 60) return 'il y a ' + s + ' s';
+    const m = Math.floor(s / 60);
+    if (m < 60) return 'il y a ' + m + ' min';
+    const h = Math.floor(m / 60);
+    if (h < 24) return 'il y a ' + h + ' h';
+    return 'il y a ' + Math.floor(h / 24) + ' j';
+  }
+  function saleTag(s, e) {
+    if (e.auto) return { cls: 'auto', txt: '⚙️ dealer' };
+    if (Game.pulse(e.id, e.at) * (Game.spikeMult ? Game.spikeMult(s, e.id, e.at) : 1) >= Game.PEAK_SALE_MULT) {
+      return { cls: 'peak', txt: '🔥 pic' };
+    }
+    return { cls: 'auto', txt: '✋ vente' };
+  }
+  function buildSalesLog() {
+    const now = Date.now();
+    el.salesLog.innerHTML = '';
+    saleTimeNodes = [];
+    for (let i = state.salesLog.length - 1; i >= 0; i--) {
+      const e = state.salesLog[i];
+      const card = document.createElement('div');
+      card.className = 'sale-card';
+      const ic = document.createElement('span');
+      ic.className = 'sale-icon';
+      ic.textContent = saleIcon(e.id);
+      const info = document.createElement('div');
+      info.className = 'sale-info';
+      const name = document.createElement('div');
+      name.className = 'sale-name';
+      name.textContent = saleLabel(e.id);
+      const tag = document.createElement('span');
+      const tg = saleTag(state, e);
+      tag.className = 'sale-tag' + (tg.cls === 'peak' ? ' peak' : '');
+      tag.textContent = tg.txt;
+      name.appendChild(tag);
+      const detail = document.createElement('div');
+      detail.className = 'sale-detail';
+      detail.textContent = fmt(e.qty) + (e.id === 'weed' ? 'g à ' : ' × ') + fmt(e.unit) + ' € — ';
+      const time = document.createElement('span');
+      time.textContent = saleAgo(e.at, now);
+      detail.appendChild(time);
+      info.appendChild(name);
+      info.appendChild(detail);
+      const gain = document.createElement('span');
+      gain.className = 'sale-gain' + (e.auto ? ' idle' : '');
+      gain.textContent = '+' + fmt(e.gain) + ' €';
+      card.appendChild(ic);
+      card.appendChild(info);
+      card.appendChild(gain);
+      el.salesLog.appendChild(card);
+      saleTimeNodes.push({ at: e.at, node: time });
+    }
+  }
+  function updateSalesLog() {
+    if (!el.salesLog) return;
+    const log = state.salesLog || [];
+    el.salesLog.hidden = log.length === 0;
+    if (el.salesEmpty) el.salesEmpty.hidden = log.length > 0;
+    if (!log.length) { salesSig = ''; saleTimeNodes = []; return; }
+    const sig = log.map((e) => e.at + '|' + e.id + '|' + e.gain + '|' + e.qty + '|' + (e.auto ? 1 : 0)).join(';');
+    if (sig !== salesSig || el.salesLog.children.length !== log.length) {
+      salesSig = sig;
+      buildSalesLog();
+    }
+    const now = Date.now();
+    for (const t of saleTimeNodes) t.node.textContent = saleAgo(t.at, now);
+  }
+
   function updateDaily() {
     if (!el.daily || !Game.dailyForDay) return;
     Game.rollDaily(state);
@@ -764,6 +851,7 @@
     if (active('progress')) {
       renderProgress();
       updateSessionCard();
+      updateSalesLog();
       updateStreakCard();
       updateDaily();
       updateAchievements();

@@ -8,11 +8,11 @@ A mobile-friendly idle grower: click the bud, craft products, sell for €, auto
 
 1. **Click the bud** (or press **Space**) to harvest weed (grams). Clicking is the **heart of the game**: each click feeds YOUR stock 100% — never siphoned by automation — and a **Combo** (2s window) multiplies your click up to **×3** (+5%/clic soutenu). *Doigts Agiles* adds a share of your auto production to every click, *Clic Multi* adds flat grams per click, et *Coup Critique* donne une chance bornée de clic démultiplié (💥 ×3).
 2. **Watch the market** — every commodity pulses ±30% on a ~2 min cycle (↗ rising / ↘ falling), visible sur une **sparkline** (un cycle complet par carte). Arme une **🔔 alerte de prix** pour être prévenu quand ton marché atteint sa cible : time your bulk sales for peaks, that is where the real money is.
-3. **Craft** weed into 14 market products in *Marché* — from 🚬 Joint Roulé (2g → 14 €) to 🥂 Caviar Rosin (24 000g → 720 000 €). Higher tiers convert weed at a better €/g but unlock at higher levels.
+3. **Craft** weed into 15 market products in *Marché* — from 🚬 Joint Roulé (2g → 14 €) to 🍾 Élixir Millésime (48 000g → 1 500 000 €). Higher tiers convert weed at a better €/g but unlock at higher levels.
 4. **Sell** raw weed or crafted products with the **x1/x10/x100/MAX** pills and **💸 Tout vendre**.
 5. **Automate (as a sidekick, never the star)** in *Upgrades*: each **Chaîne** auto-crafts and sells its own product, but converts **only the AUTO-produced flow** (8% per chain level, capped 40%) — your clicked weed and manual stock are sacred.
 6. **Spend cash on upgrades** — click power first, auto-production as a helpful trickle.
-7. **Switch strains** in *Variétés* — 12 genetics with yield/price multipliers, unlocked by level. Chaque variété a sa **maîtrise** : les grammes produits avec elle équipée la font XP (+0,5 % de rendement par niveau, max 40).
+7. **Switch strains** in *Variétés* — 14 genetics with yield/price multipliers, unlocked by level. Chaque variété a sa **maîtrise** : les grammes produits avec elle équipée la font XP (+0,5 % de rendement par niveau, max 40).
 8. **Progress** in *Progression* — level up, collect **milestones** + **achievements** (bonus permanents), check your **session stats**, **daily streak** and **📅 défis du jour** (3 défis tirés chaque jour, récompenses immédiates bornées à réclamer). Use *Zone de danger* to hard-reset.
 9. **Daily streak** — play on consecutive days to stack a capped +4 % production per day (max **+40 %**). The streak only counts the current day; a missed day resets it. It's a reward loop, never the engine: clicking + market timing stay the core.
 
@@ -53,15 +53,15 @@ strains and chains when unlocked + affordable — and asserts pacing:
 
 An optimal sim ≈ 2-4× faster than a real player. Refonte **click-first** : la courbe du haut est celle d'un joueur actif qui enchaîne les clics (`combo` ≤ ×3 + `clicker` additif borné 30 niveaux). Les leviers, par ordre d'impact :
 **combo** (`COMBO_PER` 5%/clic, cap ×3) → **clicker** (`+3g/clic/niv`, max 30, growth 1.8) → **chaînes** (ne convertissent QUE le flux auto, `CHAIN_FLOW_SHARE` 8%, plafond `CHAIN_SHARE_MAX` 40%) → **spoilage doux** (1%/s du surplus) remplace le cap et borne l'économie sans jamais bloquer ;
-**strain costs** (12 variétés), **XP hybride** (1.42 → 1.22 dès le niveau 40) et **growth upgrades adouci** (1.35 → 1.22 après 50 achats — les multis ×2 restent rachetables) débloquent le late-game ;
-**14 produits** + **16 upgrades** + **13 jalons** + **paliers de chaîne jusqu'au niveau 1000 (×10)** + **16 contrats** rallongent la courbe jusqu'au late-game.
+**strain costs** (14 variétés), **XP hybride** (1.42 → 1.22 dès le niveau 40) et **growth upgrades adouci** (1.35 → 1.22 après 50 achats — les multis ×2 restent rachetables) débloquent le late-game ;
+**15 produits** + **16 upgrades** + **13 jalons** + **paliers de chaîne jusqu'au niveau 1000 (×10)** + **19 contrats** rallongent la courbe jusqu'au late-game.
 
 ## Progression
 
 Every **produced** gram is XP — **plus aucun cap** : cliquer n'est jamais bloqué. XP drives a hybrid curve (level N needs `150*(N-1)²*1.42^(N-1)` XP, growth **1.42 → 1.22 dès le niveau 40** pour garder le contenu 60-88 atteignable — sim 8h optimale : lvl 58/64/72 (avant : mur à 51/55/58)) — **allongée** vers 88+ niveaux.
 
-- **Levels**: each level adds **+8%** to all production. Strains unlock at 1, 4, 8, 13, 19, 26, 34, 45, 52, 62, 70, 78.
-- **Strains**: `yieldMult` multiplies weed per click/second, `priceMult` the sale prices — 12 variétés (Green→Godfather OG), gated by coûts exponentiels (Purple 4K → Godfather 80Md€).
+- **Levels**: each level adds **+8%** to all production. Strains unlock at 1, 4, 8, 13, 19, 26, 34, 45, 52, 62, 70, 78, 85, 92.
+- **Strains**: `yieldMult` multiplies weed per click/second, `priceMult` the sale prices — 14 variétés (Green→Bruce Banner), gated by coûts exponentiels (Purple 4K → Bruce Banner 1,3Td€).
 - **Milestones**: 13 jalons à 200→+5%, 2.5K→+10%, 30K→+15%, 350K→+25%, 4M→+40%, 50M→+75%, 150M→+60%, 400M→+80%, 1Md→+100%, 10Md→+120%, 1T→+150%, 100T→+180%, 10P→+220%.
 - **Pas de cap de stock** : `addWeed` garde tout. La pression est remplacée par :
   - **Spoilage doux** — au-delà de `max(500g, 60s de prod/s)`, le brut se dégrade de **1%/s** (`applySpoil`) : thésauriser n'est plus rentable, mais rien ne bloque jamais ;
@@ -108,7 +108,7 @@ All prices (weed included) oscillate between **-30% and +30%** of their base on 
 
 ## Market Products
 
-14 products in `PRODUCTS` (`js/game.js`). Crafting consumes weed from total stock; sale price = `price × strain.priceMult × pulse × spike`. €/g improves with tier, so crafting big beats selling raw — mais demande du weed et du niveau.
+15 products in `PRODUCTS` (`js/game.js`). Crafting consumes weed from total stock; sale price = `price × strain.priceMult × pulse × spike`. €/g improves with tier, so crafting big beats selling raw — mais demande du weed et du niveau.
 
 | Product | Weed | Base Price | €/g | Unlock |
 |---------|------|-----------|-----|--------|
@@ -126,8 +126,11 @@ All prices (weed included) oscillate between **-30% and +30%** of their base on 
 | 🥤 Soda THC | 5000g | 115 000 € | 23 | 75 |
 | 🧪 Nectar Terpéné | 11 000g | 300 000 € | 27.3 | 82 |
 | 🥂 Caviar Rosin | 24 000g | 720 000 € | 30 | 88 |
+| 🍾 Élixir Millésime | 48 000g | 1 500 000 € | 31.3 | 92 |
 
 Market actions support quantity presets **x1 / x10 / x100 / MAX** (craft & sell) plus a global **💸 Tout vendre**.
+
+**📜 Historique de ventes** — chaque vente (manuelle au Marché ou dealer de chaîne) est journalisée dans `state.salesLog` (`recordSale`, FIFO borné à `SALES_LOG_MAX` 40) : marché, quantité, prix unitaire courant, gain, horodatage et tag (✋ vente / ⚙️ dealer / 🔥 pic quand pulse × ruée ≥ `PEAK_SALE_MULT`). Vu dans la vue **Progression** (les plus récentes en premier), persisté dans la save et sanitizé au chargement (marchés connus uniquement, champs ≥ 0).
 
 ## Automation (Chaînes)
 
@@ -169,6 +172,7 @@ L'effet par point est **data-driven** (`per`), boosté par le matériel (harvest
 | Soda THC | 46 000 000 € | 79 | ~690 000 €/s |
 | Nectar Terpéné | 176 000 000 € | 86 | ~2 640 000 €/s |
 | Caviar Rosin | 384 000 000 € | 92 | ~5 760 000 €/s |
+| Élixir Millésime | 600 000 000 € | 96 | ~12 000 000 €/s |
 
 `autoTick()` (chaque seconde, après la production) :
 
@@ -189,7 +193,7 @@ Objectifs de **fin de jeu** dans l'onglet 📋 **Contrats** (`CONTRACTS` dans `j
 
 ## Strains
 
-12 genetics (Green Dream → Godfather OG), each with `yieldMult`/`priceMult` and its own bud palette. See `STRAINS` in `js/game.js` (unlocks 1,4,8,13,19,26,34,45,52,62,70,78).
+14 genetics (Green Dream → Bruce Banner), each with `yieldMult`/`priceMult` and its own bud palette. See `STRAINS` in `js/game.js` (unlocks 1,4,8,13,19,26,34,45,52,62,70,78,85,92).
 
 **Maîtrise par variété** — chaque gramme récolté (clic **et** auto) avec une variété équipée ajoute son XP à sa maîtrise (`s.mastery`, accumulé dans `addWeed`). Niveau dérivé d'une courbe ×1.5 (`masteryXpForLevel` : niveau 1 à 750g, niveau 40 ≈ 5 Md g), **+0,5 % de rendement par niveau** appliqué à la variété ÉQUIPÉE dans `productionMult` (donc clic et idle, jamais les prix), cap `MASTERY_MAX_LEVEL` 40 → **+20 % max**. Vu dans Récolte (barre sous le badge) et Variétés (par carte). Motive à faire tourner tes génétiques sans jamais dominer l'économie.
 
@@ -252,7 +256,7 @@ clicker-game/
 
 - **Récolte** — bud, stats, strain badge. Pas de cap, pas de bannière.
 - **Marché** — quantity pills, 💸 Tout vendre, the 9 product cards. Nothing else.
-- **Upgrades** — deux sous-onglets : 🔧 **Matériel** (14 upgrades triés par coût, bulk x1/x10/MAX, paliers ×2) et ⚙️ **Chaînes** (14 automatisations multi-niveaux, bulk x1/x10/MAX, arbre de spécialisation + paliers AdCap affichés sur chaque chaîne). Une seule liste mise à jour par tick (celle visible).
+- **Upgrades** — deux sous-onglets : 🔧 **Matériel** (16 upgrades triés par coût, bulk x1/x10/MAX, paliers ×2) et ⚙️ **Chaînes** (15 automatisations multi-niveaux, bulk x1/x10/MAX, arbre de spécialisation + paliers AdCap affichés sur chaque chaîne). Une seule liste mise à jour par tick (celle visible).
 - **Contrats** — cartes d'objectifs late-game, récompenses permanentes (voir section Contrats Exclusifs).
 - **Variétés** — buy/equip strains.
 - **Progression** — XP, milestones, session stats, streak quotidien, achievements, hard-reset.
