@@ -37,7 +37,7 @@ function simulate(minutes) {
 
     // --- active play: 2.5 clicks/s (deterministic fractional carry).
     // Combo window: les clics d'un même tick partagent `now`, donc le combo
-    // se maintient naturellement à 2.5/s et monte vite vers le cap ×5.
+    // se maintient naturellement à 2.5/s et monte vite vers le cap ×3.
     if (!afk) {
       clickCarry += 2.5;
       while (clickCarry >= 1) {

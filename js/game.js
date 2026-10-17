@@ -60,7 +60,7 @@
   const UPGRADES = [
     { id: 'harvest', name: 'Ciseaux Pro',    icon: '✂️',   desc: '+1g de weed par clic',      cost: 120 },
     { id: 'auto',    name: 'Système Auto',   icon: '🤖',   desc: '+1g de weed par seconde',   cost: 550 },
-    { id: 'thumb',   name: 'Doigts Agiles',  icon: '🫰',   desc: '+8% de ta prod./s s\'ajoute à chaque clic', cost: 1200 },
+    { id: 'thumb',   name: 'Doigts Agiles',  icon: '🫰',   desc: '+5% de ta prod./s s\'ajoute à chaque clic', cost: 1200 },
     { id: 'expert',  name: 'Taille Expert',  icon: '🧑‍🌾', desc: '+5g de weed par clic',      cost: 4000 },
     { id: 'mist',    name: 'Brume Foliaire', icon: '💧',   desc: '+2g de weed par seconde',   cost: 12000, growth: 1.35 },
     { id: 'trim',    name: 'Trimmer Pro',    icon: '🔧',   desc: '+5g de weed par clic',      cost: 25000, growth: 1.35 },
@@ -1240,7 +1240,7 @@
   const COMBO_MAX_MULT = 3;
   const COMBO_CAP = (COMBO_MAX_MULT - 1) / COMBO_PER; // 40 clics soutenus
 
-  /** Effective combo multiplier for a sustained-clicks counter (cap ×5). */
+  /** Effective combo multiplier for a sustained-clicks counter (cap ×3). */
   function comboMultiplier(count) {
     return 1 + COMBO_PER * Math.max(0, Math.min(Math.floor(Number(count) || 0), COMBO_CAP));
   }
