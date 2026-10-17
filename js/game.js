@@ -577,12 +577,15 @@
   const XP_GROWTH = 1.42;
   /**
    * Late-game rebalance : au-delà du niveau XP_LATE_FROM, la croissance du
-   * coût XP ralentit (1.42 → 1.22) sinon le contenu débloqué à 60/78/88 est
-   * mathématiquement inatteignable (audit 8h : mur vers lvl 58, lvl78 à
-   * ~1900h au rythme 2h). L'early/mid-game (<= 40) est inchangé au
-   * centigramme près — les cibles de pacing du playthrough tiennent toujours.
+   * coût XP ralentit (1.42 → 1.15) sinon le contenu débloqué à 82/88/92
+   * (Élixir Millésime, Bruce Banner) est mathématiquement inatteignable
+   * (audit 8h : mur vers lvl 71, lvl92 à ~3.9e16 XP pour 4.3e14 gagnés).
+   * Avec 1.15 : lvl92 à 1.9e15 XP, atteint en ~9h optimales (~1-3 jours
+   * de jeu réel) — la courbe reste un vrai gate sans mur. L'early/mid-game
+   * (<= 40) est inchangé au centigramme près — les cibles de pacing du
+   * playthrough tiennent toujours.
    */
-  const XP_GROWTH_LATE = 1.22;
+  const XP_GROWTH_LATE = 1.15;
   const XP_LATE_FROM = 40;
 
   /** Milestones: permanent production bonuses granted at lifetime-XP thresholds. */

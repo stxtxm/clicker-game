@@ -49,16 +49,16 @@ strains and chains when unlocked + affordable — and asserts pacing:
 | 1M lifetime | 2–10 min |
 | 10M lifetime | ≥ 3 min |
 | Active share (clic→vente) | ≥ 55 % des gains |
-| Runaway guard | < 5 P€ / 2h |
+| Runaway guard | < 40 P€ / 2h (≈1,2e16 observé) |
 
 An optimal sim ≈ 2-4× faster than a real player. Refonte **click-first** : la courbe du haut est celle d'un joueur actif qui enchaîne les clics (`combo` ≤ ×3 + `clicker` additif borné 30 niveaux). Les leviers, par ordre d'impact :
 **combo** (`COMBO_PER` 5%/clic, cap ×3) → **clicker** (`+3g/clic/niv`, max 30, growth 1.8) → **chaînes** (ne convertissent QUE le flux auto, `CHAIN_FLOW_SHARE` 8%, plafond `CHAIN_SHARE_MAX` 40%) → **spoilage doux** (1%/s du surplus) remplace le cap et borne l'économie sans jamais bloquer ;
-**strain costs** (14 variétés), **XP hybride** (1.42 → 1.22 dès le niveau 40) et **growth upgrades adouci** (1.35 → 1.22 après 50 achats — les multis ×2 restent rachetables) débloquent le late-game ;
+**strain costs** (14 variétés), **XP hybride** (1.42 → 1.15 dès le niveau 40) et **growth upgrades adouci** (1.35 → 1.22 après 50 achats — les multis ×2 restent rachetables) débloquent le late-game ;
 **15 produits** + **16 upgrades** + **13 jalons** + **paliers de chaîne jusqu'au niveau 1000 (×10)** + **19 contrats** rallongent la courbe jusqu'au late-game.
 
 ## Progression
 
-Every **produced** gram is XP — **plus aucun cap** : cliquer n'est jamais bloqué. XP drives a hybrid curve (level N needs `150*(N-1)²*1.42^(N-1)` XP, growth **1.42 → 1.22 dès le niveau 40** pour garder le contenu 60-88 atteignable — sim 8h optimale : lvl 58/64/72 (avant : mur à 51/55/58)) — **allongée** vers 88+ niveaux.
+Every **produced** gram is XP — **plus aucun cap** : cliquer n'est jamais bloqué. XP drives a hybrid curve (level N needs `150*(N-1)²*1.42^(N-1)` XP, growth **1.42 → 1.15 dès le niveau 40** pour garder le contenu 82/88/92 atteignable — sim optimale : lvl 65 en 2h, lvl 87 en 8h, lvl 92 en ~9h (avant : mur à 58/71, 92 inatteignable)) — **allongée** vers 92+ niveaux.
 
 - **Levels**: each level adds **+8%** to all production. Strains unlock at 1, 4, 8, 13, 19, 26, 34, 45, 52, 62, 70, 78, 85, 92.
 - **Strains**: `yieldMult` multiplies weed per click/second, `priceMult` the sale prices — 14 variétés (Green→Bruce Banner), gated by coûts exponentiels (Purple 4K → Bruce Banner 1,3Td€).

@@ -173,9 +173,9 @@ test('playthrough 2h: pacing targets + stats', () => {
   console.log('SIM2H ' + fmtStats(st));
   console.log('SIM2H end ' + JSON.stringify(st.end));
   // Pacing targets for an OPTIMAL player (real players are 2-4x slower).
-  // Late-game rebalance : la courbe XP s'adoucit dès le niveau 40 (1.42 → 1.22)
+  // Late-game rebalance : la courbe XP s'adoucit dès le niveau 40 (1.42 → 1.15)
   // et le growth des upgrades passe à 1.22 après 50 achats — l'optimal atteint
-  // ~58 en 2h (avant : mur à 51, contenu 60-88 inatteignable). Early intact.
+  // ~65 en 2h (avant : mur à 58, contenu 82/88/92 inatteignable). Early intact.
   assert.ok(st.firstUpgrade !== null && st.firstUpgrade <= 1, 'first upgrade within a minute');
   assert.ok(st.levels[10] >= 2 && st.levels[10] <= 10, 'level 10 around 3-4 min of optimal play');
   assert.ok(st.levels[20] >= 5 && st.levels[20] <= 30, 'level 20 a ~9-15 min milestone (plus de frein stock)');
