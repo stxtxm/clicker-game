@@ -62,7 +62,17 @@
     streakFill: document.getElementById('streak-fill'),
     streakNext: document.getElementById('streak-next'),
     salesLog: document.getElementById('sales-log'),
-    salesEmpty: document.getElementById('sales-empty')
+    salesEmpty: document.getElementById('sales-empty'),
+    sparkline: document.getElementById('sparkline'),
+    sparkMin: document.getElementById('spark-min'),
+    sparkMax: document.getElementById('spark-max'),
+    exportSales: document.getElementById('export-sales'),
+    recCombo: document.getElementById('rec-combo'),
+    recBiggest: document.getElementById('rec-biggest'),
+    recPeaks: document.getElementById('rec-peaks'),
+    recClicks: document.getElementById('rec-clicks'),
+    recEarned: document.getElementById('rec-earned'),
+    recTotal: document.getElementById('rec-total')
   };
 
   let state = Game.defaultState();
@@ -79,6 +89,8 @@
 
   /** Dernier toast d'erreur (funds/level/locked) : throttle global anti-spam. */
   let lastErrToast = 0;
+  /** Historique de l'argent de la session pour le sparkline : {t, m} max 120 pts. */
+  let moneyHist = [];
   /** Dernier popNum par nœud : throttle 150 ms (spam-clic mobile). */
   let lastPopAt = 0;
   /** Dernier bip clic : throttle 60 ms. */
@@ -219,7 +231,7 @@
           ' <span class="up-level" id="ul-' + u.id + '">Lvl 0</span></div>' +
           '<div class="up-desc">' + u.desc + tierInfo + '</div></div>' +
         '<div class="up-buy"><span class="up-cost" id="uc-' + u.id + '">0 €</span>' +
-          '<button class="bb" id="ub-' + u.id + '">Acheter</button></div>';
+          '<button class="bb" id="ub-' + u.id + '" aria-label="Acheter ' + u.name + '">Acheter</button></div>';
       card.querySelector('.bb').addEventListener('click', function () { buyUpgrade(u.id); });
       el.ug.appendChild(card);
     }
@@ -240,7 +252,7 @@
           '<div id="chain-idle-' + a.id + '" style="font-size:.68rem;color:var(--muted);margin-top:3px"></div>' +
           '<div class="chain-specs" id="chain-specs-' + a.id + '" style="display:none;margin-top:6px;"></div></div>' +
         '<div class="up-buy"><span class="up-cost" id="uc-' + a.id + '">' + fmt(a.cost) + ' €</span>' +
-          '<button class="bb" id="ub-' + a.id + '">Acheter</button></div>';
+          '<button class="bb" id="ub-' + a.id + '" aria-label="Acheter ' + a.name + '">Acheter</button></div>';
       card.querySelector('.bb').addEventListener('click', function () { buyAuto(a.id); });
       el.chainUg.appendChild(card);
     }
@@ -268,7 +280,7 @@
             : '<span class="st-cost">' + fmt(st.cost) + ' €</span>') +
           (owned ? '<span class="st-ok">Possédée</span>'
                  : locked ? ''
-                 : '<button class="bb" id="sb-' + st.id + '">Acheter</button>') +
+                 : '<button class="bb" id="sb-' + st.id + '" aria-label="Acheter ' + st.name + '">Acheter</button>') +
         '</div>';
       card.addEventListener('click', () => equipStrain(st.id));
       const btn = card.querySelector('.bb');
@@ -784,6 +796,66 @@
     for (const t of saleTimeNodes) t.node.textContent = saleAgo(t.at, now);
   }
 
+  /* --- sparkline : courbe de l'argent de session --- */
+
+  /** Dessine le sparkline sur le canvas (uniquement transform/opacity-friendly). */
+  function drawSparkline() {
+    if (!el.sparkline || !el.sparkMin || !el.sparkMax) return;
+    const ctx = el.sparkline.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const w = el.sparkline.clientWidth;
+    const h = el.sparkline.clientHeight;
+    el.sparkline.width = w * dpr;
+    el.sparkline.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+
+    if (moneyHist.length < 2) {
+      if (el.sparkMin) el.sparkMin.textContent = fmt(state.money) + ' €';
+      if (el.sparkMax) el.sparkMax.textContent = fmt(state.money) + ' €';
+      return;
+    }
+
+    const xs = moneyHist.map((e) => e.m);
+    const min = Math.min(...xs);
+    const max = Math.max(...xs);
+    const range = max - min || 1;
+
+    if (el.sparkMin) el.sparkMin.textContent = fmt(min) + ' €';
+    if (el.sparkMax) el.sparkMax.textContent = fmt(max) + ' €';
+
+    ctx.beginPath();
+    ctx.strokeStyle = 'var(--green-soft)';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+
+    const step = (w - 20) / (moneyHist.length - 1);
+    moneyHist.forEach((e, i) => {
+      const x = 10 + i * step;
+      const y = h - 10 - ((e.m - min) / range) * (h - 20);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+  }
+
+  /* --- records de session --- */
+
+  /** Met à jour les 6 cartes de records (textContent uniquement). */
+  function updateRecords() {
+    if (!el.recCombo) return;
+    const S = state.session || {};
+    const pc = Game.perClick(state);
+    const ar = Game.perSecond(state);
+    const now = Date.now();
+
+    if (el.recCombo) el.recCombo.textContent = '×' + (S.maxCombo || 1).toFixed(1);
+    if (el.recBiggest) el.recBiggest.textContent = fmt(S.biggestSale || 0) + ' €';
+    if (el.recPeaks) el.recPeaks.textContent = (S.peakSales || 0) + ' ventes';
+    if (el.recClicks) el.recClicks.textContent = fmt(state.totalClicks || 0);
+    if (el.recEarned) el.recEarned.textContent = '+' + fmt(S.earned || 0) + ' €';
+    if (el.recTotal) el.recTotal.textContent = fmt(state.totalEarned || 0) + ' €';
+  }
+
   function updateDaily() {
     if (!el.daily || !Game.dailyForDay) return;
     Game.rollDaily(state);
@@ -852,6 +924,8 @@
       renderProgress();
       updateSessionCard();
       updateSalesLog();
+      drawSparkline();
+      updateRecords();
       updateStreakCard();
       updateDaily();
       updateAchievements();
@@ -1028,7 +1102,7 @@
         '<div style="flex:1;height:4px;background:var(--bg);border-radius:2px;overflow:hidden;">' +
           '<div class="spec-fill" id="cs-' + productId + '-' + branch + '-fill" style="width:0%;height:100%;background:var(--accent);transition:width .2s"></div>' +
         '</div>' +
-        '<button class="bb" data-spec="' + branch + '" data-pid="' + productId + '" id="cs-' + productId + '-' + branch + '-buy" style="font-size:.6rem;padding:1px 6px;"></button>' +
+        '<button class="bb" data-spec="' + branch + '" data-pid="' + productId + '" id="cs-' + productId + '-' + branch + '-buy" aria-label="Spécialiser ' + def.name + '" style="font-size:.6rem;padding:1px 6px;"></button>' +
       '</div>';
     }
     html += '</div>';
@@ -1263,6 +1337,12 @@
     saveSoon(1000);
   }
 
+  /** Enregistre un échantillon d'argent pour le sparkline (buffer circulaire 120). */
+  function recordMoneySample(now, money) {
+    moneyHist.push({ t: now, m: money });
+    if (moneyHist.length > 120) moneyHist.shift();
+  }
+
   /** One second tick: grow, automate, then notify only once per tick. */
   function autoProduce() {
     const now = Date.now();
@@ -1289,6 +1369,7 @@
     if (Game.checkContracts) Game.checkContracts(state);
     // spoilage doux (remplace le cap)
     const spoiled = Game.applySpoil ? Game.applySpoil(state) : 0;
+    recordMoneySample(now, state.money);
     if (!document.hidden) refreshStats();
     saveSoon(5000);
   }
@@ -1381,6 +1462,17 @@
     });
   }
   if (el.sellAll) el.sellAll.addEventListener('click', () => onSell('all'));
+  if (el.exportSales) el.exportSales.addEventListener('click', () => {
+    const log = state.salesLog || [];
+    const blob = new Blob([JSON.stringify(log, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'budclicker-ventes-' + new Date().toISOString().slice(0, 16).replace(/:/g, '-') + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Historique des ventes exporté (' + log.length + ')', true);
+  });
   if (el.qtyRow) {
     el.qtyRow.querySelectorAll('.qty-pill').forEach((b) => {
       b.addEventListener('click', () => {
