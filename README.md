@@ -217,12 +217,12 @@ Then open `http://localhost:8000`.
 ## Running the Tests
 
 ```bash
-npm test        # node --test — 134 tests (122 unit + 10 bud + 1 playthrough) + e2e (skip sans navigateur)
+npm test        # node --test — 136 tests (124 unit + 10 bud + 1 playthrough + 1 e2e) + e2e navigateur (26 scénarios, skip sans chromium)
 ```
 
 - `test/game.test.js` — economy (costs, sell, craft, storage), strains + level gates, progression (curve, XP, milestones, productionMult, maîtrise), market products (catalog, qty craft/sell, pulse bounds & trends, `marketSamples`), price alerts (arm/fire/sanitize), clicks critiques (chance bornée, déterminisme, ×CRIT_MULT), **streak quotidien** (dayKey/rollStreak/idempotence, cap, sanitisation roundtrip, intégration productionMult), **stats de session** (newSession/sessionStats purs, peak sales, part idle, comptage clics/crits/combo, volatilité), **achievements** (catalogue exporté), **défis quotidiens** (pool 17 → tirage seedé 3/jour, compteurs dérivés sans stockage, gains ponctuels bornés, claim unique, roundtrip/sanitisation), automation (hires, level gate, autoTick ordering & isolation, save roundtrip), chain specialization (specs cost/buy/clamps), chain milestones, contracts (offer/complete/claim, rewards derived from `claimed`), edge cases & save corruption hardening
 - `test/playthrough.test.js` — simulated optimal player (see « Boucle de progression ») asserting the pacing curve (unchanged — streak et défis sont neutres : gains ponctuels hors sim, aucun multiplicateur)
-- `test/e2e.test.js` — drives the REAL game in headless chromium (21 scenarios: harvest click/space, tabs, market render & trends, sell, qty pills, craft+sell, upgrade buy, automation level lock, no-cap accumulation, save persistence, milestones stability, toast dedup, chain specs, idle stats, **sparkline + 🔔 alertes + maîtrise**, **crit 🧨 juice**, **session/streak/achievements UI**, **📅 défis du jour UI** (3 cartes stables, compteurs live, claim), **Progression full** (XP/jalons/streak/défis/session réagissent à un seed riche + réclamation d'un défi), hard reset). Skips gracefully if no browser; CI provides one.
+- `test/e2e.test.js` — drives the REAL game in headless chromium (26 scenarios: harvest click/space, combo-ui, tabs, market render & trends, sell, qty pills, craft+sell, upgrade buy/level, automation level lock, no-cap accumulation, save persistence, milestones stability, toast dedup, chain specs, idle stats, **sparkline + 🔔 alertes + maîtrise**, **crit 🧨 juice**, **session/streak/achievements UI**, **📅 défis du jour UI** (3 cartes stables, compteurs live, claim), **Progression full** (XP/jalons/streak/défis/session réagissent à un seed riche + réclamation d'un défi), sales-log, hard reset). Skips gracefully if no browser; CI provides one.
 - `test/bud.test.js` — SVG validity, determinism, `url(#…)` regression, structural counts (72 calyxes, 116 bracts total via rows, fan leaves, sugar leaves)
 
 ## CI & Branch Policy
@@ -255,7 +255,7 @@ clicker-game/
 ### View layout
 
 - **Récolte** — bud, stats, strain badge. Pas de cap, pas de bannière.
-- **Marché** — quantity pills, 💸 Tout vendre, the 9 product cards. Nothing else.
+- **Marché** — quantity pills, 💸 Tout vendre, 16 cartes (weed brute + 15 produits), alertes 🔔 + sparklines.
 - **Upgrades** — deux sous-onglets : 🔧 **Matériel** (16 upgrades triés par coût, bulk x1/x10/MAX, paliers ×2) et ⚙️ **Chaînes** (15 automatisations multi-niveaux, bulk x1/x10/MAX, arbre de spécialisation + paliers AdCap affichés sur chaque chaîne). Une seule liste mise à jour par tick (celle visible).
 - **Contrats** — cartes d'objectifs late-game, récompenses permanentes (voir section Contrats Exclusifs).
 - **Variétés** — buy/equip strains.
