@@ -429,6 +429,17 @@
     .ach-card.done .ach-name { color: var(--gold); }
     .ach-desc { font-size: .64rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .ach-bonus { font-size: .72rem; font-weight: 900; color: var(--gold-soft); flex-shrink: 0; }
+    /* historique des ventes (vue Progression) */
+    .sales-log { display: flex; flex-direction: column; gap: 6px; }
+    .sale-card { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; min-width: 0; }
+    .sale-icon { font-size: 1.2rem; flex-shrink: 0; }
+    .sale-info { min-width: 0; flex: 1; }
+    .sale-name { font-size: .78rem; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sale-tag { font-size: .6rem; font-weight: 800; padding: 1px 6px; border-radius: 999px; margin-left: 4px; background: var(--panel2); color: var(--muted); }
+    .sale-tag.peak { background: var(--gold); color: #1a1200; }
+    .sale-detail { font-size: .64rem; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .sale-gain { font-size: .78rem; font-weight: 900; color: var(--gold); flex-shrink: 0; text-align: right; }
+    .sale-gain.idle { color: var(--muted); font-weight: 700; }
     /* défis quotidiens (vue Progression) */
     .daily-list { display: flex; flex-direction: column; gap: 8px; }
     .daily-card { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
@@ -624,6 +635,10 @@
         <div class="ses-row"><span>👆 Clics</span><b id="ses-clicks">0</b></div>
         <div class="ses-row"><span>⚡ Combo max</span><b id="ses-combo">×1.0 (0 clics)</b></div>
       </div>
+
+      <div class="panel-head sub"><h2>📜 Dernières ventes</h2><p>Marché manuel et dealers de chaînes — les 40 dernières ventes</p></div>
+      <div class="sales-log" id="sales-log" hidden></div>
+      <div class="ach-count" id="sales-empty">Aucune vente — vends quelque chose au Marché !</div>
 
       <div class="panel-head sub"><h2>🔥 Streak</h2><p>Chaque jour consécutif : +4 % de production (max +40 %)</p></div>
       <div class="xp-card">

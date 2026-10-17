@@ -377,10 +377,10 @@ test('deserialize: sanitizes unknown strain and bad shapes', () => {
 
 test('data catalog is coherent', () => {
   assert.strictEqual(Game.UPGRADES.length, 16);
-  assert.strictEqual(Game.STRAINS.length, 13);
-  assert.strictEqual(Game.PRODUCTS.length, 14);
+  assert.strictEqual(Game.STRAINS.length, 14);
+  assert.strictEqual(Game.PRODUCTS.length, 15);
   assert.strictEqual(Game.MILESTONES.length, 13);
-  assert.strictEqual(Game.CONTRACTS.length, 18);
+  assert.strictEqual(Game.CONTRACTS.length, 19);
   for (const u of Game.UPGRADES) {
     assert.ok(u.id && u.name && u.desc && u.cost > 0);
     assert.strictEqual(Game.BASE_COST[u.id], u.cost);
@@ -397,6 +397,21 @@ test('data catalog is coherent', () => {
   assert.ok(Game.getStrain('chemdawg'), 'chemdawg doit exister');
   assert.strictEqual(Game.getStrain('chemdawg').unlock, 85);
   assert.ok(Game.CHAIN_SPECS.caviar && Game.CHAIN_SPECS.caviar.yield.per >= 0.20);
+  const bruce = Game.getStrain('bruce');
+  assert.ok(bruce, 'bruce doit exister');
+  assert.strictEqual(bruce.unlock, 92);
+  assert.ok(bruce.yieldMult > Game.getStrain('chemdawg').yieldMult, 'bruce > chemdawg');
+  assert.ok(bruce.priceMult > Game.getStrain('chemdawg').priceMult, 'prix bruce > chemdawg');
+  const elixir = Game.getProduct('elixir');
+  assert.ok(elixir, 'elixir doit exister');
+  assert.strictEqual(elixir.unlock, 92);
+  assert.ok(elixir.cost > Game.getProduct('caviar').cost, 'coût élixir > caviar');
+  assert.ok(elixir.price > Game.getProduct('caviar').price, 'prix élixir > caviar');
+  assert.ok(Game.CHAIN_SPECS.elixir, 'chaîne élixir spécialisable');
+  for (const branch of ['speed', 'yield', 'volume']) {
+    assert.ok(Game.CHAIN_SPECS.elixir[branch] && Game.CHAIN_SPECS.elixir[branch].max > 0, 'branche ' + branch);
+  }
+  assert.ok(Game.CONTRACTS.some((c) => c.id === 'c_elixir_king'), 'contrat Millésime Légendaire');
 });
 
 test('level curve: hybrid quadratic-exponential XP thresholds', () => {
@@ -1299,6 +1314,73 @@ test('roundtrip late-game: nouveaux catalogues + jalons survivent à la save', (
   const old = Game.deserialize(JSON.stringify({ xp: 5e12, chainLvl: { joint: 2 } }));
   assert.deepStrictEqual(old.chainSpecs.nectar, { speed: 0, yield: 0, volume: 0 });
   assert.deepStrictEqual(old.chainSpecs.caviar, { speed: 0, yield: 0, volume: 0 });
+  assert.deepStrictEqual(old.chainSpecs.elixir, { speed: 0, yield: 0, volume: 0 });
+});
+
+test('sales log: vente manuelle + dealer, FIFO cap, roundtrip de save', () => {
+  const s = Game.defaultState();
+  s.money = 1000;
+  s.stock.weed = 100;
+  const t0 = 1000000;
+  const gain = Game.sellStock(s, 'weed', 10, t0);
+  assert.ok(gain > 0);
+  assert.strictEqual(s.salesLog.length, 1);
+  assert.strictEqual(s.salesLog[0].id, 'weed');
+  assert.strictEqual(s.salesLog[0].qty, 10);
+  assert.strictEqual(s.salesLog[0].auto, false);
+  assert.strictEqual(s.salesLog[0].gain, gain);
+  // revente partielle : une entrée par appel, montant exact
+  const g2 = Game.sellStock(s, 'weed', 3, t0 + 500);
+  assert.strictEqual(s.salesLog.length, 2);
+  assert.strictEqual(s.salesLog[1].qty, 3);
+  assert.strictEqual(s.salesLog[1].gain, g2);
+  // stock épuisé : plus aucune entrée
+  Game.sellStock(s, 'weed', undefined, t0 + 700);
+  const nBefore = s.salesLog.length;
+  Game.sellStock(s, 'weed', 5, t0 + 800);
+  assert.strictEqual(s.salesLog.length, nBefore);
+  // recordSale direct (dealer) : tag auto, pas d'entrée si gain <= 0
+  Game.recordSale(s, 'joint', 2, 50, 100, t0 + 1000, true);
+  assert.strictEqual(s.salesLog.length, 4);
+  assert.strictEqual(s.salesLog[3].auto, true);
+  assert.strictEqual(s.salesLog[3].id, 'joint');
+  Game.recordSale(s, 'joint', 1, 10, 0, t0 + 2000);
+  assert.strictEqual(s.salesLog.length, 4);
+  // FIFO : dépassement du cap → les plus vieilles tombent
+  for (let i = 0; i < Game.SALES_LOG_MAX + 5; i++) {
+    Game.recordSale(s, 'weed', 1, 1, 1, t0 + 3000 + i);
+  }
+  assert.strictEqual(s.salesLog.length, Game.SALES_LOG_MAX);
+  assert.ok(s.salesLog[0].at < s.salesLog[s.salesLog.length - 1].at, 'FIFO ordre croissant');
+  // ventes dealer via autoTick loguées avec auto=true
+  const r = Game.defaultState();
+  r.xp = Game.xpForLevel(10);
+  r.money = 1e6;
+  assert.ok(Game.buyAutomation(r, 'auto-joint', 1).ok);
+  Game.addWeed(r, 1000);
+  const res = Game.autoTick(r, 1234567, 100);
+  assert.ok(res.soldMoney.joint > 0, 'dealer a vendu des joints');
+  const e = r.salesLog[r.salesLog.length - 1];
+  assert.strictEqual(e.id, 'joint');
+  assert.strictEqual(e.auto, true);
+  // roundtrip : le journal survit à la save
+  const d = Game.deserialize(Game.serialize(s));
+  assert.strictEqual(d.salesLog.length, Game.SALES_LOG_MAX);
+  assert.strictEqual(d.salesLog[0].id, 'weed');
+  assert.strictEqual(typeof d.salesLog[0].gain, 'number');
+  // sanitisation : marchés inconnus virés, champs négatifs/invalides bornés
+  const junk = Game.deserialize(JSON.stringify({
+    salesLog: [
+      { id: 'hax', qty: -5, gain: 'x' },
+      'oops',
+      { id: 'weed', qty: 3, unit: 2, gain: 6, at: -1, auto: 'yes' }
+    ]
+  }));
+  assert.strictEqual(junk.salesLog.length, 1);
+  assert.deepStrictEqual(junk.salesLog[0], { id: 'weed', qty: 3, unit: 2, gain: 6, at: 0, auto: true });
+  // vieille save sans le champ : défaut propre
+  const noLog = Game.deserialize(JSON.stringify({ xp: 100 }));
+  assert.deepStrictEqual(noLog.salesLog, []);
 });
 
 // ---- stats dérivées : chainEarnRate / chainSpecImpact (juice + stats justes) ----

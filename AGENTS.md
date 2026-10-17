@@ -8,10 +8,10 @@ boucle d'équilibrage économique.
 
 Idle/clicker game mobile « Bud Clicker » : on clique un bud pour récolter du
 weed — **le clic est LE cœur du jeu** (combo ×3, chaque gramme cliqué t'appartient
-à 100 %), on le transforme en 14 produits (joint → caviar), on vend au Marché
+à 100 %), on le transforme en 15 produits (joint → élixir), on vend au Marché
 dont les prix **fluctuent ±30 %**, on automatise des chaînes craft+vente façon
 AdVenture Capitalist **en annexe** (elles ne convertissent que le flux auto,
-plafond 40 %), on débloque 12 variétés de cannabis aux multiplicateurs
+plafond 40 %), on débloque 14 variétés de cannabis aux multiplicateurs
 croissants. Boutique et upgrades restent **nécessaires pour progresser**,
 mais toujours au service du clic. Zéro dépendance runtime : HTML/CSS/JS
 statiques servis tels quels par GitHub Pages.
@@ -31,7 +31,7 @@ js/bud.js             Rendu SVG procédural du bud (déterministe, seeds fixés)
 sw.js                 Service worker PWA (network-first code, cache-first images)
 manifest.json         Manifest PWA + raccourcis d'app
 icon-*.{svg,png}      Icônes (SVG = source de vérité, PNG régénérés depuis le SVG)
-test/game.test.js     ~114 tests unitaires (économie, catalogues, contrats, paliers, limites, saves, combo, crit, maîtrise, alertes, streak, session, achievements)
+test/game.test.js     ~123 tests unitaires (économie, catalogues, contrats, paliers, limites, saves, combo, crit, maîtrise, alertes, streak, session, achievements, ventes)
 test/playthrough.test.js  Simulateur de joueur optimal — asserte la courbe de pacing
 test/e2e.test.js      E2E chromium : pilote le vrai jeu dans une iframe (22 scénarios)
 test/e2e-runner.html  Page harnais e2e (scénarios décrits en JS, sortie "E2E x: PASS|FAIL")
@@ -165,7 +165,7 @@ L'économie est pilotée par les données, pas au doigt mouillé :
    achats parfaits). Un joueur réel est 2-4× plus lent.
 3. Ajuste jusqu'à tenir les cibles gravées dans le test (niveau 10 à 5-20 min,
    1 M€ à 4-20 min, gains totaux < 5 P€ en 2h optimale, etc.).
-4. `npm test` — les assertions de pacing + les 114 tests unitaires doivent rester
+4. `npm test` — les assertions de pacing + les 123 tests unitaires doivent rester
    verts. Toute valeur de prix/coût du README doit suivre (tables à jour).
 
 ## PWA / cache — règle de versioning
@@ -188,7 +188,7 @@ pertinente. L'e2e doit rester **sans dépendance** (pas de puppeteer/playwright)
 
 ## Checklist de PR
 
-- [ ] `npm test` vert en local (114 unit + 10 bud + playthrough + e2e)
+- [ ] `npm test` vert en local (123 unit + 10 bud + playthrough + e2e)
 - [ ] `node --check` sur chaque fichier JS touché
 - [ ] Nouvelles données de jeu → sanitisation `deserialize` + test roundtrip
 - [ ] Changement d'économie → sim playthrough relancée, README à jour
