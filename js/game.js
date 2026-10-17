@@ -188,8 +188,8 @@
    *     plafonnée par chaîne à CHAIN_SHARE_MAX ;
    *   - Le Dealer vend uniquement la production fraîche de SA chaîne.
    *
-   * Coût du niveau L = base × AUTOMATION_GROWTH^(L-1), base ≈ 400× prix unitaire,
-   * débloquée 4 niveaux après le produit.
+   * Coût du niveau L = base × facteur(L) (1.5 → 1.22 après 50),
+   * base ≈ 400× prix unitaire, débloquée 4 niveaux après le produit.
    */
   const AUTOMATION = PRODUCTS.map((p) => ({
     id: 'auto-' + p.id,
@@ -205,6 +205,17 @@
 
   /** Croissance du coût par niveau de chaîne. */
   const AUTOMATION_GROWTH = 1.5;
+
+  /**
+   * Late-game : au-delà de CHAIN_SOFT_FROM niveaux d'une chaîne, la croissance
+   * ralentit (1.5 → AUTOMATION_GROWTH_LATE) — sinon les paliers AdCap 100+
+   * (×16 et au-delà) sont mathématiquement impayables (lvl100 joint à 1.5e21 €
+   * pour ~2.6e16 € en 10h optimales). Avec 1.22 : lvl100 à ~6e16 € (~12h opti),
+   * lvl150 à ~1e21 € (fin de courbe). L'early (niveaux 0-50) est inchangé
+   * au centime près.
+   */
+  const AUTOMATION_GROWTH_LATE = 1.22;
+  const CHAIN_SOFT_FROM = 50;
   /** Part max convertible par UNE chaîne (clamp anti-tout-manger). */
   const CHAIN_SHARE_MAX = 0.4;
 
@@ -1691,9 +1702,16 @@
     return Math.max(0, Math.floor((s.chainLvl && s.chainLvl[productId]) || 0));
   }
 
+  /** Facteur de croissance composé d'une chaîne au niveau `lvl` (0-based). */
+  function _chainGrowthFactor(lvl) {
+    if (lvl < CHAIN_SOFT_FROM) return Math.pow(AUTOMATION_GROWTH, lvl);
+    return Math.pow(AUTOMATION_GROWTH, CHAIN_SOFT_FROM) *
+      Math.pow(AUTOMATION_GROWTH_LATE, lvl - CHAIN_SOFT_FROM);
+  }
+
   /**
    * Coût TOTAL pour acheter `n` niveaux de la chaîne à partir de son niveau
-   * courant : somme géométrique base × AUTOMATION_GROWTH^(cur+i).
+   * courant : somme segmentée base × facteur(lvl) (growth adouci après 50).
    */
   function automationCost(s, productId, n) {
     const a = AUTOMATION.find((x) => x.productId === productId);
@@ -1702,7 +1720,7 @@
     const cur = chainLvl(s, productId);
     let total = 0;
     for (let i = 0; i < count; i++) {
-      total += Math.floor(a.cost * Math.pow(AUTOMATION_GROWTH, cur + i));
+      total += Math.floor(a.cost * _chainGrowthFactor(cur + i));
     }
     return total;
   }
@@ -2408,6 +2426,8 @@
     CHAIN_SHARE_MAX,
     CHAIN_SPECS,
     AUTOMATION_GROWTH,
+    AUTOMATION_GROWTH_LATE,
+    CHAIN_SOFT_FROM,
     automationCost,
     maxAutomationLevels,
     chainSpecCost,

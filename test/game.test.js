@@ -1216,6 +1216,30 @@ test('roundtrip contrats/paliers: claimed + chainStats + chainSpecs préservés'
   assert.strictEqual(Game.getContractRewards(d, 'joint').yieldMult, 1.25);
 });
 
+test('automationCost: growth adouci après CHAIN_SOFT_FROM (paliers 100+ payables)', () => {
+  const g = Game.AUTOMATION_GROWTH, gl = Game.AUTOMATION_GROWTH_LATE, F = Game.CHAIN_SOFT_FROM;
+  const base = 5600; // joint
+  const s = Game.defaultState();
+  // early inchangé : growth pur 1.5 sous le seuil
+  s.chainLvl.joint = 0;
+  assert.strictEqual(Game.automationCost(s, 'joint', 1), base);
+  s.chainLvl.joint = 1;
+  assert.strictEqual(Game.automationCost(s, 'joint', 1), Math.floor(base * g));
+  s.chainLvl.joint = F - 1;
+  assert.strictEqual(Game.automationCost(s, 'joint', 1), Math.floor(base * Math.pow(g, F - 1)));
+  // au-delà : la croissance bascule sur AUTOMATION_GROWTH_LATE
+  s.chainLvl.joint = F;
+  const soft = Math.floor(base * Math.pow(g, F) * Math.pow(gl, 0));
+  assert.strictEqual(Game.automationCost(s, 'joint', 1), soft);
+  s.chainLvl.joint = 99;
+  const lvl100 = base * Math.pow(g, F) * Math.pow(gl, 99 - F);
+  assert.ok(Math.abs(Game.automationCost(s, 'joint', 1) - lvl100) / lvl100 < 1e-9, 'formule segmentée au lvl100');
+  // le palier 100 reste un vrai gate (~6e16 €) sans être un mur (1.5e21 € avant)
+  assert.ok(lvl100 < 1e17, 'lvl100 joint payant en ~12h optimales : ' + lvl100.toExponential(1));
+  const old100 = Math.floor(base * Math.pow(g, 99));
+  assert.ok(lvl100 < old100 / 1000, 'au moins 1000x moins cher que le growth pur');
+});
+
 test('courbe XP hybride: early inchangé, late-game aplati après le niveau XP_LATE_FROM', () => {
   const g = Game.XP_GROWTH, gl = Game.XP_GROWTH_LATE, F = Game.XP_LATE_FROM;
   // niveaux <= XP_LATE_FROM : formule historique pure (pacing intact)

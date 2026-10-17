@@ -147,7 +147,9 @@ L'économie est pilotée par les données, pas au doigt mouillé :
      il reste une annexe.
    - **Paliers de chaîne** (`CHAIN_MILESTONES`) — ×2 rendement aux niveaux
      25/50/75/100/150 de chaque chaîne (puis ×3/×4/×5) : objectif court-terme
-     permanent façon AdCap, sans toucher au gate de flux.
+     permanent façon AdCap, sans toucher au gate de flux. Coûts adoucis
+     (`AUTOMATION_GROWTH` 1.5 → `AUTOMATION_GROWTH_LATE` 1.22 après 50,
+     `CHAIN_SOFT_FROM`) : palier 100 payant en ~12h opti (avant : 1.5e21 €, mur).
    - **Spécialisation de chaîne** (`CHAIN_SPECS`) — branches speed/yield/volume
      par produit, nœuds achetables avec les gains de chaîne au late game.
    - **Contrats exclusifs** (`CONTRACTS`) — objectifs fin de jeu à récompenses
