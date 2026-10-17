@@ -155,16 +155,16 @@ L'économie est pilotée par les données, pas au doigt mouillé :
      stocké dans la save).
    - **Coûts des variétés** — chaque variété est un saut exponentiel
      (`yieldMult × priceMult`) ; leurs coûts espacent les sauts.
-   - `XP_GROWTH` (1.42, **1.28 au-delà du niveau 45** via `XP_GROWTH_LATE` /
+   - `XP_GROWTH` (1.42, **1.15 au-delà du niveau 40** via `XP_GROWTH_LATE` /
      `XP_LATE_FROM`) — les niveaux gate produits/chaînes/variétés ; le
-     late-game (produits 82/88, variétés 70/78, paliers de chaîne 650-1000,
-     contrats 60-86) doit rester atteignable en quelques sessions.
+     late-game (produits 82/88/92, variétés 70/78/85/92, contrats 60-92)
+     doit rester atteignable en quelques sessions.
    - Échelle de produits (`PRODUCTS`) et `MARKET` (pulse ±30 %).
 2. Lance `node --test test/playthrough.test.js` et lis la ligne `SIM2H` :
    c'est un joueur **optimal** (2.5 clics/s, vente aux pics, sessions AFK,
    achats parfaits). Un joueur réel est 2-4× plus lent.
 3. Ajuste jusqu'à tenir les cibles gravées dans le test (niveau 10 à 5-20 min,
-   1 M€ à 4-20 min, gains totaux < 5 P€ en 2h optimale, etc.).
+   1 M€ à 4-20 min, gains totaux < 40 P€ en 2h optimale, etc.).
 4. `npm test` — les assertions de pacing + les 123 tests unitaires doivent rester
    verts. Toute valeur de prix/coût du README doit suivre (tables à jour).
 
