@@ -33,7 +33,7 @@ manifest.json         Manifest PWA + raccourcis d'app
 icon-*.{svg,png}      Icônes (SVG = source de vérité, PNG régénérés depuis le SVG)
 test/game.test.js     ~124 tests unitaires (économie, catalogues, contrats, paliers, limites, saves, combo, crit, maîtrise, alertes, streak, session, achievements, ventes)
 test/playthrough.test.js  Simulateur de joueur optimal — asserte la courbe de pacing
-test/e2e.test.js      E2E chromium : pilote le vrai jeu dans une iframe (26 scénarios)
+test/e2e.test.js      E2E chromium : pilote le vrai jeu dans une iframe (27 scénarios)
 test/e2e-runner.html  Page harnais e2e (scénarios décrits en JS, sortie "E2E x: PASS|FAIL")
 ```
 

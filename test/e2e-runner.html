@@ -440,6 +440,26 @@ async function scenario() {
     report('reset-dialog', armed && money() === 0 && q('#sb').textContent.includes('Green Dream'),
       'armed=' + armed + ' money=' + money());
 
+    // 16. navigation clavier : un bouton d'onglet est focusable et s'active au clic
+    // (clavier natif : focus + Entrée = clic sur le bouton)
+    try {
+      const tabs = [...gameDoc().querySelectorAll('.tab-btn')];
+      const harvestTab = tabs.find((t) => t.dataset.tab === 'harvest');
+      const sellTab = tabs.find((t) => t.dataset.tab === 'sell');
+      if (harvestTab && sellTab) {
+        harvestTab.focus();
+        const focused = gameDoc().activeElement === harvestTab;
+        sellTab.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+        await sleep(100);
+        const sellActive = sellTab.classList.contains('active') && q('#v-sell').classList.contains('active');
+        report('keyboard-nav', focused && sellActive, 'focused=' + focused + ' sell active=' + sellActive);
+      } else {
+        report('keyboard-nav', false, 'tabs introuvables');
+      }
+    } catch (e) {
+      report('keyboard-nav', false, String(e));
+    }
+
   } catch (e) {
     report('scenario-crash', false, String((e && e.stack) || e));
   }
