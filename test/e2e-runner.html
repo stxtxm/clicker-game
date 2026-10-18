@@ -109,12 +109,24 @@ async function scenario() {
     soundBtn.click();
     await sleep(60);
     const soundRestored = soundBtn.getAttribute('aria-pressed') === soundBefore;
+    const vibrateBtn = q('#vibrate-btn');
+    const vibrateBefore = vibrateBtn ? vibrateBtn.getAttribute('aria-pressed') : null;
+    if (vibrateBtn) vibrateBtn.click();
+    await sleep(60);
+    const vibrateAfter = vibrateBtn ? vibrateBtn.getAttribute('aria-pressed') : null;
+    const vibratePersist = (() => { try { return w.localStorage.getItem('budClickerVibrate'); } catch (e) { return 'ERR'; } })();
+    if (vibrateBtn) vibrateBtn.click();
+    await sleep(60);
+    const vibrateRestored = vibrateBtn ? vibrateBtn.getAttribute('aria-pressed') === vibrateBefore : false;
     report('a11y-sound-ui',
       allTabs && selBefore === 'true' && selAfter === 'true' && selCleared === 'false' &&
       budFocusable && soundBefore === 'true' && soundAfter === 'false' &&
-      soundPersist === 'off' && soundRestored,
+      soundPersist === 'off' && soundRestored &&
+      !!vibrateBtn && vibrateBefore === 'true' && vibrateAfter === 'false' &&
+      vibratePersist === 'off' && vibrateRestored,
       'tabs=' + tabBtns.length + ' sel=' + selBefore + '/' + selAfter + '/' + selCleared +
-      ' bud=' + budFocusable + ' sound=' + soundBefore + '->' + soundAfter + ' store=' + soundPersist);
+      ' bud=' + budFocusable + ' sound=' + soundBefore + '->' + soundAfter + ' store=' + soundPersist +
+      ' vibrate=' + vibrateBefore + '->' + vibrateAfter + ' vstore=' + vibratePersist);
 
     // 2. clicking harvests weed + xp
     const before = weedStock();
