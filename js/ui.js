@@ -211,9 +211,17 @@
   let vibrateOn = true;
   const VIBRATE_KEY = 'budClickerVibrate';
 
+  // La Vibration API (navigator.vibrate) n'existe que sur les navigateurs qui
+  // l'implémentent ET dans un contexte sécurisé (https ou localhost). Sur une
+  // page ouverte en HTTP sur le réseau local (déploiement local, IP locale) ou
+  // sur un navigateur ancien, elle est indécelable : il ne faut pas afficher
+  // "activé" sans qu'il n'y ait rien derrière.
+  const vibrateSupported = typeof navigator !== 'undefined'
+    && typeof navigator.vibrate === 'function';
+
   function vibrateEnabled() {
     try { vibrateOn = localStorage.getItem(VIBRATE_KEY) !== 'off'; } catch (e) { /* private mode */ }
-    return vibrateOn;
+    return vibrateSupported && vibrateOn;
   }
   function toggleVibrate() {
     vibrateOn = !vibrateOn;
@@ -1490,15 +1498,25 @@
   if (el.vibrateBtn) {
     const syncVibrateBtn = () => {
       const on = vibrateEnabled();
-      el.vibrateBtn.textContent = on ? '📳' : '🔕';
-      el.vibrateBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      el.vibrateBtn.textContent = vibrateSupported ? (on ? '📳' : '🔕') : '🔕';
+      el.vibrateBtn.setAttribute('aria-pressed', vibrateSupported && on ? 'true' : 'false');
+      el.vibrateBtn.disabled = !vibrateSupported;
+      el.vibrateBtn.title = vibrateSupported
+        ? (on ? 'Décocher la vibration (haptique)' : 'Activer la vibration (haptique)')
+        : 'La vibration n\'est pas disponible sur ce contexte (https/localhost requis)';
     };
     syncVibrateBtn();
     el.vibrateBtn.addEventListener('click', () => {
+      if (!vibrateSupported) return;
       const on = toggleVibrate();
-      el.vibrateBtn.textContent = on ? '📳' : '🔕';
-      el.vibrateBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
-      if (on) vibrate(30);
+      const enabled = vibrateEnabled();
+      el.vibrateBtn.textContent = enabled ? '📳' : '🔕';
+      el.vibrateBtn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+      el.vibrateBtn.disabled = !vibrateSupported;
+      el.vibrateBtn.title = vibrateSupported
+        ? (enabled ? 'Décocher la vibration (haptique)' : 'Activer la vibration (haptique)')
+        : 'La vibration n\'est pas disponible sur ce contexte (https/localhost requis)';
+      if (enabled) vibrate(30);
     });
   }
   if (el.sellAll) el.sellAll.addEventListener('click', () => onSell('all'));
