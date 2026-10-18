@@ -38,6 +38,7 @@
     bs: document.getElementById('bs'),
     sb: document.getElementById('sb'),
     soundBtn: document.getElementById('sound-btn'),
+    vibrateBtn: document.getElementById('vibrate-btn'),
     headerLogo: document.getElementById('header-bud-logo'),
     ug: document.getElementById('ug'),
     sv: document.getElementById('sv'),
@@ -201,8 +202,28 @@
     },
     crit: () => { beep(780, 0.09, 'square', 0.07); setTimeout(() => beep(1170, 0.12, 'square', 0.06), 60); },
     buy: () => { beep(440, 0.08, 'triangle', 0.06); setTimeout(() => beep(660, 0.1, 'triangle', 0.06), 70); },
-    reward: () => { beep(523, 0.1, 'triangle', 0.07); setTimeout(() => beep(659, 0.1, 'triangle', 0.07), 90); setTimeout(() => beep(784, 0.16, 'triangle', 0.07), 180); }
+    reward: () => { beep(523, 0.1, 'triangle', 0.07); setTimeout(() => beep(659, 0.1, 'triangle', 0.07), 90); setTimeout(() => beep(784, 0.16, 'triangle', 0.07), 180); },
+    levelup: () => { beep(523, 0.12, 'triangle', 0.08); setTimeout(() => beep(659, 0.12, 'triangle', 0.08), 100); setTimeout(() => beep(784, 0.2, 'triangle', 0.08), 200); },
+    unlock: () => { beep(659, 0.1, 'sine', 0.06); setTimeout(() => beep(880, 0.15, 'sine', 0.06), 120); }
   };
+
+  // --- vibration (haptique mobile, désactivable) -----------------------------
+  let vibrateOn = true;
+  const VIBRATE_KEY = 'budClickerVibrate';
+
+  function vibrateEnabled() {
+    try { vibrateOn = localStorage.getItem(VIBRATE_KEY) !== 'off'; } catch (e) { /* private mode */ }
+    return vibrateOn;
+  }
+  function toggleVibrate() {
+    vibrateOn = !vibrateOn;
+    try { localStorage.setItem(VIBRATE_KEY, vibrateOn ? 'on' : 'off'); } catch (e) { /* private mode */ }
+    return vibrateOn;
+  }
+  function vibrate(ms) {
+    if (!vibrateEnabled() || typeof navigator === 'undefined' || !navigator.vibrate) return;
+    try { navigator.vibrate(ms); } catch (e) { /* unsupported */ }
+  }
 
   // --- rendering -------------------------------------------------------------
   function renderBud() {
@@ -1212,10 +1233,9 @@
           { duration: 160, easing: 'ease-out' }
         );
       }
-      if (typeof navigator !== 'undefined' && navigator.vibrate) {
-        try { navigator.vibrate(20); } catch (e) { /* unsupported */ }
-      }
+      vibrate(20);
     } else {
+      vibrate(30);
       // squash & stretch simplifié : 1 bounce au lieu de 5 keyframes
       if (el.bc.animate) {
         el.bc.animate(
@@ -1237,6 +1257,9 @@
     if (res.xp.leveledUp) {
       const st = Game.STRAINS.find((x2) => x2.unlock === res.xp.level && !state.stock.strains.includes(x2.id));
       toast(st ? 'Niveau ' + res.xp.level + ' — ' + st.name + ' débloquée ! 🎉' : 'Niveau ' + res.xp.level + ' !');
+      sfx.levelup();
+      if (st) sfx.unlock();
+      vibrate([50, 30, 50]);
       popNum(el.lv);
     }
   }
@@ -1247,6 +1270,7 @@
     if (res.ok) {
       if (el.stw) popNum(el.stw);
       sfx.buy();
+      vibrate(50);
     } else {
       errToast('Pas assez de weed (' + (prod ? prod.cost + 'g' : '') + ' requis)');
     }
@@ -1275,6 +1299,7 @@
       toast(res.name + label + ' acheté !');
       popNum(el.m);
       sfx.buy();
+      vibrate(50);
     } else {
       if (res.cost) errToast('Manque ' + fmt(res.cost - state.money) + ' €');
       else errToast("Pas assez d'argent");
@@ -1301,6 +1326,7 @@
       if (firstHire) toast(res.name + ' embauchée ! 🛠️' + deltaLabel);
       popNum(el.m);
       sfx.buy();
+      vibrate(50);
       if (a && Game.chainMilestoneMult) {
         const multAfter = Game.chainMilestoneMult(state, a.productId);
         if (multAfter > multBefore) {
@@ -1459,6 +1485,20 @@
       el.soundBtn.textContent = on ? '🔊' : '🔇';
       el.soundBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
       if (on) sfx.click();
+    });
+  }
+  if (el.vibrateBtn) {
+    const syncVibrateBtn = () => {
+      const on = vibrateEnabled();
+      el.vibrateBtn.textContent = on ? '📳' : '🔕';
+      el.vibrateBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    };
+    syncVibrateBtn();
+    el.vibrateBtn.addEventListener('click', () => {
+      const on = toggleVibrate();
+      el.vibrateBtn.textContent = on ? '📳' : '🔕';
+      el.vibrateBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      if (on) vibrate(30);
     });
   }
   if (el.sellAll) el.sellAll.addEventListener('click', () => onSell('all'));
