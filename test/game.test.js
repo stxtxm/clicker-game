@@ -1899,3 +1899,109 @@ test('roundtrip daily: persiste, corrompu regenere, vieux migre', () => {
   assert.strictEqual(old.daily.day, null);
   assert.deepStrictEqual(old.daily.done, []);
 });
+
+// --- bud doré (event flottant à cliquer) ----------------------------------------
+
+test('maybeTriggerGolden: spawn borné, cooldowns respectés, rng déterministe', () => {
+  const s = Game.defaultState();
+  const r = Game.mulberry32(42);
+  // jamais de spawn avant le premier cooldown expiré
+  assert.strictEqual(Game.maybeTriggerGolden(s, 0, r), false);
+  assert.ok(s.golden.nextAt > 0, 'premier nextAt posé');
+  assert.strictEqual(Game.isGoldenSpawned(s, 0), false);
+  // rng forcé sous GOLDEN_CHANCE : spawn à la date VII après cooldown
+  const rngAlways = () => 0.001;
+  const T = s.golden.nextAt + 1;
+  assert.strictEqual(Game.maybeTriggerGolden(s, T, rngAlways), true);
+  assert.strictEqual(Game.isGoldenSpawned(s, T), true);
+  assert.strictEqual(Game.isGoldenSpawned(s, T + Game.GOLDEN_DURATION + 1), false, 'expire');
+  // pendant le spawn actif : pas de double spawn
+  assert.strictEqual(Game.maybeTriggerGolden(s, T + 1000, rngAlways), false);
+  // pendant le cooldown : pas de spawn même avec rng favorable
+  s.golden.until = 0;
+  assert.strictEqual(Game.maybeTriggerGolden(s, T + 1000, rngAlways), false);
+});
+
+test('claimGolden: frenzy double le CLIC et jamais perSecond/productionMult', () => {
+  const s = Game.defaultState();
+  const T = 1000000;
+  const rngFrenzy = () => 0.01; // < 0.5 → frenzy
+  s.golden.until = T + Game.GOLDEN_DURATION;
+  const pc0 = Game.perClick(s, T);
+  const ps0 = Game.perSecond(s, T);
+  assert.ok(pc0 >= 1);
+  const res = Game.claimGolden(s, T + 1000, rngFrenzy);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.kind, 'frenzy');
+  assert.strictEqual(res.mult, Game.GOLDEN_FRENZY_MULT);
+  assert.strictEqual(s.golden.until, 0, 'spawn consommé');
+  assert.strictEqual(s.golden.clicks, 1);
+  assert.strictEqual(Game.isGoldenFrenzy(s, T + 1000), true);
+  assert.strictEqual(Game.perClick(s, T + 1000), pc0 * Game.GOLDEN_FRENZY_MULT, 'frenzy ×2 sur perClick');
+  assert.strictEqual(Game.perSecond(s, T + 1000), ps0, 'perSecond JAMAIS boosté');
+  const sNoFrenzy = { ...s, golden: { nextAt: 0, until: 0, frenzyUntil: 0, clicks: 1, gained: 0 } };
+  assert.strictEqual(Game.productionMult(s, T + 1000), Game.productionMult(sNoFrenzy, T + 1000), 'productionMult inchangé par la frenzy');
+  // expiry de la frenzy
+  assert.strictEqual(Game.perClick(s, T + 1000 + Game.GOLDEN_FRENZY_MS), pc0, 'frenzy expire');
+});
+
+test('claimGolden: burst = 30 clics (min 25g), addWeed, compteur gained', () => {
+  const s = Game.defaultState();
+  const T = 1000000;
+  const rngBurst = () => 0.99; // >= 0.5 → burst
+  s.golden.until = T + Game.GOLDEN_DURATION;
+  s.levels.harvest = 10;
+  const pc = Game.perClick(s, T);
+  const weed0 = s.stock.weed;
+  const res = Game.claimGolden(s, T, rngBurst);
+  assert.strictEqual(res.ok, true);
+  assert.strictEqual(res.kind, 'burst');
+  assert.strictEqual(res.grams, Math.max(25, pc * Game.GOLDEN_BURST_CLICKS));
+  assert.strictEqual(s.stock.weed, weed0 + res.grams);
+  assert.strictEqual(s.golden.clicks, 1);
+  assert.strictEqual(s.golden.gained, res.grams);
+  assert.strictEqual(Game.isGoldenFrenzy(s, T), false, 'pas de frenzy');
+});
+
+test('claimGolden: impossible sans spawn actif ni état', () => {
+  const s = Game.defaultState();
+  assert.strictEqual(Game.claimGolden(s, 123).ok, false);
+  s.golden.until = 99999;
+  assert.strictEqual(Game.claimGolden(s, 100000).ok, false); // expiré
+  assert.strictEqual(Game.claimGolden(null, 0).ok, false);
+  assert.strictEqual(s.golden.clicks, 0, 'aucun compteur incrémenté');
+});
+
+test('golden roundtrip: tout l\'objet survit à la save, corrompu régénéré, legacy purgé', () => {
+  const s = Game.defaultState();
+  s.golden.clicks = 7;
+  s.golden.gained = 12345;
+  const T = 1700000000000;
+  s.golden.until = T;
+  s.golden.frenzyUntil = T + 1000;
+  s.golden.nextAt = T + 2000;
+  const d = Game.deserialize(Game.serialize(s));
+  assert.strictEqual(d.golden.clicks, 7);
+  assert.strictEqual(d.golden.gained, 12345);
+  assert.strictEqual(d.golden.until, T, 'spawn persisté');
+  assert.strictEqual(d.golden.frenzyUntil, T + 1000);
+  assert.strictEqual(d.golden.nextAt, T + 2000);
+  // corrompu → valeur par défaut propre (jamais de crash)
+  const bad = Game.deserialize(JSON.stringify({ golden: { clicks: -4, gained: 'oops', until: 'x', frenzyUntil: -1 } }));
+  assert.deepStrictEqual(bad.golden, { nextAt: 0, until: 0, frenzyUntil: 0, clicks: 0, gained: 0 });
+  // save ancienne sans champ golden → par défaut + legacy purgé
+  const old = Game.deserialize(JSON.stringify({ money: 42, goldenUntil: 5, goldenNextAt: 6 }));
+  assert.deepStrictEqual(old.golden, { nextAt: 0, until: 0, frenzyUntil: 0, clicks: 0, gained: 0 });
+  assert.strictEqual(old.goldenUntil, undefined);
+  assert.strictEqual(old.goldenNextAt, undefined);
+});
+
+test('achievements bud doré: Panier Doré + Chasseur d\'Or', () => {
+  const s = Game.defaultState();
+  assert.ok(!Game.checkAchievements(s).some((a) => a.id === 'ach_golden_1'));
+  s.golden.clicks = 1;
+  assert.ok(Game.checkAchievements(s).some((a) => a.id === 'ach_golden_1'));
+  s.golden.clicks = 10;
+  const got = Game.checkAchievements(s);
+  assert.ok(got.some((a) => a.id === 'ach_golden_10'));
+});

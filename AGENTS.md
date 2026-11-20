@@ -31,7 +31,7 @@ js/bud.js             Rendu SVG procédural du bud (déterministe, seeds fixés)
 sw.js                 Service worker PWA (network-first code, cache-first images)
 manifest.json         Manifest PWA + raccourcis d'app
 icon-*.{svg,png}      Icônes (SVG = source de vérité, PNG régénérés depuis le SVG)
-test/game.test.js     ~124 tests unitaires (économie, catalogues, contrats, paliers, limites, saves, combo, crit, maîtrise, alertes, streak, session, achievements, ventes)
+test/game.test.js     ~130 tests unitaires (économie, catalogues, contrats, paliers, limites, saves, combo, crit, maîtrise, alertes, streak, session, achievements, défis, bud doré, ventes)
 test/playthrough.test.js  Simulateur de joueur optimal — asserte la courbe de pacing
 test/e2e.test.js      E2E chromium : pilote le vrai jeu dans une iframe (27 scénarios)
 test/e2e-runner.html  Page harnais e2e (scénarios décrits en JS, sortie "E2E x: PASS|FAIL")
@@ -190,7 +190,7 @@ pertinente. L'e2e doit rester **sans dépendance** (pas de puppeteer/playwright)
 
 ## Checklist de PR
 
-- [ ] `npm test` vert en local (124 unit + 10 bud + playthrough + e2e)
+- [ ] `npm test` vert en local (130 unit + 10 bud + playthrough + e2e)
 - [ ] `node --check` sur chaque fichier JS touché
 - [ ] Nouvelles données de jeu → sanitisation `deserialize` + test roundtrip
 - [ ] Changement d'économie → sim playthrough relancée, README à jour

@@ -25,6 +25,8 @@
     stw: document.getElementById('stw'),
     comboWrap: document.getElementById('combo-wrap'),
     comboPill: document.getElementById('combo-pill'),
+    frenzyPill: document.getElementById('frenzy-pill'),
+    goldenBud: document.getElementById('golden-bud'),
     marketGrid: document.getElementById('market-grid'),
     sellAll: document.getElementById('sell-all'),
     qtyRow: document.getElementById('qty-row'),
@@ -1215,13 +1217,81 @@
     const c = state.combo || { count: 0 };
     const count = c.count || 0;
     const active = count >= 2;
-    el.comboWrap.hidden = !active;
+    // pill frenzy (bud doré) : partage la pile du combo, reste seule si combo inactif
+    const frenzy = !!(el.frenzyPill && Game.isGoldenFrenzy && Game.isGoldenFrenzy(state));
+    if (el.frenzyPill) {
+      if (frenzy) {
+        const secs = Math.max(1, Math.ceil((state.golden.frenzyUntil - Date.now()) / 1000));
+        el.frenzyPill.textContent = '🔥 Bud doré — Clic ×2 · ' + secs + 's';
+      }
+      el.frenzyPill.hidden = !frenzy;
+    }
+    el.comboWrap.hidden = !active && !frenzy;
     if (active) {
       const mult = Game.comboMultiplier(count);
       el.comboPill.textContent = count >= Game.COMBO_CAP
         ? '⚡ Combo MAX — clic ×' + mult.toFixed(1)
         : '⚡ Combo ×' + count + ' — clic ×' + mult.toFixed(1);
     }
+  }
+
+  /* ---- bud doré : spawn/claim (juice WAAPI, position parmi des spots fixes) -- */
+  /** Spots (%) dans la vue Récolte : jamais sur les stats ni sous le header. */
+  const GOLDEN_SPOTS = [
+    { left: 8, top: 34 }, { left: 78, top: 30 }, { left: 70, top: 52 },
+    { left: 16, top: 50 }, { left: 44, top: 16 }, { left: 62, top: 68 }
+  ];
+
+  function showGolden() {
+    const el2 = el.goldenBud;
+    if (!el2) return;
+    const spot = GOLDEN_SPOTS[Math.floor(Math.random() * GOLDEN_SPOTS.length)];
+    el2.style.left = spot.left + '%';
+    el2.style.top = spot.top + '%';
+    el2.hidden = false;
+    if (el2.animate) {
+      el2.animate(
+        [
+          { transform: 'scale(0) rotate(-20deg)', opacity: 0 },
+          { transform: 'scale(1.15) rotate(4deg)', opacity: 1, offset: 0.7 },
+          { transform: 'scale(1) rotate(0deg)', opacity: 1 }
+        ],
+        { duration: 280, easing: 'ease-out', fill: 'backwards' }
+      );
+    }
+  }
+
+  function hideGolden() {
+    if (el.goldenBud) el.goldenBud.hidden = true;
+  }
+
+  /** Tick du bud doré : spawn éventuel, réaffichage d'un spawn persisté
+      (reload), disparition silencieuse à expiration. Jamais de spawn pendant
+      que l'onglet est caché (il expirerait sans être vu). */
+  function updateGolden(now) {
+    if (!el.goldenBud) return;
+    if (document.hidden) return;
+    if (Game.isGoldenSpawned(state, now)) {
+      if (el.goldenBud.hidden) showGolden();
+      return;
+    }
+    if (Game.maybeTriggerGolden(state, now)) showGolden();
+    else if (!el.goldenBud.hidden) hideGolden();
+  }
+
+  function onGoldenClick() {
+    const res = Game.claimGolden ? Game.claimGolden(state) : { ok: false };
+    hideGolden();
+    if (!res.ok) return;
+    toast(res.kind === 'frenzy'
+      ? '🔥 Bud doré — Clic ×2 pendant 20 s !'
+      : '🍀 Bud doré — +' + fmt(res.grams) + ' g !', true);
+    sfx.unlock();
+    vibrate([40, 25, 80]);
+    popNum(el.stw);
+    updateComboUI();
+    refreshStats();
+    saveSoon(2000);
   }
 
   function onHarvest(ev) {
@@ -1386,6 +1456,7 @@
        reste une action joueur dans onClaimDaily, donc aucun toast auto) */
     if (Game.rollDaily) Game.rollDaily(state, now);
     if (Game.maybeTriggerSpike) Game.maybeTriggerSpike(state, now);
+    updateGolden(now);
     // alertes de prix : check silencieux (retire les alertes armées de l'état)
     if (Game.checkPriceAlerts) Game.checkPriceAlerts(state, now);
     const ar = Game.perSecond(state);
@@ -1479,6 +1550,15 @@
         ev.preventDefault();
         onHarvest(ev);
       }
+    });
+  }
+  // bud doré : même pattern pointerdown/click (réponse instantanée au touch)
+  if (el.goldenBud) {
+    let lastGoldenDown = 0;
+    el.goldenBud.addEventListener('pointerdown', () => { lastGoldenDown = Date.now(); onGoldenClick(); });
+    el.goldenBud.addEventListener('click', () => {
+      if (Date.now() - lastGoldenDown < 600) return; // déjà réclamé au pointerdown
+      onGoldenClick();
     });
   }
   if (el.soundBtn) {
@@ -1607,10 +1687,11 @@
   // expiration du combo : reset silencieux côté game, l'UI suit le delta
   setInterval(() => {
     const count = Game.comboNow(state).count;
-    if (count !== lastComboCount) {
+    const frenzy = Game.isGoldenFrenzy && Game.isGoldenFrenzy(state);
+    if (count !== lastComboCount || frenzy) {
       lastComboCount = count;
       updateComboUI();
-      if (count === 0) saveSoon(2000);
+      if (count === 0 && !frenzy) saveSoon(2000);
     }
   }, 500);
   setInterval(autoProduce, 1000);
