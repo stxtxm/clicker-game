@@ -441,6 +441,30 @@ async function scenario() {
       firstSaleTxt.includes('Weed'),
       'cards=' + saleCards + ' emptyHidden=' + salesEmptyHidden + ' first="' + firstSaleTxt + '"');
 
+    // 14j. bud doré : spawn seedé actif → visible sur la vue Récolte, clic
+    // (pointerdown programmatique) → consommé + toast dédié, pill frenzy si roll
+    const tb = Date.now();
+    await seedGame({
+      weed: 0, money: 0, strain: 'green',
+      stock: { weed: 0, weedByStrain: {}, strains: ['green'] }, prices: { weed: 6 },
+      levels: { harvest: 1, auto: 0 }, xp: 0, totalEarned: 0,
+      golden: { nextAt: tb + 600000, until: tb + 20000, frenzyUntil: 0, clicks: 0, gained: 0 }
+    });
+    // la 1re seconde d'autoProduce montre le bud doré persisté
+    const gb = await (async () => {
+      const t0 = Date.now();
+      while (Date.now() - t0 < 3000) { const n = q('#golden-bud'); if (n && !n.hidden) return n; await sleep(80); }
+      return null;
+    })();
+    const gbSvg = gb ? gb.querySelector('svg') : null;
+    gb && gb.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    await sleep(150);
+    const gbGone = !gb || gb.hidden;
+    const gbToast = [...gameDoc().querySelectorAll('#mc .ms')]
+      .some((t) => t.textContent.includes('Bud doré'));
+    report('golden-bud', !!gb && !!gbSvg && gbGone && gbToast,
+      'visible=' + !!gb + ' svg=' + !!gbSvg + ' consumed=' + gbGone + ' toast=' + gbToast);
+
     // 15. reset dialog: first click arms (animated state), second confirms
     q('.tab-btn[data-tab="progress"]').click();
     await sleep(80);

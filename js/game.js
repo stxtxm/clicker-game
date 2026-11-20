@@ -641,7 +641,9 @@
     { id: 'ach_chain_50', name: 'Usine à Fumée', desc: 'Atteindre le niveau 50 sur une chaîne', icon: '⛓️', bonus: 15, condition: (s) => Object.values(s.chainLvl || {}).some((l) => l >= 50) },
     { id: 'ach_mastery_20', name: 'Main Verte', desc: 'Maîtrise de niveau 20 sur une variété', icon: '🌿', bonus: 12, condition: (s) => Object.keys(s.mastery || {}).some((id) => masteryLevel(s, id) >= 20) },
     { id: 'ach_click_50k', name: 'Pouce de Fer', desc: 'Cliquer 50 000 fois', icon: '👍', bonus: 15, condition: (s) => (s.totalClicks || 0) >= 50000 },
-    { id: 'ach_level_88', name: 'Everest', desc: 'Atteindre le niveau 88', icon: '⛰️', bonus: 25, condition: (s) => levelFromXp(s.xp) >= 88 }
+    { id: 'ach_level_88', name: 'Everest', desc: 'Atteindre le niveau 88', icon: '⛰️', bonus: 25, condition: (s) => levelFromXp(s.xp) >= 88 },
+    { id: 'ach_golden_1', name: 'Panier Doré', desc: 'Cliquer un bud doré', icon: '🌟', bonus: 5, condition: (s) => (s.golden && s.golden.clicks || 0) >= 1 },
+    { id: 'ach_golden_10', name: "Chasseur d'Or", desc: 'Cliquer 10 buds dorés', icon: '✨', bonus: 12, condition: (s) => (s.golden && s.golden.clicks || 0) >= 10 }
   ];
 
   /** Tier bonus: tous les 40 niveaux → ×2 (espacé pour lisser le late-game). */
@@ -687,6 +689,81 @@
       s.spikeNextAt = t + SPIKE_COOLDOWN_MIN + Math.floor((rng ? rng() : Math.random()) * span);
     }
     return false;
+  }
+
+  /* ---- bud doré : event flottant à cliquer (le buff est borné au CLIC) ------ */
+  /** Durée d'apparition du bud doré (doit être cliqué avant de disparaître). */
+  const GOLDEN_DURATION = 8000;
+  /** Multiplicateur de clic pendant une frenzy (jamais appliqué à perSecond). */
+  const GOLDEN_FRENZY_MULT = 2;
+  /** Durée d'une frenzy de clic. */
+  const GOLDEN_FRENZY_MS = 20000;
+  /** Instant gain : 30 clics d'un coup (suit la puissance de clic, borné). */
+  const GOLDEN_BURST_CLICKS = 30;
+  /** Apparition : chance/s après cooldown ≈ 1 toutes les 2-3,5 min. */
+  const GOLDEN_CHANCE = 0.008;
+  const GOLDEN_COOLDOWN_MIN = 90000;
+  const GOLDEN_COOLDOWN_MAX = 180000;
+
+  function isGoldenSpawned(s, now) {
+    const t = now === undefined ? Date.now() : now;
+    return !!(s && s.golden && s.golden.until && t < s.golden.until);
+  }
+
+  function isGoldenFrenzy(s, now) {
+    const t = now === undefined ? Date.now() : now;
+    return !!(s && s.golden && s.golden.frenzyUntil && t < s.golden.frenzyUntil);
+  }
+
+  /**
+   * Tente de faire apparaître un bud doré (appelé chaque seconde par l'UI).
+   * Même contrat que maybeTriggerSpike : rng optionnel pour la reproductibilité.
+   * @returns {boolean} true si un bud doré vient d'apparaître
+   */
+  function maybeTriggerGolden(s, now, rng) {
+    const t = now === undefined ? Date.now() : now;
+    if (!s) return false;
+    const g = s.golden = s.golden || { nextAt: 0, until: 0, frenzyUntil: 0, clicks: 0, gained: 0 };
+    if (isGoldenSpawned(s, t)) return false;
+    if (g.nextAt && t < g.nextAt) return false;
+    const r = rng ? rng() : Math.random();
+    if (r < GOLDEN_CHANCE) {
+      g.until = t + GOLDEN_DURATION;
+      const span = GOLDEN_COOLDOWN_MAX - GOLDEN_COOLDOWN_MIN;
+      g.nextAt = Math.max(g.until, t) + GOLDEN_COOLDOWN_MIN + Math.floor((rng ? rng() : Math.random()) * span);
+      return true;
+    }
+    if (!g.nextAt) {
+      const span = GOLDEN_COOLDOWN_MAX - GOLDEN_COOLDOWN_MIN;
+      g.nextAt = t + GOLDEN_COOLDOWN_MIN + Math.floor((rng ? rng() : Math.random()) * span);
+    }
+    return false;
+  }
+
+  /**
+   * Récompense si le bud doré est réclamé : soit une frenzy clic ×2 (20 s),
+   * soit un gain instantané (30 clics). Zéro impact sur perSecond/chaînes.
+   * @param {object} s state (mutated)
+   * @param {number} [now] epoch ms
+   * @param {function} [rng] random source optionnelle
+   * @returns {{ok:boolean, kind?:string, grams?:number, mult?:number, reason?:string}}
+   */
+  function claimGolden(s, now, rng) {
+    const t = now === undefined ? Date.now() : now;
+    if (!s) return { ok: false, reason: 'noState' };
+    const g = s.golden;
+    if (!g || !g.until || t >= g.until) return { ok: false, reason: 'notSpawned' };
+    g.until = 0;
+    g.clicks = (g.clicks || 0) + 1;
+    const frenzy = (rng ? rng() : Math.random()) < 0.5;
+    if (frenzy) {
+      g.frenzyUntil = t + GOLDEN_FRENZY_MS;
+      return { ok: true, kind: 'frenzy', mult: GOLDEN_FRENZY_MULT };
+    }
+    const grams = Math.max(25, Math.round(perClick(s, t) * GOLDEN_BURST_CLICKS));
+    const added = addWeed(s, grams);
+    g.gained = (g.gained || 0) + added;
+    return { ok: true, kind: 'burst', grams: added };
   }
 
   /** Lazily extended cumulative-XP table (index = level; index 1 = 0 XP). */
@@ -1033,7 +1110,8 @@
       lastSeen: 0,
       spikeUntil: 0,
       spikeProduct: null,
-      spikeNextAt: 0
+      spikeNextAt: 0,
+      golden: { nextAt: 0, until: 0, frenzyUntil: 0, clicks: 0, gained: 0 }
     };
   }
 
@@ -1213,6 +1291,7 @@
     pc += ck * 3; // Clic Multi : +3g/clic par niveau (additif borné)
     let total = pc * productionMult(s, now);
     total += perSecond(s, now) * (s.levels.thumb || 0) * 0.05; // +5%/niveau de la prod/s
+    if (isGoldenFrenzy(s, now)) total *= GOLDEN_FRENZY_MULT; // bud doré : clic SEULEMENT
     return Math.round(total);
   }
 
@@ -2307,7 +2386,7 @@
         d.streak.lastDay = typeof d.streak.lastDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.streak.lastDay) ? d.streak.lastDay : null;
         d.streak.count = typeof d.streak.count === 'number' && d.streak.count > 0 ? Math.min(STREAK_MAX_DAYS, Math.floor(d.streak.count)) : 0;
       }
-      // drop removed fields (golden, prestige, onboarding)
+      // drop removed fields (golden passif legacy, prestige, onboarding)
       delete d.goldenUntil;
       delete d.goldenNextAt;
       delete d.prestige;
@@ -2315,6 +2394,14 @@
       delete d.prestigeBonus;
       delete d.lifetimeEarned;
       delete d.onboarding;
+      // bud doré : timings sanitizés comme les spikes (persistés, epoch ≥ 0) —
+      // un spawn/frenzy actif survit au reload ; compteurs entiers capés
+      if (!d.golden || typeof d.golden !== 'object') d.golden = { nextAt: 0, until: 0, frenzyUntil: 0, clicks: 0, gained: 0 };
+      else {
+        for (const k of ['nextAt', 'until', 'frenzyUntil']) d.golden[k] = typeof d.golden[k] === 'number' && d.golden[k] >= 0 ? Math.floor(d.golden[k]) : 0;
+        d.golden.clicks = typeof d.golden.clicks === 'number' && d.golden.clicks > 0 ? Math.min(1e6, Math.floor(d.golden.clicks)) : 0;
+        d.golden.gained = typeof d.golden.gained === 'number' && d.golden.gained > 0 ? Math.min(1e18, Math.floor(d.golden.gained)) : 0;
+      }
       // session : volatiles — forme neuve à chaque chargement (l'UI ouvre la
       // sienne via newSession) ; les compteurs de la save ne sont JAMAIS repris
       d.session = { startedAt: 0, earned: 0, idleEarned: 0, clicks: 0, crits: 0, maxCombo: 0, peakSales: 0, biggestSale: 0 };
@@ -2343,6 +2430,15 @@
     SPIKE_MULT,
     SPIKE_COOLDOWN_MIN,
     SPIKE_COOLDOWN_MAX,
+    GOLDEN_DURATION,
+    GOLDEN_FRENZY_MULT,
+    GOLDEN_FRENZY_MS,
+    GOLDEN_BURST_CLICKS,
+    GOLDEN_CHANCE,
+    isGoldenSpawned,
+    isGoldenFrenzy,
+    maybeTriggerGolden,
+    claimGolden,
     mulberry32,
     addWeed,
     harvestXp,
