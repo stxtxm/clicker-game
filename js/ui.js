@@ -1265,13 +1265,18 @@
     if (el.goldenBud) el.goldenBud.hidden = true;
   }
 
-  /** Tick du bud doré : spawn éventuel, disparition silencieuse à expiration.
-      Jamais de spawn pendant que l'onglet est caché (il expirerait sans être vu). */
+  /** Tick du bud doré : spawn éventuel, réaffichage d'un spawn persisté
+      (reload), disparition silencieuse à expiration. Jamais de spawn pendant
+      que l'onglet est caché (il expirerait sans être vu). */
   function updateGolden(now) {
     if (!el.goldenBud) return;
     if (document.hidden) return;
-    if (Game.maybeTriggerGolden && Game.maybeTriggerGolden(state, now)) showGolden();
-    else if (!el.goldenBud.hidden && !Game.isGoldenSpawned(state, now)) hideGolden();
+    if (Game.isGoldenSpawned(state, now)) {
+      if (el.goldenBud.hidden) showGolden();
+      return;
+    }
+    if (Game.maybeTriggerGolden(state, now)) showGolden();
+    else if (!el.goldenBud.hidden) hideGolden();
   }
 
   function onGoldenClick() {
